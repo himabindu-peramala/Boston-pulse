@@ -36,7 +36,7 @@ Additional real-time data sources include MBTA alerts and weather APIs.
 Clone the repository:
 
 ```bash
-git clone https://github.com/<your-username>/boston-pulse.git
+git clone https://github.com/himabindu-peramala/boston-pulse.git
 cd boston-pulse
 Install required dependencies:
 
