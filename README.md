@@ -25,18 +25,27 @@ Additional real-time data sources include MBTA alerts and weather APIs.
 
 ## Repository Structure
 
-- `data/` – Raw, processed, and feature-engineered datasets  
-- `notebooks/` – Exploratory analysis and prototyping  
-- `src/` – Data ingestion, preprocessing, feature engineering, and modeling code  
-- `config/` – Configuration files and parameters  
-- `app/` – Application and conversational interface  
+The repository is organized as a full-stack machine learning system with clearly separated frontend, backend, data, and infrastructure components.
+
+- `frontend/` – React.js frontend for the Boston Pulse user interface
+- `backend/` – Backend APIs and machine learning logic
+  - `app/` – API entry point and route definitions
+  - `src/` – Data ingestion, preprocessing, feature engineering, and modeling code
+  - `config/` – Configuration files and parameters
+- `data/` – Raw, processed, and feature-engineered datasets
+- `notebooks/` – Exploratory analysis and experimentation
+- `docker/` – Dockerfiles and container orchestration configuration
+- `.github/` – GitHub workflows and repository configuration files
+
+This structure supports modular development, reproducibility, and future deployment.
+  
 
 ## Installation
 
 Clone the repository:
 
 ```bash
-git clone https://github.com/<your-username>/boston-pulse.git
+git clone https://github.com/himabindu-peramala/boston-pulse.git
 cd boston-pulse
 Install required dependencies:
 
