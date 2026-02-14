@@ -11,7 +11,7 @@ repos:
   # GENERAL HOOKS
   # ---------------------------------------------------------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -28,7 +28,7 @@ repos:
   # PYTHON LINTING - Ruff (matches CI: ruff==0.1.9)
   # ---------------------------------------------------------------------------
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.9
+    rev: v0.15.1
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
@@ -38,7 +38,7 @@ repos:
   # PYTHON FORMATTING - Black (matches CI: black==23.12.1)
   # ---------------------------------------------------------------------------
   - repo: https://github.com/psf/black
-    rev: 23.12.1
+    rev: 26.1.0
     hooks:
       - id: black
         files: ^data-pipeline/
@@ -48,7 +48,7 @@ repos:
   # SECRETS DETECTION
   # ---------------------------------------------------------------------------
   - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.4.0
+    rev: v1.5.0
     hooks:
       - id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
