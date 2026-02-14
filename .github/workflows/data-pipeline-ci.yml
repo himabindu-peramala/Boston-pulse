@@ -2,7 +2,7 @@ name: Data Pipeline CI
 
 on:
   push:
-    branches: [dev, main, release/*]
+    branches: [main]
     paths:
       - 'data-pipeline/**'
       - 'docker/**'
