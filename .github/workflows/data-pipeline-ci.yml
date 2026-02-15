@@ -325,4 +325,4 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/data-pipeline
           STORAGE_EMULATOR_HOST: http://localhost:4443
-          BP_ENVIRONMENT: test
+          BP_ENVIRONMENT: dev
