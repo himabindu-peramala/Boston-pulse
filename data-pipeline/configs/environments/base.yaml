@@ -1,0 +1,178 @@
+# =============================================================================
+# BOSTON PULSE - BASE CONFIGURATION
+# =============================================================================
+# Shared defaults for all environments. Environment-specific configs inherit
+# from this file and can override any value.
+#
+# Usage: These values are loaded by src/shared/config.py
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Project Metadata
+# -----------------------------------------------------------------------------
+project:
+  name: "boston-pulse"
+  version: "0.1.0"
+  description: "Urban analytics platform for Boston public safety"
+
+# -----------------------------------------------------------------------------
+# GCS Storage Configuration
+# -----------------------------------------------------------------------------
+storage:
+  # Bucket names (override in env-specific configs)
+  buckets:
+    main: "boston-pulse-data"
+    dvc: "boston-pulse-dvc"
+    temp: "boston-pulse-temp"
+
+  # Data layer paths within main bucket
+  paths:
+    raw: "raw"
+    processed: "processed"
+    features: "features"
+    schemas: "schemas"
+    model_cards: "model_cards"
+
+  # File formats
+  formats:
+    raw: "parquet"
+    processed: "parquet"
+    features: "parquet"
+
+# -----------------------------------------------------------------------------
+# Dataset Defaults
+# -----------------------------------------------------------------------------
+datasets:
+  # Default schedule for batch datasets (daily at 2 AM UTC)
+  default_schedule: "0 2 * * *"
+
+  # Retry configuration
+  retries:
+    max_attempts: 3
+    delay_seconds: 300  # 5 minutes
+    exponential_backoff: true
+
+  # Watermark configuration (for incremental ingestion)
+  watermark:
+    enabled: true
+    lookback_days: 7  # Re-fetch last 7 days by default
+
+# -----------------------------------------------------------------------------
+# Validation Thresholds
+# -----------------------------------------------------------------------------
+validation:
+  # Schema validation
+  schema:
+    strict_mode: true  # Fail on any schema violation
+    allow_extra_columns: false
+
+  # Data quality thresholds
+  quality:
+    max_null_ratio: 0.05  # Max 5% null values per column
+    max_duplicate_ratio: 0.01  # Max 1% duplicate rows
+    min_row_count: 100  # Minimum rows expected
+
+  # Coordinate bounds for Boston
+  geo_bounds:
+    min_lat: 42.2
+    max_lat: 42.4
+    min_lon: -71.2
+    max_lon: -70.9
+
+  # Temporal validation
+  temporal:
+    max_future_days: 1  # Allow 1 day in future (for timezone issues)
+    max_past_years: 10  # Flag data older than 10 years
+
+# -----------------------------------------------------------------------------
+# Drift Detection
+# -----------------------------------------------------------------------------
+drift:
+  # Population Stability Index thresholds
+  psi:
+    warning: 0.1
+    critical: 0.25
+
+  # Reference window for drift comparison
+  reference:
+    window_days: 30
+    min_samples: 1000
+
+# -----------------------------------------------------------------------------
+# Bias Detection / Fairness
+# -----------------------------------------------------------------------------
+fairness:
+  # Default slicing dimensions
+  default_slices:
+    - "neighborhood"
+    - "hour_of_day"
+    - "day_of_week"
+
+  # Statistical parity thresholds
+  thresholds:
+    representation:
+      warning: 0.2  # 20% deviation from expected
+      critical: 0.4  # 40% deviation
+
+    outcome_disparity:
+      warning: 0.15
+      critical: 0.3
+
+# -----------------------------------------------------------------------------
+# Alerting
+# -----------------------------------------------------------------------------
+alerting:
+  # Severity levels
+  levels:
+    - info
+    - warning
+    - critical
+
+  # Default routing (override per environment)
+  routing:
+    info: ["log"]
+    warning: ["log", "slack"]
+    critical: ["log", "slack", "email"]
+
+  # Rate limiting
+  rate_limit:
+    max_alerts_per_hour: 10
+    cooldown_minutes: 15
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+logging:
+  level: "INFO"
+  format: "json"  # json or text
+  include_timestamp: true
+  include_trace_id: true
+
+# -----------------------------------------------------------------------------
+# Feature Store
+# -----------------------------------------------------------------------------
+feature_store:
+  # Firestore collection names
+  collections:
+    crime_features: "crime_features"
+    transit_features: "transit_features"
+    safety_scores: "safety_scores"
+
+  # TTL for cached features
+  ttl_hours: 24
+
+# -----------------------------------------------------------------------------
+# API Configuration
+# -----------------------------------------------------------------------------
+apis:
+  # Boston Open Data Portal (Analyze Boston)
+  analyze_boston:
+    base_url: "https://data.boston.gov/api/3/action"
+    timeout_seconds: 60
+    rate_limit_per_minute: 60
+
+  # MBTA API
+  mbta:
+    base_url: "https://api-v3.mbta.com"
+    timeout_seconds: 30
+    rate_limit_per_minute: 100

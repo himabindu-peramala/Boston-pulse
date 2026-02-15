@@ -1,0 +1,233 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "data-pipeline"
+version = "0.1.0"
+description = "Data pipeline for Boston Pulse urban analytics platform"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [
+    { name = "Boston Pulse Team" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+]
+
+# -----------------------------------------------------------------------------
+# Core Dependencies
+# -----------------------------------------------------------------------------
+dependencies = [
+    # Data Processing
+    "pandas>=1.5,<2.0",
+    "numpy>=1.26.0,<2.0.0",
+    "pyarrow>=10.0.0,<11.0.0",
+
+    # Configuration & Validation
+    "pydantic>=2.5.0,<3.0.0",
+    "pydantic-settings>=2.1.0,<3.0.0",
+    "pyyaml>=6.0.1,<7.0.0",
+
+    # HTTP & APIs
+    "requests>=2.31.0,<3.0.0",
+    "httpx>=0.25.0,<1.0.0",
+    "tenacity>=8.2.0,<9.0.0",  # Retry logic
+
+    # Google Cloud
+    "google-cloud-storage>=2.14.0,<3.0.0",
+    "google-cloud-bigquery>=3.14.0,<4.0.0",
+    "google-cloud-pubsub>=2.19.0,<3.0.0",
+    "google-cloud-firestore>=2.14.0,<3.0.0",
+
+    # Data Validation
+    "great-expectations>=0.18.0,<1.0.0",
+    "tensorflow-data-validation>=1.14.0,<2.0.0",
+
+    # Geospatial
+    "geopandas>=0.14.0,<1.0.0",
+    "shapely>=2.0.0,<3.0.0",
+
+    # Airflow (for local development - Cloud Composer provides in prod)
+    "apache-airflow>=2.7.0,<3.0.0",
+    "apache-airflow-providers-google>=10.12.0,<11.0.0",
+
+    # Utilities
+    "python-dotenv>=1.0.0,<2.0.0",
+    "structlog>=23.2.0,<24.0.0",  # Structured logging
+    "rich>=13.7.0,<14.0.0",  # Rich console output
+]
+
+# -----------------------------------------------------------------------------
+# Optional Dependencies
+# -----------------------------------------------------------------------------
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.4.0,<8.0.0",
+    "pytest-cov>=4.1.0,<5.0.0",
+    "pytest-asyncio>=0.21.0,<1.0.0",
+    "pytest-mock>=3.12.0,<4.0.0",
+    "pytest-timeout>=2.2.0,<3.0.0",
+    "hypothesis>=6.92.0,<7.0.0",  # Property-based testing
+    "faker>=22.0.0,<23.0.0",  # Test data generation
+
+    # Linting & Formatting
+    "ruff>=0.1.9,<1.0.0",
+    "black>=23.12.1,<24.0.0",
+    "mypy>=1.8.0,<2.0.0",
+
+    # Type stubs
+    "types-requests>=2.31.0",
+    "types-PyYAML>=6.0.0",
+    "pandas-stubs>=2.1.0",
+
+    # Development utilities
+    "ipython>=8.19.0,<9.0.0",
+    "pre-commit>=3.6.0,<4.0.0",
+]
+
+streaming = [
+    # Apache Beam for MBTA streaming
+    "apache-beam[gcp]>=2.52.0,<3.0.0",
+]
+
+# -----------------------------------------------------------------------------
+# Package Discovery
+# -----------------------------------------------------------------------------
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "dags*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.json"]
+
+# -----------------------------------------------------------------------------
+# Ruff Configuration (Linting)
+# -----------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by black)
+    "B008",   # do not perform function calls in argument defaults
+    "B904",   # raise without from inside except
+    "ARG001", # unused function argument (common in base classes)
+]
+
+[tool.ruff.per-file-ignores]
+"tests/**/*.py" = ["ARG001", "S101"]  # Allow assert and unused args in tests
+"dags/**/*.py" = ["ARG001"]  # Airflow callbacks often have unused args
+
+[tool.ruff.isort]
+known-first-party = ["src"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+# -----------------------------------------------------------------------------
+# Black Configuration (Formatting)
+# -----------------------------------------------------------------------------
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.mypy_cache
+    | \.ruff_cache
+    | \.venv
+    | venv
+    | build
+    | dist
+    | airflow_home
+)/
+'''
+
+# -----------------------------------------------------------------------------
+# MyPy Configuration (Type Checking)
+# -----------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+strict_optional = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "airflow.*",
+    "tensorflow_data_validation.*",
+    "great_expectations.*",
+    "apache_beam.*",
+]
+ignore_missing_imports = true
+
+# -----------------------------------------------------------------------------
+# Pytest Configuration
+# -----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "-q",
+    "--strict-markers",
+    "--tb=short",
+]
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (may require external services)",
+    "slow: Slow tests (skip with -m 'not slow')",
+    "schema: Schema validation tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# -----------------------------------------------------------------------------
+# Coverage Configuration
+# -----------------------------------------------------------------------------
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/conftest.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+fail_under = 80
+show_missing = true
