@@ -1,0 +1,52 @@
+================================================================================
+BIAS DETECTION REPORT - BOSTON CRIME DATA
+================================================================================
+
+1. GEOGRAPHIC BIAS ANALYSIS
+--------------------------------------------------------------------------------
+Average crimes per district: 16195
+
+Overrepresented Districts (>2x average):
+  - D4
+
+Underrepresented Districts (<0.5x average):
+  - A15
+  - UNKNOWN
+  - EXTERNAL
+  - OUTSIDE OF
+
+Top 5 Districts by Crime Count:
+  D4: 35215 (14.50%)
+  B2: 32357 (13.32%)
+  C11: 28688 (11.81%)
+  A1: 28570 (11.76%)
+  B3: 24522 (10.09%)
+
+2. TEMPORAL BIAS ANALYSIS
+--------------------------------------------------------------------------------
+Expected distribution per time period: 25.0%
+
+Crime Distribution by Time of Day:
+  Afternoon: 83344 (34.31%) [✓ Normal]
+  Morning: 68824 (28.33%) [✓ Normal]
+  Evening: 47965 (19.75%) [✓ Normal]
+  Night: 42788 (17.61%) [✓ Normal]
+
+3. SEVERITY BIAS ANALYSIS
+--------------------------------------------------------------------------------
+Overall Severity Distribution:
+  Minor: 119487 (49.19%)
+  Moderate: 67489 (27.78%)
+  Serious: 55945 (23.03%)
+
+Districts with Unusual Severity Patterns:
+  OUTSIDE OF: 100.0% serious crimes (deviation: 77.0%)
+
+4. BIAS MITIGATION RECOMMENDATIONS
+--------------------------------------------------------------------------------
+1. Improve coordinate collection in districts with high invalid rates
+2. Geographic Bias: Normalize crime scores by population density to avoid unfairly flagging high-density districts
+
+================================================================================
+END OF BIAS DETECTION REPORT
+================================================================================
