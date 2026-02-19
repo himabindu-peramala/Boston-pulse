@@ -13,7 +13,20 @@ Components:
     - PagerDutyNotifier: PagerDuty integration for critical alerts
 """
 
-# Components will be implemented in Phase 2
-# from src.alerting.alert_manager import AlertManager
+from src.alerting.alert_manager import (
+    Alert,
+    AlertChannel,
+    AlertManager,
+    AlertSeverity,
+    send_alert,
+)
 
-# __all__ = ["AlertManager"]
+__version__ = "0.1.0"
+
+__all__ = [
+    "AlertManager",
+    "Alert",
+    "AlertSeverity",
+    "AlertChannel",
+    "send_alert",
+]

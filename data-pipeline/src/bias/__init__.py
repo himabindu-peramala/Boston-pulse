@@ -15,9 +15,35 @@ Components:
     - ModelCardGenerator: Markdown + JSON model cards
 """
 
-# Components will be implemented in Phase 2
-# from src.bias.data_slicer import DataSlicer
-# from src.bias.fairness_checker import FairnessChecker
-# from src.bias.model_card_generator import ModelCardGenerator
+from src.bias.data_slicer import DataSlice, DataSlicer, slice_data
+from src.bias.fairness_checker import (
+    FairnessChecker,
+    FairnessResult,
+    FairnessSeverity,
+    FairnessViolationError,
+    check_fairness,
+)
+from src.bias.model_card_generator import (
+    ModelCard,
+    ModelCardGenerator,
+    create_model_card,
+)
 
-# __all__ = ["DataSlicer", "FairnessChecker", "ModelCardGenerator"]
+__version__ = "0.1.0"
+
+__all__ = [
+    # Data Slicer
+    "DataSlicer",
+    "DataSlice",
+    "slice_data",
+    # Fairness Checker
+    "FairnessChecker",
+    "FairnessResult",
+    "FairnessSeverity",
+    "FairnessViolationError",
+    "check_fairness",
+    # Model Card Generator
+    "ModelCardGenerator",
+    "ModelCard",
+    "create_model_card",
+]
