@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -215,7 +215,7 @@ class StatisticsGenerator:
         data_stats = DataStatistics(
             dataset=dataset,
             layer=layer,
-            date=datetime.utcnow(),
+            date=datetime.now(UTC),
             num_examples=len(df),
             num_features=len(df.columns),
             feature_statistics=feature_statistics,

@@ -18,7 +18,10 @@
 version: '3.8'
 
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.7.3-python3.11
+  build:
+    context: ..
+    dockerfile: docker/airflow.Dockerfile
+
   environment: &airflow-common-env
     # Airflow Core
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -45,9 +48,13 @@ x-airflow-common: &airflow-common
     # Logging
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
 
-    # Boston Pulse specific
+    # Boston Pulse — GCP config
     BP_ENVIRONMENT: dev
-    PYTHONPATH: /opt/airflow/data-pipeline
+    PYTHONPATH: /opt/airflow:/opt/airflow/data-pipeline
+    GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/secrets/gcp-key.json
+    GCP_PROJECT_ID: bostonpulse
+    GCP_BUCKET_NAME: boston-pulse-data-pipeline
+    GCP_REGION: us-central1
 
   volumes:
     # Mount DAGs
@@ -58,6 +65,11 @@ x-airflow-common: &airflow-common
     - ../data-pipeline/configs:/opt/airflow/data-pipeline/configs:ro
     # Mount schemas
     - ../data-pipeline/schemas:/opt/airflow/data-pipeline/schemas:ro
+    # Mount GCP service account key  ← NEW
+    - ../secrets/gcp-key.json:/opt/airflow/secrets/gcp-key.json:ro
+    # Installation file
+    - ../data-pipeline/pyproject.toml:/opt/airflow/data-pipeline/pyproject.toml:ro
+
     # Logs
     - airflow-logs:/opt/airflow/logs
 
@@ -117,6 +129,9 @@ services:
     command:
       - -c
       - |
+        echo "Installing from pyproject.toml..."
+        pip install --no-cache-dir -e /opt/airflow/data-pipeline
+
         # Wait for postgres
         echo "Waiting for PostgreSQL..."
         while ! pg_isready -h postgres -U airflow; do

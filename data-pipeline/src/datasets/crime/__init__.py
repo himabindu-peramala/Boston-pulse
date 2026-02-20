@@ -11,11 +11,36 @@ Components:
 Data Source:
     Boston Police Department Crime Incident Reports
     https://data.boston.gov/dataset/crime-incident-reports
+
+Usage:
+    from src.datasets.crime import CrimeIngester, CrimePreprocessor, CrimeFeatureBuilder
+
+    # Ingest
+    ingester = CrimeIngester()
+    result = ingester.run(execution_date="2024-01-15")
+    raw_df = ingester.get_data()
+
+    # Preprocess
+    preprocessor = CrimePreprocessor()
+    result = preprocessor.run(raw_df, execution_date="2024-01-15")
+    processed_df = preprocessor.get_data()
+
+    # Build features
+    builder = CrimeFeatureBuilder()
+    result = builder.run(processed_df, execution_date="2024-01-15")
+    features_df = builder.get_data()
 """
 
-# Components will be implemented in Phase 3
-# from src.datasets.crime.ingest import CrimeIngester
-# from src.datasets.crime.preprocess import CrimePreprocessor
-# from src.datasets.crime.features import CrimeFeatureBuilder
+from src.datasets.crime.features import CrimeFeatureBuilder, build_crime_features
+from src.datasets.crime.ingest import CrimeIngester, get_crime_sample, ingest_crime_data
+from src.datasets.crime.preprocess import CrimePreprocessor, preprocess_crime_data
 
-# __all__ = ["CrimeIngester", "CrimePreprocessor", "CrimeFeatureBuilder"]
+__all__ = [
+    "CrimeIngester",
+    "CrimePreprocessor",
+    "CrimeFeatureBuilder",
+    "ingest_crime_data",
+    "preprocess_crime_data",
+    "build_crime_features",
+    "get_crime_sample",
+]

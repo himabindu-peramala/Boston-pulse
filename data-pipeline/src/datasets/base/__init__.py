@@ -15,9 +15,20 @@ Usage:
             ...
 """
 
-# Base classes will be implemented in Phase 2
-# from src.datasets.base.ingester import BaseIngester
-# from src.datasets.base.preprocessor import BasePreprocessor
-# from src.datasets.base.feature_builder import BaseFeatureBuilder
+from src.datasets.base.feature_builder import (
+    BaseFeatureBuilder,
+    FeatureBuildResult,
+    FeatureDefinition,
+)
+from src.datasets.base.ingester import BaseIngester, IngestionResult
+from src.datasets.base.preprocessor import BasePreprocessor, PreprocessingResult
 
-# __all__ = ["BaseIngester", "BasePreprocessor", "BaseFeatureBuilder"]
+__all__ = [
+    "BaseIngester",
+    "IngestionResult",
+    "BasePreprocessor",
+    "PreprocessingResult",
+    "BaseFeatureBuilder",
+    "FeatureBuildResult",
+    "FeatureDefinition",
+]

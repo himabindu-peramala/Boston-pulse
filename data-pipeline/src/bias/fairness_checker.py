@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -168,7 +168,7 @@ class FairnessChecker:
 
         result = FairnessResult(
             dataset=dataset,
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(UTC),
             slices_evaluated=0,
             fairness_gate_enabled=self.gate_enabled,
         )

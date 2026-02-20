@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
@@ -155,7 +155,7 @@ class AnomalyDetector:
 
         result = AnomalyResult(
             dataset=dataset,
-            detected_at=datetime.utcnow(),
+            detected_at=datetime.now(UTC),
             row_count=len(df),
         )
 
@@ -388,7 +388,7 @@ class AnomalyDetector:
                 continue
 
             # Check for future dates
-            now = datetime.utcnow()
+            now = datetime.now(UTC)
             max_future = now + timedelta(days=self.config.validation.temporal.max_future_days)
             future_dates = (col_data > max_future).sum()
 

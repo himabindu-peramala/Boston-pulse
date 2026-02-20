@@ -4,7 +4,7 @@ Tests for Model Card Generator
 Tests model card generation in Markdown and JSON formats.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -93,7 +93,7 @@ def test_generate_model_card_with_fairness(mock_gcs_client, sample_data):
 
     fairness_result = FairnessResult(
         dataset="test",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(UTC),
         slices_evaluated=3,
     )
 

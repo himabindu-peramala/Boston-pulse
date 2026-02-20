@@ -5,7 +5,7 @@ Tests GCS-backed schema storage with versioning.
 """
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -113,7 +113,7 @@ def test_validate_dataframe_success(mock_gcs_client, sample_dataframe):
             "dataset": "crime",
             "layer": "raw",
             "version": "v1",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "created_by": "test",
             "num_columns": 4,
         },

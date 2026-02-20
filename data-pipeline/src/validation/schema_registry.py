@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -129,7 +129,7 @@ class SchemaRegistry:
             dataset=dataset,
             layer=layer,
             version=version,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
             created_by=created_by,
             description=description,
             num_columns=len(schema),
@@ -366,7 +366,7 @@ class SchemaRegistry:
 
     def _generate_version(self) -> str:
         """Generate a version string based on timestamp."""
-        return datetime.utcnow().strftime("v%Y%m%d_%H%M%S")
+        return datetime.now(UTC).strftime("v%Y%m%d_%H%M%S")
 
     def _upload_json(self, path: str, data: dict[str, Any]) -> None:
         """Upload JSON data to GCS."""

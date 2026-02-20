@@ -13,13 +13,13 @@ _inherit: base
 # -----------------------------------------------------------------------------
 storage:
   buckets:
-    main: "boston-pulse-data-dev"
-    dvc: "boston-pulse-dvc-dev"
-    temp: "boston-pulse-temp-dev"
+    main: "boston-pulse-data-pipeline"
+    dvc: "boston-pulse-dvc-pipeline"
+    temp: "boston-pulse-temp-pipeline"
 
   # For local development with fake-gcs-server
   emulator:
-    enabled: true
+    enabled: false
     host: "http://localhost:4443"
 
 # -----------------------------------------------------------------------------

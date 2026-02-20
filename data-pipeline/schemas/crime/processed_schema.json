@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Boston Crime Processed Data Schema",
+  "description": "Schema for processed and validated crime incident data",
+  "type": "object",
+  "properties": {
+    "incident_number": {
+      "type": "string",
+      "description": "Unique identifier for each crime incident",
+      "primary_key": true
+    },
+    "offense_code": {
+      "type": ["integer", "null"],
+      "description": "Numeric offense code"
+    },
+    "offense_category": {
+      "type": "string",
+      "description": "Standardized category of the offense"
+    },
+    "offense_description": {
+      "type": ["string", "null"],
+      "description": "Detailed description of the offense"
+    },
+    "district": {
+      "type": "string",
+      "description": "Police district code (standardized, uppercase)"
+    },
+    "reporting_area": {
+      "type": ["string", "null"],
+      "description": "Reporting area code"
+    },
+    "shooting": {
+      "type": "boolean",
+      "description": "Whether shooting was involved"
+    },
+    "occurred_on_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date and time when incident occurred",
+      "watermark_field": true
+    },
+    "year": {
+      "type": "integer",
+      "description": "Year of incident",
+      "minimum": 2010,
+      "maximum": 2030
+    },
+    "month": {
+      "type": "integer",
+      "description": "Month of incident",
+      "minimum": 1,
+      "maximum": 12
+    },
+    "day_of_week": {
+      "type": "string",
+      "description": "Day of week when incident occurred",
+      "enum": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    },
+    "hour": {
+      "type": "integer",
+      "description": "Hour of incident",
+      "minimum": 0,
+      "maximum": 23
+    },
+    "ucr_part": {
+      "type": ["string", "null"],
+      "description": "UCR classification part"
+    },
+    "street": {
+      "type": ["string", "null"],
+      "description": "Street name where incident occurred"
+    },
+    "lat": {
+      "type": ["number", "null"],
+      "description": "Latitude coordinate (Boston area)",
+      "minimum": 42.2,
+      "maximum": 42.4
+    },
+    "long": {
+      "type": ["number", "null"],
+      "description": "Longitude coordinate (Boston area)",
+      "minimum": -71.2,
+      "maximum": -70.9
+    }
+  },
+  "required": [
+    "incident_number",
+    "offense_category",
+    "occurred_on_date",
+    "district",
+    "year",
+    "month",
+    "hour"
+  ],
+  "additionalProperties": false,
+  "metadata": {
+    "dataset": "crime",
+    "stage": "processed",
+    "version": "1.0.0",
+    "validations": {
+      "geo_bounds": {
+        "min_lat": 42.2,
+        "max_lat": 42.4,
+        "min_lon": -71.2,
+        "max_lon": -70.9
+      },
+      "temporal_bounds": {
+        "max_future_days": 1,
+        "max_past_years": 10
+      }
+    }
+  }
+}

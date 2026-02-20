@@ -4,7 +4,7 @@ Tests for Anomaly Detector
 Tests anomaly detection for various data quality issues.
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -119,8 +119,8 @@ def test_detect_temporal_anomalies():
     detector = AnomalyDetector(config)
 
     # DataFrame with future dates
-    future_dates = [datetime.utcnow() + timedelta(days=30)] * 50
-    past_dates = [datetime.utcnow() - timedelta(days=30)] * 50
+    future_dates = [datetime.now(UTC) + timedelta(days=30)] * 50
+    past_dates = [datetime.now(UTC) - timedelta(days=30)] * 50
     df = pd.DataFrame(
         {
             "id": range(100),

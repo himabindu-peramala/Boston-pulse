@@ -33,7 +33,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -303,7 +303,7 @@ class AlertManager:
         # Generate alert key for deduplication
         alert_key = f"{alert.severity}:{alert.title}:{alert.dataset}"
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         # Check if we have history for this alert
         if alert_key in self._alert_history:
@@ -326,7 +326,7 @@ class AlertManager:
     def _record_alert(self, alert: Alert) -> None:
         """Record alert in history for rate limiting."""
         alert_key = f"{alert.severity}:{alert.title}:{alert.dataset}"
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         if alert_key in self._alert_history:
             history = self._alert_history[alert_key]
@@ -504,6 +504,7 @@ def send_alert(
     severity: Literal["info", "warning", "critical"] = "info",
     dataset: str | None = None,
     config: Settings | None = None,
+    **kwargs,
 ) -> bool:
     """
     Convenience function to send an alert.
@@ -514,7 +515,7 @@ def send_alert(
         severity: Severity level
         dataset: Associated dataset
         config: Configuration object
-
+        kwargs: any additional arguments
     Returns:
         True if sent successfully
     """

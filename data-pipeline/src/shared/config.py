@@ -381,6 +381,33 @@ def _load_config_for_environment(environment: str) -> dict[str, Any]:
     return merged
 
 
+def get_dataset_config(dataset: str) -> dict:
+    """
+    Load dataset-specific configuration from YAML file.
+
+    Args:
+        dataset: Dataset name (e.g., 'crime', 'fire', 'mbta')
+
+    Returns:
+        Dictionary with dataset configuration
+
+    Raises:
+        FileNotFoundError: If dataset config file doesn't exist
+    """
+    # Get path relative to this file
+    config_dir = Path(__file__).parent.parent.parent / "configs" / "datasets"
+    config_file = config_dir / f"{dataset}.yaml"
+
+    if not config_file.exists():
+        raise FileNotFoundError(
+            f"Dataset config not found: {config_file}\n"
+            f"Available configs: {list(config_dir.glob('*.yaml'))}"
+        )
+
+    with open(config_file) as f:
+        return yaml.safe_load(f)
+
+
 @lru_cache(maxsize=4)
 def get_config(environment: str | None = None) -> Settings:
     """

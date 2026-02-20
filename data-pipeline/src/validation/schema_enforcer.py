@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from pathlib import Path
 
 import pandas as pd
 
@@ -154,6 +155,9 @@ class SchemaEnforcer:
             column_count=len(df.columns),
         )
 
+        # 0. Auto-register schema if it doesn't exist yet
+        self._ensure_schema_registered(dataset, "raw")
+
         # 1. Schema validation
         is_valid, schema_errors = self.registry.validate_dataframe(df, dataset, "raw", version)
         if not is_valid:
@@ -260,6 +264,9 @@ class SchemaEnforcer:
             column_count=len(df.columns),
         )
 
+        # 0. Ensure schema exists
+        self._ensure_schema_registered(dataset, "processed")
+
         # 1. Schema validation
         is_valid, schema_errors = self.registry.validate_dataframe(
             df, dataset, "processed", version
@@ -338,6 +345,9 @@ class SchemaEnforcer:
             column_count=len(df.columns),
         )
 
+        # 0. Ensure schema exists
+        self._ensure_schema_registered(dataset, "features")
+
         # 1. Schema validation
         is_valid, schema_errors = self.registry.validate_dataframe(df, dataset, "features", version)
         if not is_valid:
@@ -399,6 +409,62 @@ class SchemaEnforcer:
     # =========================================================================
     # Private Validation Methods
     # =========================================================================
+
+    def _ensure_schema_registered(self, dataset: str, stage: str) -> None:
+        """
+        Check if schema exists in GCS.
+        If not, register it from the local schema file.
+
+        This handles first-time setup automatically — no separate
+        script needed when running the pipeline for the first time.
+        """
+        # Already exists — nothing to do
+        if self.registry.schema_exists(dataset, stage):
+            return
+
+        logger.info(f"Schema not found in GCS for {dataset}/{stage} — registering from local file")
+
+        # Find the local schema file
+        schema_file = (
+            Path(__file__).parent.parent.parent  # data-pipeline/
+            / "schemas"
+            / dataset
+            / f"{stage}_schema.json"
+        )
+
+        if not schema_file.exists():
+            raise FileNotFoundError(
+                f"No local schema file found at {schema_file}. "
+                f"Create schemas/{dataset}/{stage}_schema.json first."
+            )
+
+        # Load and register
+        import json
+
+        schema_data = json.loads(schema_file.read_text())
+
+        version = schema_data.get("metadata", {}).get("version", "v1.0.0")
+
+        schema_properties = schema_data.get("properties", schema_data)
+
+        self.registry.register_schema(
+            dataset=dataset,
+            layer=stage,
+            schema=schema_properties,
+            version=version,
+            description=schema_data.get("description", f"{dataset} {stage} schema"),
+            created_by="auto-registered",
+            primary_key=self._extract_primary_key(schema_data),
+        )
+
+        logger.info(f"Auto-registered schema for {dataset}/{stage} as {version}")
+
+    def _extract_primary_key(self, schema_data: dict) -> str | None:
+        """Pull primary key from schema properties."""
+        for col, spec in schema_data.get("properties", {}).items():
+            if spec.get("primary_key"):
+                return col
+        return None
 
     def _validate_geographic_bounds(self, df: pd.DataFrame, result: ValidationResult) -> None:
         """Validate geographic coordinates are within Boston bounds."""
@@ -470,7 +536,7 @@ class SchemaEnforcer:
                 continue
 
             # Check for future dates
-            max_future = datetime.utcnow() + timedelta(
+            max_future = datetime.now(UTC) + timedelta(
                 days=self.config.validation.temporal.max_future_days
             )
             future_dates = df[date_col] > max_future
@@ -488,7 +554,7 @@ class SchemaEnforcer:
                 )
 
             # Check for very old dates
-            min_past = datetime.utcnow() - timedelta(
+            min_past = datetime.now(UTC) - timedelta(
                 days=self.config.validation.temporal.max_past_years * 365
             )
             old_dates = (df[date_col] < min_past) & df[date_col].notna()

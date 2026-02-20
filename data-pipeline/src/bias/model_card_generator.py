@@ -32,7 +32,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -154,7 +154,7 @@ class ModelCardGenerator:
 
         # Generate version if not provided
         if version is None:
-            version = datetime.utcnow().strftime("v%Y%m%d_%H%M%S")
+            version = datetime.now(UTC).strftime("v%Y%m%d_%H%M%S")
 
         # Extract time range if datetime columns exist
         time_range = self._extract_time_range(df)
@@ -163,7 +163,7 @@ class ModelCardGenerator:
         card = ModelCard(
             dataset_name=dataset,
             version=version,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
             created_by=created_by,
             description=description,
             row_count=len(df),
@@ -274,56 +274,46 @@ class ModelCardGenerator:
             "max": max_date.isoformat() if pd.notna(max_date) else None,
         }
 
-    def _create_validation_summary(self, result: ValidationResult) -> dict[str, Any]:
-        """Create summary of validation results."""
+    def _create_validation_summary(self, result: dict) -> dict[str, Any]:
+        """Create validation summary from XCom dict."""
         return {
-            "stage": result.stage.value,
-            "is_valid": result.is_valid,
-            "error_count": len(result.errors),
-            "warning_count": len(result.warnings),
-            "errors": result.errors[:5],  # First 5 errors
-            "warnings": result.warnings[:5],  # First 5 warnings
+            "stage": result.get("stage", "unknown"),
+            "is_valid": result.get("is_valid", False),
+            "error_count": result.get("error_count", 0),
+            "warning_count": result.get("warning_count", 0),
+            "errors": result.get("errors", []),
+            "warnings": result.get("warnings", []),
         }
 
-    def _create_fairness_summary(self, result: FairnessResult) -> dict[str, Any]:
-        """Create summary of fairness results."""
+    def _create_fairness_summary(self, result: dict) -> dict[str, Any]:
+        """Create fairness summary from XCom dict."""
         return {
-            "slices_evaluated": result.slices_evaluated,
-            "violation_count": len(result.violations),
-            "critical_count": len(result.critical_violations),
-            "warning_count": len(result.warning_violations),
-            "passes_gate": result.passes_fairness_gate,
-            "critical_violations": [
-                {
-                    "metric": v.metric.value,
-                    "dimension": v.dimension,
-                    "slice_value": str(v.slice_value),
-                    "message": v.message,
-                }
-                for v in result.critical_violations[:5]  # First 5
-            ],
+            "slices_evaluated": result.get("slices_evaluated", 0),
+            "violation_count": result.get("violation_count", 0),
+            "critical_count": result.get("critical_count", 0),
+            "warning_count": result.get("warning_count", 0),
+            "passes_gate": result.get("passes_fairness_gate", True),
+            "critical_violations": result.get("violations", [])[:5],
         }
 
-    def _create_drift_summary(self, result: DriftResult) -> dict[str, Any]:
-        """Create summary of drift detection results."""
+    def _create_drift_summary(self, result: dict) -> dict[str, Any]:
+        """Create drift summary from XCom dict."""
         return {
-            "features_analyzed": result.features_analyzed,
-            "features_with_drift": len(result.features_with_drift),
-            "warning_count": len(result.warning_features),
-            "critical_count": len(result.critical_features),
-            "critical_features": result.critical_features[:10],  # First 10
-            "warning_features": result.warning_features[:10],
+            "features_analyzed": result.get("features_analyzed", 0),
+            "features_with_drift": len(result.get("drifted_features", [])),
+            "warning_count": result.get("warning_count", 0),
+            "critical_count": result.get("critical_count", 0),
+            "critical_features": result.get("drifted_features", [])[:10],
+            "warning_features": result.get("warning_features", [])[:10],
         }
 
-    def _create_anomaly_summary(self, result: AnomalyResult) -> dict[str, Any]:
-        """Create summary of anomaly detection results."""
+    def _create_anomaly_summary(self, result: dict) -> dict[str, Any]:
+        """Create anomaly summary from XCom dict."""
         return {
-            "total_anomalies": len(result.anomalies),
-            "critical_count": len(result.critical_anomalies),
-            "warning_count": len(result.warning_anomalies),
-            "anomalies_by_type": {
-                atype.value: len(anomalies) for atype, anomalies in result.anomalies_by_type.items()
-            },
+            "total_anomalies": result.get("anomaly_count", 0),
+            "critical_count": result.get("critical_count", 0),
+            "warning_count": result.get("warning_count", 0),
+            "anomalies_by_type": result.get("anomalies_by_type", {}),
         }
 
     def _generate_markdown(self, card: ModelCard) -> str:

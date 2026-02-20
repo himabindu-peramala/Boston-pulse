@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -151,8 +151,8 @@ class DriftDetector:
 
         drift_result = DriftResult(
             dataset=dataset,
-            reference_date=datetime.utcnow(),  # Would be loaded from metadata
-            current_date=datetime.utcnow(),
+            reference_date=datetime.now(UTC),  # Would be loaded from metadata
+            current_date=datetime.now(UTC),
             features_analyzed=0,
         )
 
@@ -249,8 +249,8 @@ class DriftDetector:
 
         drift_result = DriftResult(
             dataset=dataset,
-            reference_date=datetime.utcnow(),
-            current_date=datetime.utcnow(),
+            reference_date=datetime.now(UTC),
+            current_date=datetime.now(UTC),
             features_analyzed=len(current_df.columns),
         )
 
@@ -316,75 +316,6 @@ class DriftDetector:
             return DriftSeverity.WARNING
 
         return DriftSeverity.NONE
-
-    def detect_drift_from_statistics(
-        self,
-        current_stats_path: str,
-        reference_stats_path: str,
-        dataset: str,
-    ) -> DriftResult:
-        """
-        Detect drift from pre-computed statistics.
-
-        This is more efficient than comparing raw DataFrames,
-        especially for large datasets.
-
-        Args:
-            current_stats_path: Path to current statistics
-            reference_stats_path: Path to reference statistics
-            dataset: Dataset name
-
-        Returns:
-            DriftResult
-        """
-        # Load statistics from GCS
-        current_stats = self.stats_generator.load_statistics(
-            dataset, "raw"  # Will parse from path in real implementation
-        )
-        reference_stats = self.stats_generator.load_statistics(dataset, "raw")
-
-        drift_result = DriftResult(
-            dataset=dataset,
-            reference_date=reference_stats.date,
-            current_date=current_stats.date,
-            features_analyzed=len(current_stats.feature_statistics),
-        )
-
-        # Compare feature statistics
-        current_features = {f.name: f for f in current_stats.feature_statistics}
-        reference_features = {f.name: f for f in reference_stats.feature_statistics}
-
-        common_features = set(current_features.keys()) & set(reference_features.keys())
-
-        for feat_name in common_features:
-            curr = current_features[feat_name]
-            ref = reference_features[feat_name]
-
-            # Calculate PSI-like metric from statistics
-            psi = self._calculate_psi_from_stats(curr, ref)
-            severity = self._get_severity(psi)
-
-            if severity != DriftSeverity.NONE:
-                drift_result.features_with_drift.append(
-                    FeatureDrift(
-                        feature_name=feat_name,
-                        psi=psi,
-                        severity=severity,
-                        reference_stats={
-                            "mean": ref.mean,
-                            "std": ref.std,
-                            "num_unique": ref.num_unique,
-                        },
-                        current_stats={
-                            "mean": curr.mean,
-                            "std": curr.std,
-                            "num_unique": curr.num_unique,
-                        },
-                        drift_type="numerical" if curr.mean is not None else "categorical",
-                    )
-                )
-
-        return drift_result
 
     def _calculate_psi_from_stats(self, current: Any, reference: Any) -> float:
         """Calculate PSI-like metric from pre-computed statistics."""
