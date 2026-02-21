@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Boston Crime Raw Data Schema",
+  "description": "Schema for raw crime incident data from Analyze Boston API",
+  "type": "object",
+  "properties": {
+    "INCIDENT_NUMBER": {
+      "type": "string",
+      "description": "Unique identifier for each crime incident",
+      "primary_key": true
+    },
+    "OFFENSE_CODE": {
+      "type": ["integer", "string", "null"],
+      "description": "Numeric offense code"
+    },
+    "OFFENSE_CODE_GROUP": {
+      "type": ["string", "null"],
+      "description": "Category/group of the offense"
+    },
+    "OFFENSE_DESCRIPTION": {
+      "type": ["string", "null"],
+      "description": "Detailed description of the offense"
+    },
+    "DISTRICT": {
+      "type": ["string", "null"],
+      "description": "Police district code"
+    },
+    "REPORTING_AREA": {
+      "type": ["string", "null"],
+      "description": "Reporting area code"
+    },
+    "SHOOTING": {
+      "type": ["string", "integer", "boolean", "null"],
+      "description": "Indicates if shooting involved (Y/N or 1/0)"
+    },
+    "OCCURRED_ON_DATE": {
+      "type": ["string", "null"],
+      "description": "Date and time when incident occurred",
+      "format": "date-time",
+      "watermark_field": true
+    },
+    "YEAR": {
+      "type": ["integer", "null"],
+      "description": "Year of incident"
+    },
+    "MONTH": {
+      "type": ["integer", "null"],
+      "description": "Month of incident (1-12)"
+    },
+    "DAY_OF_WEEK": {
+      "type": ["string", "null"],
+      "description": "Day of week when incident occurred"
+    },
+    "HOUR": {
+      "type": ["integer", "null"],
+      "description": "Hour of incident (0-23)"
+    },
+    "UCR_PART": {
+      "type": ["string", "null"],
+      "description": "UCR classification part"
+    },
+    "STREET": {
+      "type": ["string", "null"],
+      "description": "Street name where incident occurred"
+    },
+    "Lat": {
+      "type": ["number", "string", "null"],
+      "description": "Latitude coordinate"
+    },
+    "Long": {
+      "type": ["number", "string", "null"],
+      "description": "Longitude coordinate"
+    },
+    "Location": {
+      "type": ["string", "null"],
+      "description": "Combined location string"
+    }
+  },
+  "required": ["INCIDENT_NUMBER"],
+  "additionalProperties": true,
+  "metadata": {
+    "dataset": "crime",
+    "stage": "raw",
+    "source": "Analyze Boston API",
+    "resource_id": "12cb3883-56f5-47de-afa5-3b1cf61b257b",
+    "version": "1.0.0"
+  }
+}

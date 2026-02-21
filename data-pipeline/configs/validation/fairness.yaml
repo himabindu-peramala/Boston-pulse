@@ -1,0 +1,246 @@
+# =============================================================================
+# BOSTON PULSE - FAIRNESS & BIAS DETECTION CONFIGURATION
+# =============================================================================
+# Bias detection and fairness thresholds for all datasets.
+# These values are used by src/bias/fairness_checker.py
+#
+# IMPORTANT: Boston Pulse deals with public safety data. Bias in this data
+# can perpetuate systemic inequities. These checks are CRITICAL.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global Fairness Configuration
+# -----------------------------------------------------------------------------
+global:
+  # Enable/disable fairness checks
+  enabled: true
+
+  # Fairness gate - blocks pipeline on violations
+  gate:
+    enabled: true
+    fail_on_critical: true
+    warn_on_warning: true
+
+  # Minimum sample size for statistical validity
+  min_samples_per_slice: 30
+
+  # Statistical significance
+  significance_level: 0.05  # p-value threshold
+
+# -----------------------------------------------------------------------------
+# Slicing Dimensions
+# -----------------------------------------------------------------------------
+slicing:
+  # Default dimensions to slice by
+  default_dimensions:
+    - neighborhood
+    - zip_code
+    - police_district
+    - hour_of_day
+    - day_of_week
+
+  # Geographic slicing
+  geographic:
+    type: "neighborhood"  # neighborhood | zip_code | census_tract
+    source: "boston_neighborhoods.geojson"
+
+  # Temporal slicing
+  temporal:
+    hour_buckets: [0, 6, 12, 18, 24]  # Night, Morning, Afternoon, Evening
+    day_buckets: ["weekday", "weekend"]
+
+# -----------------------------------------------------------------------------
+# Representation Fairness
+# -----------------------------------------------------------------------------
+# Checks if data is proportionally distributed across slices
+representation:
+  # Thresholds for representation disparity
+  thresholds:
+    warning: 0.2   # 20% deviation from expected
+    critical: 0.4  # 40% deviation from expected
+
+  # Reference distribution (expected proportions)
+  reference:
+    source: "census_population"  # Use census data as baseline
+    fallback: "uniform"  # If no reference, assume uniform
+
+  # Metrics to compute
+  metrics:
+    - chi_squared  # Chi-squared test for distribution
+    - kl_divergence  # KL divergence from expected
+    - max_deviation  # Maximum slice deviation
+
+# -----------------------------------------------------------------------------
+# Outcome Disparity
+# -----------------------------------------------------------------------------
+# Checks if outcomes are fair across protected groups
+outcome_disparity:
+  # Thresholds
+  thresholds:
+    warning: 0.15   # 15% disparity
+    critical: 0.30  # 30% disparity
+
+  # Metrics
+  metrics:
+    - demographic_parity  # Equal positive rates
+    - equalized_odds  # Equal TPR and FPR
+    - disparate_impact  # 80% rule
+
+# -----------------------------------------------------------------------------
+# Dataset-Specific Fairness Checks
+# -----------------------------------------------------------------------------
+datasets:
+  crime:
+    # Crime data is highly sensitive for bias
+    priority: "critical"
+
+    slicing_dimensions:
+      - neighborhood
+      - police_district
+      - offense_category
+      - hour_of_day
+
+    # Check for over/under-reporting by neighborhood
+    checks:
+      - name: "neighborhood_representation"
+        type: "representation"
+        slice_by: "neighborhood"
+        reference: "census_population"
+        threshold_warning: 0.25
+        threshold_critical: 0.5
+
+      - name: "offense_type_by_district"
+        type: "distribution"
+        slice_by: "police_district"
+        metric: "offense_category"
+        threshold_warning: 0.3
+
+    # Known disparities to monitor (not necessarily fail on)
+    known_disparities:
+      - description: "Historical over-policing in certain neighborhoods"
+        mitigation: "Include disclaimer in model cards"
+
+  service_311:
+    priority: "high"
+
+    slicing_dimensions:
+      - neighborhood
+      - subject_category
+      - response_time_bucket
+
+    checks:
+      - name: "response_time_by_neighborhood"
+        type: "outcome"
+        slice_by: "neighborhood"
+        metric: "median_response_hours"
+        threshold_warning: 0.2
+        threshold_critical: 0.4
+
+      - name: "closure_rate_by_neighborhood"
+        type: "outcome"
+        slice_by: "neighborhood"
+        metric: "closure_rate"
+        threshold_warning: 0.15
+
+  vision_zero:
+    priority: "critical"
+
+    slicing_dimensions:
+      - neighborhood
+      - road_type
+      - crash_severity
+
+    checks:
+      - name: "crash_severity_by_neighborhood"
+        type: "distribution"
+        slice_by: "neighborhood"
+        metric: "crash_severity"
+
+  mbta:
+    priority: "medium"
+
+    slicing_dimensions:
+      - route_type
+      - line
+      - time_of_day
+
+    checks:
+      - name: "delay_by_line"
+        type: "outcome"
+        slice_by: "line"
+        metric: "average_delay_minutes"
+
+  fire:
+    priority: "high"
+
+    checks:
+      - name: "response_time_by_neighborhood"
+        type: "outcome"
+        slice_by: "neighborhood"
+        metric: "response_time_minutes"
+        threshold_critical: 0.3  # Stricter for emergency services
+
+# -----------------------------------------------------------------------------
+# Model Card Generation
+# -----------------------------------------------------------------------------
+model_cards:
+  # Auto-generate model cards with fairness info
+  enabled: true
+
+  # Include in model cards
+  include:
+    - dataset_description
+    - slicing_analysis
+    - fairness_metrics
+    - known_limitations
+    - intended_use
+    - ethical_considerations
+
+  # Output format
+  format: "markdown"  # markdown | json | both
+  output_path: "model_cards/"
+
+# -----------------------------------------------------------------------------
+# Reporting & Alerting
+# -----------------------------------------------------------------------------
+reporting:
+  # Generate fairness reports
+  enabled: true
+
+  # Report frequency
+  frequency: "per_run"  # per_run | daily | weekly
+
+  # Report format
+  format: "json"
+  include_visualizations: true
+
+  # Alert on fairness issues
+  alerting:
+    warning:
+      - log
+      - slack
+    critical:
+      - log
+      - slack
+      - email
+
+# -----------------------------------------------------------------------------
+# Mitigation Strategies
+# -----------------------------------------------------------------------------
+mitigation:
+  # Available mitigation strategies
+  strategies:
+    - name: "reweighting"
+      description: "Adjust sample weights to balance representation"
+      auto_apply: false
+
+    - name: "stratified_sampling"
+      description: "Ensure balanced sampling across slices"
+      auto_apply: false
+
+    - name: "disclaimer"
+      description: "Add disclaimer to model cards about known biases"
+      auto_apply: true
+
+  # Require human review before applying mitigations
+  require_approval: true

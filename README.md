@@ -53,6 +53,21 @@ Install required dependencies:
 pip install -r requirements.txt
 ```
 
+## Development Setup
+
+### Pre-commit Hooks
+
+This project uses [pre-commit](https://pre-commit.com/) to run code quality checks before each commit. The hooks mirror our CI pipeline for fast local feedback.
+
+#### Installation
+
+# Install pre-commit
+pip install pre-commit
+
+# Install the git hooks
+pre-commit install
+
+
 ## Usage
 
 Run data ingestion scripts to fetch raw datasets from Analyze Boston and external APIs. Execute preprocessing and feature engineering pipelines to construct the City State. Train predictive models using scripts in the `src/models` directory. Launch the application to interact with Boston Pulse. Detailed steps and examples are documented in the project notebooks.
