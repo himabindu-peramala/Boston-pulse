@@ -1,0 +1,21 @@
+# Boston Pulse - Crime Dataset Configuration
+#
+# Dataset: Boston Police Department Crime Incident Reports
+# Source: Analyze Boston (data.boston.gov)
+# Reference: https://data.boston.gov/dataset/crime-incident-reports
+
+dataset:
+  name: crime
+  description: "Crime incident reports from Boston Police Department"
+
+api:
+  resource_id: "b973d8cb-eeb2-4e7e-99da-c92938efc9c0"
+  base_url: "https://data.boston.gov/api/3/action"
+  endpoint: "datastore_search_sql"
+  batch_size: 1000
+  timeout_seconds: 60
+
+ingestion:
+  watermark_field: "OCCURRED_ON_DATE"
+  primary_key: "INCIDENT_NUMBER"
+  lookback_days: 7
