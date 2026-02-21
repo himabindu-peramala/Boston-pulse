@@ -1,0 +1,54 @@
+================================================================================
+BIAS DETECTION REPORT - BOSTON POLICE STATIONS
+================================================================================
+
+1. GEOGRAPHIC COVERAGE BIAS
+--------------------------------------------------------------------------------
+Avg stations per neighborhood: 1.18
+
+Overrepresented Neighborhoods:
+  - BOSTON
+  - ROXBURY
+
+Underrepresented Neighborhoods:
+
+Station Distribution by Neighborhood:
+  BOSTON: 2 (15.4%)
+  ROXBURY: 2 (15.4%)
+  HYDE PARK: 1 (7.7%)
+  WEST ROXBURY: 1 (7.7%)
+  EAST BOSTON: 1 (7.7%)
+  BRIGHTON: 1 (7.7%)
+  CHARLESTOWN: 1 (7.7%)
+  SOUTH BOSTON: 1 (7.7%)
+  JAMAICA PLAIN: 1 (7.7%)
+  MATTAPAN: 1 (7.7%)
+  DORCHESTER: 1 (7.7%)
+
+2. STATION SIZE EQUITY BIAS
+--------------------------------------------------------------------------------
+Mean sq footage: 23725 ft²
+Median sq footage: 8712 ft²
+Range: 6882 – 194000 ft²
+
+Zones with Disproportionate Station Sizes:
+  Inner: 35718 ft² (deviation: 50.6%)
+  Mid: 10526 ft² (deviation: 55.6%)
+  Outer: 8146 ft² (deviation: 65.7%)
+
+3. ZONE DISTRIBUTION BIAS (Inner / Mid / Outer Boston)
+--------------------------------------------------------------------------------
+Expected distribution per zone: 33.3%
+
+  Inner: 7 stations (53.8%) [⚠️ BIASED]
+  Mid: 4 stations (30.8%) [✓ Normal]
+  Outer: 2 stations (15.4%) [⚠️ BIASED]
+
+4. BIAS MITIGATION RECOMMENDATIONS
+--------------------------------------------------------------------------------
+1. Size Equity: Consider expanding under-resourced stations in zones with below-average sq footage
+2. Zone Bias: Outer zones appear underserved — evaluate coverage gaps for equitable deployment
+
+================================================================================
+END OF BIAS DETECTION REPORT
+================================================================================

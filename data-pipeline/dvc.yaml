@@ -1,0 +1,24 @@
+stages:
+  download:
+    cmd: python scripts/ingest_stations.py
+    deps:
+      - scripts/ingest_stations.py
+    outs:
+      - data/raw/police_stations.csv
+
+  preprocess:
+    cmd: python scripts/preprocess_stations.py
+    deps:
+      - scripts/preprocess_stations.py
+      - data/raw/police_stations.csv
+    outs:
+      - data/processed/police_stations_clean.csv
+
+  bias_detection:
+    cmd: python scripts/bias_detection_stations.py
+    deps:
+      - scripts/bias_detection_stations.py
+      - data/processed/police_stations_clean.csv
+    outs:
+      - data/processed/stations_bias_report.txt
+      - data/processed/stations_visualizations/
