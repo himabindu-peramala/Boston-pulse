@@ -1,12 +1,13 @@
 stages:
-  download:
+  # Police Stations Pipeline
+  download_stations:
     cmd: python scripts/ingest_stations.py
     deps:
       - scripts/ingest_stations.py
     outs:
       - data/raw/police_stations.csv
 
-  preprocess:
+  preprocess_stations:
     cmd: python scripts/preprocess_stations.py
     deps:
       - scripts/preprocess_stations.py
@@ -14,7 +15,7 @@ stages:
     outs:
       - data/processed/police_stations_clean.csv
 
-  bias_detection:
+  bias_detection_stations:
     cmd: python scripts/bias_detection_stations.py
     deps:
       - scripts/bias_detection_stations.py
@@ -22,3 +23,28 @@ stages:
     outs:
       - data/processed/stations_bias_report.txt
       - data/processed/stations_visualizations/
+
+  # Fire Incidents Pipeline
+  download_fire:
+    cmd: python scripts/ingest_fire.py
+    deps:
+      - scripts/ingest_fire.py
+    outs:
+      - data/raw/fire_incidents.csv
+
+  preprocess_fire:
+    cmd: python scripts/preprocess_fire.py
+    deps:
+      - scripts/preprocess_fire.py
+      - data/raw/fire_incidents.csv
+    outs:
+      - data/processed/fire_incidents_clean.csv
+
+  bias_detection_fire:
+    cmd: python scripts/bias_detection_fire.py
+    deps:
+      - scripts/bias_detection_fire.py
+      - data/processed/fire_incidents_clean.csv
+    outs:
+      - data/processed/fire_bias_report.txt
+      - data/processed/fire_visualizations/
