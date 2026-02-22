@@ -83,7 +83,9 @@ def test_detect_outliers():
     detector = AnomalyDetector(config)
 
     # DataFrame with outliers
-    values = [100] * 90 + [1000, 2000, 3000, 4000, 5000] * 2  # 10% outliers
+    # Threshold is 10%, we need > 10%. 
+    # Current: 90 normal + 15 outliers = 105 total. 15/105 = 14.3%
+    values = [100] * 90 + [1000, 2000, 3000, 4000, 5000] * 3 
     df = pd.DataFrame({"value": values})
 
     result = detector.detect_anomalies(df, "test")

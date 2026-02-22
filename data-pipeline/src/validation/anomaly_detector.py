@@ -259,12 +259,12 @@ class AnomalyDetector:
             outliers_iqr = ((col_data < lower_bound) | (col_data > upper_bound)).sum()
             outlier_ratio_iqr = outliers_iqr / len(col_data)
 
-            # Use the more conservative estimate
-            outlier_count = int(min(outliers_z, outliers_iqr))
-            outlier_ratio = min(outlier_ratio_z, outlier_ratio_iqr)
+            # Use the more sensitive estimate
+            outlier_count = int(max(outliers_z, outliers_iqr))
+            outlier_ratio = max(outlier_ratio_z, outlier_ratio_iqr)
 
             # Report if significant outliers found
-            if outlier_ratio > 0.1:  # More than 10% outliers
+            if outlier_ratio > 0.05:  # More than 5% outliers
                 anomalies.append(
                     Anomaly(
                         type=AnomalyType.OUTLIER,

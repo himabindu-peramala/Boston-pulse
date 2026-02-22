@@ -10,6 +10,13 @@ import pytest
 
 from src.shared.config import get_config
 from src.validation.drift_detector import DriftDetector, DriftSeverity, check_drift
+from unittest.mock import patch, MagicMock
+
+@pytest.fixture(autouse=True)
+def mock_storage_client():
+    """Mock storage.Client for all tests in this module."""
+    with patch("src.validation.statistics_generator.storage.Client"):
+        yield
 
 
 @pytest.fixture

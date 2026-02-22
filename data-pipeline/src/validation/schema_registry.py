@@ -287,7 +287,7 @@ class SchemaRegistry:
             errors.append(f"Missing required columns: {missing_columns}")
 
         # Check for extra columns (if strict mode)
-        if not self.config.validation.schema.allow_extra_columns:
+        if not self.config.validation.quality_schema.allow_extra_columns:
             extra_columns = df_columns - schema_columns
             if extra_columns:
                 errors.append(f"Extra columns not in schema: {extra_columns}")
@@ -359,7 +359,12 @@ class SchemaRegistry:
             "bool": ["boolean"],
             "datetime64[ns]": ["datetime"],
             "string": ["string"],
+            "Int64": ["integer"],
         }
+
+        # Allow 'object' (common when ingesting JSON) to match string, integer, float, or datetime
+        if actual == "object":
+            return expected in ["string", "integer", "float", "datetime"]
 
         compatible_types = type_mappings.get(actual, [actual])
         return expected in compatible_types

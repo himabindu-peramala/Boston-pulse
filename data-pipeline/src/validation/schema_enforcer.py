@@ -122,7 +122,7 @@ class SchemaEnforcer:
         """
         self.config = config or get_config()
         self.registry = SchemaRegistry(config)
-        self.strict_mode = self.config.validation.schema.strict_mode
+        self.strict_mode = self.config.validation.quality_schema.strict_mode
 
     def validate_raw(
         self,

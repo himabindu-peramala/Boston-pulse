@@ -17,6 +17,11 @@ from src.validation.schema_enforcer import (
     enforce_validation,
 )
 
+@pytest.fixture(autouse=True)
+def mock_storage_client():
+    """Mock storage.Client for all tests in this module."""
+    with patch("src.validation.schema_registry.storage.Client"):
+        yield
 
 @pytest.fixture
 def mock_schema_registry():
@@ -51,7 +56,7 @@ def test_enforcer_initialization():
     enforcer = SchemaEnforcer(config)
 
     assert enforcer.config == config
-    assert enforcer.strict_mode == config.validation.schema.strict_mode
+    assert enforcer.strict_mode == config.validation.quality_schema.strict_mode
 
 
 def test_validate_raw_success(mock_schema_registry, sample_crime_data):
@@ -166,12 +171,15 @@ def test_validate_features_infinite_values(mock_schema_registry):
 def test_enforce_validation_raises_on_failure():
     """Test that enforce_validation raises ValidationError on failure."""
     config = get_config("dev")
-    config.validation.schema.strict_mode = True
+    config.validation.quality_schema.strict_mode = True
 
     # DataFrame that will fail validation (too few rows)
     df = pd.DataFrame({"col1": [1, 2]})
 
-    with patch("src.validation.schema_enforcer.SchemaRegistry"):
+    with patch("src.validation.schema_enforcer.SchemaRegistry") as mock_registry:
+        mock_instance = MagicMock()
+        mock_registry.return_value = mock_instance
+        mock_instance.validate_dataframe.return_value = (True, [])
         with pytest.raises(ValidationError) as exc_info:
             enforce_validation(df, "crime", ValidationStage.RAW, config=config)
 
