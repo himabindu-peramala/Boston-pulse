@@ -224,7 +224,7 @@ jobs:
           pip install "apache-airflow==2.7.3" \
                       "apache-airflow-providers-google>=10.0.0"
           cd data-pipeline
-          pip install -e "." --no-deps || true  # Install local package for imports
+          pip install -e "." || true  # Install local package and its dependencies
 
       - name: Initialize Airflow DB
         run: |
