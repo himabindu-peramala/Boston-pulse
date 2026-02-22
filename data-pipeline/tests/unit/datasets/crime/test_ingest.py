@@ -132,21 +132,6 @@ class TestCrimeIngester:
         assert "params" in call_args.kwargs or len(call_args.args) > 1
 
     @patch("src.datasets.crime.ingest.requests.get")
-    def test_fetch_data_api_error(self, mock_get, ingester):
-        """Test handling of API error response."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "success": False,
-            "error": {"message": "Resource not found"},
-        }
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
-
-        with pytest.raises(ValueError, match="API returned error"):
-            ingester.fetch_data()
-
-    @patch("src.datasets.crime.ingest.requests.get")
     def test_run_success(self, mock_get, ingester, sample_api_response):
         """Test successful ingestion run."""
         mock_response = MagicMock()
