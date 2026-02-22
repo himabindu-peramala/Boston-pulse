@@ -20,6 +20,15 @@ class TestCrimeIngester:
     def ingester(self):
         """Create a CrimeIngester instance."""
         return CrimeIngester()
+    
+    @pytest.fixture
+    def mock_successful_response(self, sample_api_response):
+        """Reusable mock for a successful API response."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200       
+        mock_response.json.return_value = sample_api_response
+        mock_response.raise_for_status = MagicMock()
+    return mock_response
 
     @pytest.fixture
     def sample_api_response(self):
@@ -93,6 +102,7 @@ class TestCrimeIngester:
     def test_fetch_data_success(self, mock_get, ingester, sample_api_response):
         """Test successful data fetching."""
         mock_response = MagicMock()
+        mock_response.status_code = 200
         mock_response.json.return_value = sample_api_response
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
@@ -109,6 +119,7 @@ class TestCrimeIngester:
     def test_fetch_data_with_watermark(self, mock_get, ingester, sample_api_response):
         """Test data fetching with watermark filter."""
         mock_response = MagicMock()
+        mock_response.status_code = 200
         mock_response.json.return_value = sample_api_response
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
@@ -124,6 +135,7 @@ class TestCrimeIngester:
     def test_fetch_data_api_error(self, mock_get, ingester):
         """Test handling of API error response."""
         mock_response = MagicMock()
+        mock_response.status_code = 404
         mock_response.json.return_value = {
             "success": False,
             "error": {"message": "Resource not found"},
@@ -138,6 +150,7 @@ class TestCrimeIngester:
     def test_run_success(self, mock_get, ingester, sample_api_response):
         """Test successful ingestion run."""
         mock_response = MagicMock()
+        mock_response.status_code = 200
         mock_response.json.return_value = sample_api_response
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
@@ -153,6 +166,7 @@ class TestCrimeIngester:
     def test_run_with_watermark(self, mock_get, ingester, sample_api_response):
         """Test ingestion run with explicit watermark."""
         mock_response = MagicMock()
+        mock_response.status_code = 200
         mock_response.json.return_value = sample_api_response
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
@@ -180,6 +194,7 @@ class TestCrimeIngester:
     def test_get_data_after_run(self, mock_get, ingester, sample_api_response):
         """Test getting data after successful run."""
         mock_response = MagicMock()
+        mock_response.status_code = 200
         mock_response.json.return_value = sample_api_response
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
