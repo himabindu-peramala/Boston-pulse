@@ -209,8 +209,7 @@ class BasePreprocessor(ABC):
             )
 
             logger.info(
-                f"Preprocessing complete for {dataset_name}: "
-                f"{rows_input} -> {rows_output} rows",
+                f"Preprocessing complete for {dataset_name}: {rows_input} -> {rows_output} rows",
                 extra=result.to_dict(),
             )
 
@@ -259,7 +258,7 @@ class BasePreprocessor(ABC):
             if col in df.columns:
                 try:
                     if dtype == "datetime":
-                        df[col] = pd.to_datetime(df[col], errors="coerce")
+                        df[col] = pd.to_datetime(df[col], errors="coerce", format="ISO8601")
                     elif dtype == "int":
                         df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
                     elif dtype == "float":
@@ -351,7 +350,7 @@ class BasePreprocessor(ABC):
         output_col = output_col or col
 
         # Convert to datetime
-        df[output_col] = pd.to_datetime(df[col], errors="coerce")
+        df[output_col] = pd.to_datetime(df[col], errors="coerce", format="ISO8601")
 
         # Extract temporal features
         df[f"{output_col}_year"] = df[output_col].dt.year

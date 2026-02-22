@@ -1,3 +1,6 @@
+# Desktop Services (macOS)
+.DS_Store
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 .vscode/
@@ -140,10 +143,13 @@ celerybeat.pid
 .envrc
 .venv
 env/
+env
 venv/
 ENV/
 env.bak/
 venv.bak/
+/env
+/.env
 
 # Spyder project settings
 .spyderproject

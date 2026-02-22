@@ -1,0 +1,42 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "CityScore Processed Data Schema",
+    "description": "Schema for processed CityScore metric data",
+    "type": "object",
+    "properties": {
+        "metric_name": {
+            "type": "string"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "target": {
+            "type": "number"
+        },
+        "day_score": {
+            "type": "number"
+        },
+        "week_score": {
+            "type": "number"
+        },
+        "month_score": {
+            "type": "number"
+        },
+        "year": {
+            "type": "integer"
+        },
+        "month_num": {
+            "type": "integer"
+        },
+        "date": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "metric_name",
+        "timestamp",
+        "day_score"
+    ],
+    "additionalProperties": true
+}

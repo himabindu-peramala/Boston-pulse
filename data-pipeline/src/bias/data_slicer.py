@@ -173,7 +173,7 @@ class DataSlicer:
 
         # Generate default labels if not provided
         if labels is None:
-            labels = [f"Q{i+1}" for i in range(num_quantiles)]
+            labels = [f"Q{i + 1}" for i in range(num_quantiles)]
 
         # Create quantile bins
         df_copy = df.copy()

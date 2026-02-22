@@ -122,7 +122,7 @@ class SchemaEnforcer:
         """
         self.config = config or get_config()
         self.registry = SchemaRegistry(config)
-        self.strict_mode = self.config.validation.schema.strict_mode
+        self.strict_mode = self.config.validation.quality_schema.strict_mode
 
     def validate_raw(
         self,
@@ -535,11 +535,18 @@ class SchemaEnforcer:
             if not pd.api.types.is_datetime64_any_dtype(df[date_col]):
                 continue
 
+            # Ensure column is localized to UTC for comparison
+            col_data = df[date_col]
+            if not col_data.dt.tz:
+                col_data = col_data.dt.tz_localize(UTC)
+            else:
+                col_data = col_data.dt.tz_convert(UTC)
+
             # Check for future dates
             max_future = datetime.now(UTC) + timedelta(
                 days=self.config.validation.temporal.max_future_days
             )
-            future_dates = df[date_col] > max_future
+            future_dates = col_data > max_future
             if future_dates.any():
                 count = future_dates.sum()
                 result.issues.append(
@@ -557,7 +564,7 @@ class SchemaEnforcer:
             min_past = datetime.now(UTC) - timedelta(
                 days=self.config.validation.temporal.max_past_years * 365
             )
-            old_dates = (df[date_col] < min_past) & df[date_col].notna()
+            old_dates = (col_data < min_past) & col_data.notna()
             if old_dates.any():
                 count = old_dates.sum()
                 result.issues.append(
