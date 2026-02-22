@@ -194,7 +194,6 @@ class ModelCardGenerator:
         if mitigation_result:
             card.mitigation_summary = self._create_mitigation_summary(mitigation_result)
 
-
         logger.info(f"Generated model card for {dataset} (version {version})")
 
         return card
@@ -413,7 +412,9 @@ class ModelCardGenerator:
                 lines.append(f"- **Strategy:** {ms['strategy']}")
                 lines.append(f"- **Dimension:** {ms['dimension']}")
                 lines.append(f"- **Rows:** {ms['rows_before']} → {ms['rows_after']}")
-                lines.append(f"- **Slices Improved:** {ms['slices_improved']} / {ms['total_slices']}")
+                lines.append(
+                    f"- **Slices Improved:** {ms['slices_improved']} / {ms['total_slices']}"
+                )
                 if ms["weight_range"]:
                     lines.append(f"- **Weight Range:** {ms['weight_range']}")
             else:

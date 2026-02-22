@@ -33,8 +33,9 @@ from src.shared.config import Settings, get_config
 
 logger = logging.getLogger(__name__)
 
+
 class MitigationStrategy(StrEnum):
-    REWEIGHTING         = "reweighting"
+    REWEIGHTING = "reweighting"
     STRATIFIED_SAMPLING = "stratified_sampling"
     THRESHOLD_ADJUSTMENT = "threshold_adjustment"
 
@@ -42,6 +43,7 @@ class MitigationStrategy(StrEnum):
 @dataclass
 class MitigationAction:
     """Record of a single mitigation action taken."""
+
     strategy: MitigationStrategy
     dimension: str
     slice_value: Any
@@ -63,6 +65,7 @@ class MitigationAction:
 @dataclass
 class MitigationResult:
     """Result of mitigation process."""
+
     dataset: str
     strategy: MitigationStrategy
     dimension: str
@@ -119,6 +122,7 @@ class MitigationResult:
 # =============================================================================
 # Mitigator
 # =============================================================================
+
 
 class BiasMitigator:
     """
@@ -237,10 +241,10 @@ class BiasMitigator:
         actions = self._build_reweighting_actions(df, mitigated_df, fairness_result, dimension)
 
         tradeoffs = {
-            "row_count_change"  : "None (reweighting preserves all rows)",
-            "data_loss"         : "None",
-            "weight_range"      : f"{weights.min():.3f} – {weights.max():.3f}",
-            "recommendation"    : (
+            "row_count_change": "None (reweighting preserves all rows)",
+            "data_loss": "None",
+            "weight_range": f"{weights.min():.3f} – {weights.max():.3f}",
+            "recommendation": (
                 "Pass 'sample_weight' column to model training. "
                 "Verify that downstream aggregations use weighted means."
             ),
@@ -284,9 +288,7 @@ class BiasMitigator:
         counts = df[dimension].value_counts()
         target_size = int(counts.median())  # Use median as target per group
 
-        logger.info(
-            f"Stratified sampling: target {target_size} rows per {dimension} group"
-        )
+        logger.info(f"Stratified sampling: target {target_size} rows per {dimension} group")
 
         resampled_groups = []
         actions = []
@@ -294,9 +296,7 @@ class BiasMitigator:
         for group_val, group_df in df.groupby(dimension):
             before_size = len(group_df)
             expected_pct = 100.0 / len(counts)
-            before_disparity = abs(
-                (before_size / len(df) * 100) - expected_pct
-            ) / expected_pct
+            before_disparity = abs((before_size / len(df) * 100) - expected_pct) / expected_pct
 
             if before_size > target_size:
                 # Downsample (without replacement)
@@ -319,24 +319,28 @@ class BiasMitigator:
             after_pct = target_size / total_after * 100
             after_disparity = abs(after_pct - expected_pct) / expected_pct
 
-            actions.append(MitigationAction(
-                strategy=MitigationStrategy.STRATIFIED_SAMPLING,
-                dimension=dimension,
-                slice_value=group_val,
-                before_disparity=before_disparity,
-                after_disparity=after_disparity,
-                details={"action": action_detail, "target_size": target_size},
-            ))
+            actions.append(
+                MitigationAction(
+                    strategy=MitigationStrategy.STRATIFIED_SAMPLING,
+                    dimension=dimension,
+                    slice_value=group_val,
+                    before_disparity=before_disparity,
+                    after_disparity=after_disparity,
+                    details={"action": action_detail, "target_size": target_size},
+                )
+            )
 
-        mitigated_df = pd.concat(resampled_groups).sample(
-            frac=1, random_state=random_state
-        ).reset_index(drop=True)
+        mitigated_df = (
+            pd.concat(resampled_groups)
+            .sample(frac=1, random_state=random_state)
+            .reset_index(drop=True)
+        )
 
         tradeoffs = {
             "row_count_change": f"{len(df)} → {len(mitigated_df)}",
-            "data_loss"       : f"{max(0, len(df) - len(mitigated_df))} rows removed from over-represented groups",
-            "synthetic_rows"  : f"{max(0, len(mitigated_df) - len(df))} rows added via oversampling",
-            "recommendation"  : (
+            "data_loss": f"{max(0, len(df) - len(mitigated_df))} rows removed from over-represented groups",
+            "synthetic_rows": f"{max(0, len(mitigated_df) - len(df))} rows added via oversampling",
+            "recommendation": (
                 "Oversampled rows are duplicates. If using for model training, "
                 "consider adding slight noise to avoid overfitting on minority groups."
             ),
@@ -352,9 +356,7 @@ class BiasMitigator:
             tradeoffs=tradeoffs,
         )
 
-        logger.info(
-            f"Stratified sampling complete: {len(df)} → {len(mitigated_df)} rows"
-        )
+        logger.info(f"Stratified sampling complete: {len(df)} → {len(mitigated_df)} rows")
         return result
 
     # -------------------------------------------------------------------------
@@ -398,35 +400,39 @@ class BiasMitigator:
             adjusted_threshold = float(np.clip(adjusted_threshold, 0.1, 0.9))
             thresholds[group_val] = adjusted_threshold
 
-            before_disparity = abs(group_rate - overall_rate) / overall_rate if overall_rate > 0 else 0
+            before_disparity = (
+                abs(group_rate - overall_rate) / overall_rate if overall_rate > 0 else 0
+            )
 
             logger.info(
                 f"  {dimension}={group_val}: rate={group_rate:.3f}, "
                 f"threshold {base_threshold:.2f} → {adjusted_threshold:.2f}"
             )
 
-            actions.append(MitigationAction(
-                strategy=MitigationStrategy.THRESHOLD_ADJUSTMENT,
-                dimension=dimension,
-                slice_value=group_val,
-                before_disparity=before_disparity,
-                after_disparity=0.0,  # Theoretical — actual improvement depends on model scores
-                details={
-                    "original_threshold": base_threshold,
-                    "adjusted_threshold": adjusted_threshold,
-                    "group_outcome_rate": group_rate,
-                    "overall_outcome_rate": overall_rate,
-                },
-            ))
+            actions.append(
+                MitigationAction(
+                    strategy=MitigationStrategy.THRESHOLD_ADJUSTMENT,
+                    dimension=dimension,
+                    slice_value=group_val,
+                    before_disparity=before_disparity,
+                    after_disparity=0.0,  # Theoretical — actual improvement depends on model scores
+                    details={
+                        "original_threshold": base_threshold,
+                        "adjusted_threshold": adjusted_threshold,
+                        "group_outcome_rate": group_rate,
+                        "overall_outcome_rate": overall_rate,
+                    },
+                )
+            )
 
         # Store adjusted threshold per row
         mitigated_df["adjusted_threshold"] = mitigated_df[dimension].map(thresholds)
 
         tradeoffs = {
             "row_count_change": "None (threshold adjustment preserves all rows)",
-            "data_loss"       : "None",
-            "threshold_range" : f"{min(thresholds.values()):.2f} – {max(thresholds.values()):.2f}",
-            "recommendation"  : (
+            "data_loss": "None",
+            "threshold_range": f"{min(thresholds.values()):.2f} – {max(thresholds.values()):.2f}",
+            "recommendation": (
                 "Apply 'adjusted_threshold' per group when converting model "
                 "probability scores to binary predictions. Overall accuracy "
                 "may decrease slightly to gain fairness across groups."
@@ -471,19 +477,21 @@ class BiasMitigator:
             # After reweighting, effective disparity is near 0
             after_disparity = 0.0
 
-            actions.append(MitigationAction(
-                strategy=MitigationStrategy.REWEIGHTING,
-                dimension=dimension,
-                slice_value=group_val,
-                before_disparity=before_disparity,
-                after_disparity=after_disparity,
-                details={
-                    "count"         : int(count),
-                    "weight"        : round(weight, 4),
-                    "original_pct"  : round(before_pct, 2),
-                    "expected_pct"  : round(expected_pct, 2),
-                },
-            ))
+            actions.append(
+                MitigationAction(
+                    strategy=MitigationStrategy.REWEIGHTING,
+                    dimension=dimension,
+                    slice_value=group_val,
+                    before_disparity=before_disparity,
+                    after_disparity=after_disparity,
+                    details={
+                        "count": int(count),
+                        "weight": round(weight, 4),
+                        "original_pct": round(before_pct, 2),
+                        "expected_pct": round(expected_pct, 2),
+                    },
+                )
+            )
 
         return actions
 
@@ -491,6 +499,7 @@ class BiasMitigator:
 # =============================================================================
 # Convenience Function
 # =============================================================================
+
 
 def mitigate_bias(
     df: pd.DataFrame,

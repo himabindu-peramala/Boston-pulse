@@ -358,7 +358,9 @@ class FairnessChecker:
             )
 
         except Exception as e:
-            logger.warning(f"Fairlearn MetricFrame failed for {dimension}: {e}. Falling back to manual calculation.")
+            logger.warning(
+                f"Fairlearn MetricFrame failed for {dimension}: {e}. Falling back to manual calculation."
+            )
             mf = None
             dpd = None
 

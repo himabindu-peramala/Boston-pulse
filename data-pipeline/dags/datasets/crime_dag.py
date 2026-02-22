@@ -425,6 +425,7 @@ def check_fairness(**context) -> dict:
         ],
     }
 
+
 def mitigate_bias_task(**context) -> dict:
     """
     Apply bias mitigation when fairness violations are detected.
@@ -480,6 +481,7 @@ def mitigate_bias_task(**context) -> dict:
     @dataclass
     class _SlimFairnessResult:
         """Minimal shim so BiasMitigator receives the expected interface."""
+
         dataset: str
         violations: list
 
@@ -550,7 +552,6 @@ def mitigate_bias_task(**context) -> dict:
             for a in mitigation_result.actions
         ],
     }
-
 
 
 def generate_model_card(**context) -> dict:
