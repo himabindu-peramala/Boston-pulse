@@ -83,7 +83,7 @@ def detect_anomalies(**context) -> dict:
 
     # Detect anomalies
     detector = AnomalyDetector()
-    
+
     result = detector.detect_anomalies(df, DATASET)
 
     # Alert on critical anomalies
@@ -442,7 +442,6 @@ def mitigate_bias_task(**context) -> dict:
     """
     from dags.utils import read_data, write_data
     from src.bias.bias_mitigator import BiasMitigator, MitigationStrategy
-    from src.bias.fairness_checker import FairnessResult
 
     execution_date = context["ds"]
     ti = context["ti"]
@@ -474,8 +473,8 @@ def mitigate_bias_task(**context) -> dict:
     # BiasMitigator only needs fairness_result.dataset and .violations to build
     # MitigationAction records, so we reconstruct a lightweight stand-in.
     #
-    from dataclasses import dataclass, field
-    from src.bias.fairness_checker import FairnessViolation, FairnessMetric, FairnessSeverity
+    from dataclasses import dataclass
+    from src.bias.fairness_checker import FairnessMetric, FairnessSeverity, FairnessViolation
 
     @dataclass
     class _SlimFairnessResult:
@@ -722,7 +721,7 @@ with DAG(
         on_failure_callback=on_task_failure,
     )
 
-    t_mitigate_bias      = PythonOperator(      
+    t_mitigate_bias = PythonOperator(
         task_id="mitigate_bias",
         python_callable=mitigate_bias_task,
         on_failure_callback=on_task_failure,

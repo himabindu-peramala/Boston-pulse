@@ -127,7 +127,7 @@ class ModelCardGenerator:
         fairness_result: FairnessResult | None = None,
         drift_result: DriftResult | None = None,
         anomaly_result: AnomalyResult | None = None,
-        mitigation_result: dict | None = None,  
+        mitigation_result: dict | None = None,
         version: str | None = None,
         created_by: str = "system",
         tags: list[str] | None = None,
@@ -321,7 +321,7 @@ class ModelCardGenerator:
             "warning_count": result.get("warning_count", 0),
             "anomalies_by_type": result.get("anomalies_by_type", {}),
         }
-    
+
     def _create_mitigation_summary(self, result: dict) -> dict[str, Any]:
         """Create mitigation summary from XCom dict."""
         return {
@@ -404,7 +404,7 @@ class ModelCardGenerator:
                 for v in fs["critical_violations"]:
                     lines.append(f"- [{v['metric']}] {v['message']}")
             lines.append("")
-        
+
         if card.mitigation_summary:
             lines.append("## Bias Mitigation")
             lines.append("")

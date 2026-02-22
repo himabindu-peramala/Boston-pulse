@@ -35,7 +35,6 @@ import pandas as pd
 
 from src.bias.data_slicer import DataSlice, DataSlicer
 from src.shared.config import Settings, get_config
-from fairlearn.metrics import MetricFrame, selection_rate, demographic_parity_difference, count
 
 logger = logging.getLogger(__name__)
 

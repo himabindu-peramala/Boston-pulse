@@ -28,7 +28,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from src.bias.fairness_checker import FairnessResult, FairnessViolation, FairnessSeverity
+from src.bias.fairness_checker import FairnessResult
 from src.shared.config import Settings, get_config
 
 
@@ -257,7 +257,7 @@ class BiasMitigator:
             tradeoffs=tradeoffs,
         )
 
-        logger.info(f"Reweighting complete. Weight column added: 'sample_weight'")
+        logger.info("Reweighting complete. Weight column added: 'sample_weight'")
         return result
 
     # -------------------------------------------------------------------------
@@ -454,8 +454,8 @@ class BiasMitigator:
     def _build_reweighting_actions(
         self,
         original_df: pd.DataFrame,
-        mitigated_df: pd.DataFrame,
-        fairness_result: FairnessResult,
+        _mitigated_df: pd.DataFrame,
+        _fairness_result: FairnessResult,
         dimension: str,
     ) -> list[MitigationAction]:
         """Build MitigationAction list for reweighting strategy."""
