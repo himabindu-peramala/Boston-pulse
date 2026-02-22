@@ -35,6 +35,7 @@ import pandas as pd
 
 from src.bias.data_slicer import DataSlice, DataSlicer
 from src.shared.config import Settings, get_config
+from fairlearn.metrics import MetricFrame, selection_rate, demographic_parity_difference, count
 
 logger = logging.getLogger(__name__)
 
@@ -301,43 +302,90 @@ class FairnessChecker:
         outcome_column: str,
     ) -> list[FairnessViolation]:
         """
-        Check for outcome disparity across slices.
+        Check for outcome disparity across slices using Fairlearn's MetricFrame.
 
         Outcome disparity: Different groups should have similar outcome rates.
         Large disparities may indicate bias in the data or process.
+
+        Uses Fairlearn's MetricFrame and demographic_parity_difference for
+        statistically grounded disparity measurement.
         """
+        from fairlearn.metrics import MetricFrame, demographic_parity_difference, selection_rate
+
         violations = []
 
         if len(slices) == 0:
             return violations
 
-        # Calculate outcome rate for each slice
-        outcome_rates = []
+        # Rebuild full DataFrame from slices
+        all_data = pd.concat([s.data for s in slices])
+
+        if outcome_column not in all_data.columns:
+            return violations
+
+        # Need at least 2 slices to compare
+        if all_data[dimension].nunique() < 2:
+            return violations
+
+        y = all_data[outcome_column].astype(int)
+        sensitive = all_data[dimension]
+
+        # -------------------------------------------------------------------------
+        # Fairlearn MetricFrame: per-group selection rates
+        # -------------------------------------------------------------------------
+        try:
+            mf = MetricFrame(
+                metrics={"selection_rate": selection_rate},
+                y_true=y,
+                y_pred=y,  # Data-level check (no model), so y_true == y_pred
+                sensitive_features=sensitive,
+            )
+
+            logger.info(
+                f"Fairlearn MetricFrame for {dimension}:\n{mf.by_group}",
+                extra={"dataset": dimension, "metric": "selection_rate"},
+            )
+
+            # Overall demographic parity difference (max - min selection rate)
+            dpd = demographic_parity_difference(
+                y_true=y,
+                y_pred=y,
+                sensitive_features=sensitive,
+            )
+
+            logger.info(
+                f"Demographic parity difference for {dimension}: {dpd:.4f}",
+                extra={"dataset": dimension, "dpd": dpd},
+            )
+
+        except Exception as e:
+            logger.warning(f"Fairlearn MetricFrame failed for {dimension}: {e}. Falling back to manual calculation.")
+            mf = None
+            dpd = None
+
+        # -------------------------------------------------------------------------
+        # Per-slice violation detection
+        # -------------------------------------------------------------------------
+        overall_rate = y.mean()
+
         for slice_obj in slices:
-            if outcome_column not in slice_obj.data.columns:
+            if outcome_column not in slice_obj.data.columns or len(slice_obj.data) == 0:
                 continue
 
-            # Calculate positive outcome rate
-            positive_count = slice_obj.data[outcome_column].sum()
-            outcome_rate = positive_count / len(slice_obj.data) if len(slice_obj.data) > 0 else 0
-            outcome_rates.append((slice_obj, outcome_rate))
+            slice_y = slice_obj.data[outcome_column].astype(int)
+            outcome_rate = slice_y.mean()
 
-        if len(outcome_rates) < 2:
-            return violations  # Need at least 2 slices to compare
+            # Use Fairlearn's per-group rate if available, else compute manually
+            if mf is not None and slice_obj.value in mf.by_group.index:
+                outcome_rate = mf.by_group.loc[slice_obj.value, "selection_rate"]
 
-        # Calculate overall outcome rate (baseline)
-        all_data = pd.concat([s.data for s, _ in outcome_rates])
-        overall_rate = all_data[outcome_column].sum() / len(all_data)
-
-        # Check each slice against overall rate
-        for slice_obj, outcome_rate in outcome_rates:
             # Calculate disparity from overall rate
             if overall_rate > 0:
                 disparity = abs(outcome_rate - overall_rate) / overall_rate
             else:
                 disparity = abs(outcome_rate)
 
-            # Check against thresholds
+            # Classify severity
             if disparity >= self.outcome_critical:
                 severity = FairnessSeverity.CRITICAL
             elif disparity >= self.outcome_warning:
@@ -361,6 +409,8 @@ class FairnessChecker:
                     details={
                         "slice_size": slice_obj.size,
                         "outcome_column": outcome_column,
+                        "demographic_parity_difference": round(dpd, 4) if dpd is not None else None,
+                        "fairlearn_used": mf is not None,
                     },
                 )
             )

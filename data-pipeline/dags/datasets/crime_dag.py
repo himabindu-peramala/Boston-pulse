@@ -83,6 +83,7 @@ def detect_anomalies(**context) -> dict:
 
     # Detect anomalies
     detector = AnomalyDetector()
+    
     result = detector.detect_anomalies(df, DATASET)
 
     # Alert on critical anomalies
@@ -315,7 +316,7 @@ def detect_drift(**context) -> dict:
         alert_drift_detected(
             dataset=DATASET,
             drifted_features=result.drifted_features,
-            psi_scores={f: r.psi_score for f, r in result.feature_results.items()},
+            psi_scores={f: r.psi for f, r in result.feature_results.items()},
             severity=severity,
             execution_date=execution_date,
             dag_id=DAG_ID,
@@ -424,6 +425,133 @@ def check_fairness(**context) -> dict:
         ],
     }
 
+def mitigate_bias_task(**context) -> dict:
+    """
+    Apply bias mitigation when fairness violations are detected.
+
+    - Reads the processed DataFrame for today's execution date.
+    - Pulls the fairness result from check_fairness via XCom.
+    - If violations exist, applies reweighting (default) and saves
+      the mitigated DataFrame back to storage as 'mitigated' stage.
+    - Returns a summary dict that generate_model_card can consume.
+
+    Strategy choice rationale:
+        REWEIGHTING       → preserves all rows; safest for downstream features.
+        STRATIFIED_SAMPLING → use if you need balanced row counts.
+        THRESHOLD_ADJUSTMENT → use at model inference time, not here.
+    """
+    from dags.utils import read_data, write_data
+    from src.bias.bias_mitigator import BiasMitigator, MitigationStrategy
+    from src.bias.fairness_checker import FairnessResult
+
+    execution_date = context["ds"]
+    ti = context["ti"]
+
+    # ── 1. Pull fairness result from upstream XCom ──────────────────────────
+    fairness_xcom: dict = ti.xcom_pull(task_ids="check_fairness")
+
+    if not fairness_xcom or not fairness_xcom.get("has_violations"):
+        # No violations — nothing to mitigate, pass through cleanly
+        return {
+            "mitigation_applied": False,
+            "reason": "No fairness violations detected",
+            "rows_before": None,
+            "rows_after": None,
+        }
+
+    # ── 2. Load processed data ───────────────────────────────────────────────
+    df = read_data(DATASET, "processed", execution_date)
+
+    if df.empty:
+        return {
+            "mitigation_applied": False,
+            "reason": "Empty DataFrame — skipping mitigation",
+        }
+
+    # ── 3. Reconstruct a minimal FairnessResult for the mitigator ───────────
+    #
+    # XCom carries only serialisable dicts, not the full FairnessResult object.
+    # BiasMitigator only needs fairness_result.dataset and .violations to build
+    # MitigationAction records, so we reconstruct a lightweight stand-in.
+    #
+    from dataclasses import dataclass, field
+    from src.bias.fairness_checker import FairnessViolation, FairnessMetric, FairnessSeverity
+
+    @dataclass
+    class _SlimFairnessResult:
+        """Minimal shim so BiasMitigator receives the expected interface."""
+        dataset: str
+        violations: list
+
+        @property
+        def has_violations(self):
+            return bool(self.violations)
+
+    slim_violations = [
+        FairnessViolation(
+            metric=FairnessMetric(v["metric"]),
+            severity=FairnessSeverity(v["severity"]),
+            dimension=v["dimension"],
+            slice_value=v.get("slice_value", ""),
+            expected=v.get("expected", 0.0),
+            actual=v.get("actual", 0.0),
+            disparity=v.get("disparity", 0.0),
+            message=v.get("message", ""),
+        )
+        for v in fairness_xcom.get("violations", [])
+    ]
+
+    slim_result = _SlimFairnessResult(dataset=DATASET, violations=slim_violations)
+
+    # ── 4. Choose strategy ───────────────────────────────────────────────────
+    #
+    # Reweighting is the right default here: it keeps all rows intact so
+    # validate_features and detect_drift outputs remain comparable, and
+    # the added `sample_weight` column is carried into model training.
+    #
+    # Switch to STRATIFIED_SAMPLING if you need balanced row counts, or
+    # THRESHOLD_ADJUSTMENT at inference time (not in this pipeline stage).
+    strategy = MitigationStrategy.REWEIGHTING
+
+    # ── 5. Run mitigation ────────────────────────────────────────────────────
+    mitigator = BiasMitigator()
+    mitigation_result = mitigator.mitigate(
+        df=df,
+        fairness_result=slim_result,
+        dimension="district",  # primary fairness dimension for crime data
+        strategy=strategy,
+    )
+
+    print(mitigation_result.report())  # surfaced in Airflow task logs
+
+    # ── 6. Persist mitigated DataFrame ──────────────────────────────────────
+    mitigated_df = mitigation_result.mitigated_df
+    output_path = write_data(mitigated_df, DATASET, "mitigated", execution_date)
+
+    return {
+        "mitigation_applied": True,
+        "strategy": strategy.value,
+        "dimension": "district",
+        "rows_before": mitigation_result.rows_before,
+        "rows_after": mitigation_result.rows_after,
+        "slices_improved": mitigation_result.total_improved,
+        "total_slices": len(mitigation_result.actions),
+        "output_path": output_path,
+        "weight_range": mitigation_result.tradeoffs.get("weight_range"),
+        # Pass per-slice action details to model card
+        "actions": [
+            {
+                "slice_value": a.slice_value,
+                "before_disparity": round(a.before_disparity, 4),
+                "after_disparity": round(a.after_disparity, 4),
+                "improvement_pct": round(a.improvement_pct, 2),
+                "details": a.details,
+            }
+            for a in mitigation_result.actions
+        ],
+    }
+
+
 
 def generate_model_card(**context) -> dict:
     """Generate model card for the dataset."""
@@ -440,6 +568,7 @@ def generate_model_card(**context) -> dict:
     validation_result = ti.xcom_pull(task_ids="validate_processed")
     drift_result = ti.xcom_pull(task_ids="detect_drift")
     fairness_result = ti.xcom_pull(task_ids="check_fairness")
+    mitigation_result = ti.xcom_pull(task_ids="mitigate_bias")
 
     # Generate model card
     generator = ModelCardGenerator()
@@ -451,6 +580,7 @@ def generate_model_card(**context) -> dict:
         validation_result=validation_result,
         drift_result=drift_result,
         fairness_result=fairness_result,
+        mitigation_result=mitigation_result,
     )
 
     # Save model card
@@ -592,6 +722,12 @@ with DAG(
         on_failure_callback=on_task_failure,
     )
 
+    t_mitigate_bias      = PythonOperator(      
+        task_id="mitigate_bias",
+        python_callable=mitigate_bias_task,
+        on_failure_callback=on_task_failure,
+    )
+
     t_generate_model_card = PythonOperator(
         task_id="generate_model_card",
         python_callable=generate_model_card,
@@ -619,6 +755,7 @@ with DAG(
         >> t_build_features
         >> t_validate_features
         >> [t_detect_drift, t_check_fairness]
+        >> t_mitigate_bias
         >> t_generate_model_card
         >> t_update_watermark
         >> t_pipeline_complete

@@ -29,6 +29,7 @@ dependencies = [
     "pyarrow",
     "scipy",
 
+
     # Configuration & Validation
     "pydantic",
     "pydantic-settings",
@@ -46,6 +47,7 @@ dependencies = [
     # Data Validation
     "great-expectations>=0.18.0",
     "evidently>=0.4.0",
+    "fairlearn>=0.10.0",
 
     # Geospatial
     "geopandas",
