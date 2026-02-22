@@ -4,6 +4,7 @@ Tests for Drift Detector
 Tests PSI calculation and distribution drift detection.
 """
 
+import sys
 from unittest.mock import MagicMock, patch
 
 import numpy as np
