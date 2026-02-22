@@ -4,7 +4,7 @@ Tests for Model Card Generator
 Tests model card generation in Markdown and JSON formats.
 """
 
-from datetime import UTC, datetime
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
