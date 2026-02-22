@@ -1,0 +1,21 @@
+# Boston Pulse - CityScore Dataset Configuration
+#
+# Dataset: CityScore Full Metric List
+# Source: Analyze Boston (data.boston.gov)
+# Reference: https://data.boston.gov/dataset/cityscore
+
+dataset:
+  name: "cityscore"
+  description: "City of Boston CityScore metrics"
+
+api:
+  resource_id: "dd657c02-3443-4c00-8b29-56a40cfe7ee4"
+  base_url: "https://data.boston.gov/api/3/action"
+  endpoint: "datastore_search_sql"
+  batch_size: 1000
+  timeout_seconds: 60
+
+ingestion:
+  watermark_field: "score_calculated_ts"
+  primary_key: "_id"
+  lookback_days: 30

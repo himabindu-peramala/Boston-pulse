@@ -220,10 +220,11 @@ jobs:
       - name: Install Airflow and dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install "Flask-Session<0.6.0"
           pip install "apache-airflow==2.7.3" \
                       "apache-airflow-providers-google>=10.0.0"
           cd data-pipeline
-          pip install -e "." --no-deps || true  # Install local package for imports
+          pip install -e "." || true  # Install local package and its dependencies
 
       - name: Initialize Airflow DB
         run: |

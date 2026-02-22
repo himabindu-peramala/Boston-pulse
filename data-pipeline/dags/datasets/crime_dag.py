@@ -536,7 +536,6 @@ with DAG(
     tags=["crime", "dataset", "reference"],
     max_active_runs=1,
 ) as dag:
-
     # Import callbacks
     from dags.utils import on_dag_failure, on_dag_success, on_task_failure
 

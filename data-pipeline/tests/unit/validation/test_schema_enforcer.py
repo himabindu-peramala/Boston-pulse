@@ -13,9 +13,17 @@ from src.shared.config import get_config
 from src.validation.schema_enforcer import (
     SchemaEnforcer,
     ValidationError,
+    ValidationResult,
     ValidationStage,
     enforce_validation,
 )
+
+
+@pytest.fixture(autouse=True)
+def mock_storage_client():
+    """Mock storage.Client for all tests in this module."""
+    with patch("src.validation.schema_registry.storage.Client"):
+        yield
 
 
 @pytest.fixture
@@ -51,7 +59,7 @@ def test_enforcer_initialization():
     enforcer = SchemaEnforcer(config)
 
     assert enforcer.config == config
-    assert enforcer.strict_mode == config.validation.schema.strict_mode
+    assert enforcer.strict_mode == config.validation.quality_schema.strict_mode
 
 
 def test_validate_raw_success(mock_schema_registry, sample_crime_data):
@@ -166,12 +174,15 @@ def test_validate_features_infinite_values(mock_schema_registry):
 def test_enforce_validation_raises_on_failure():
     """Test that enforce_validation raises ValidationError on failure."""
     config = get_config("dev")
-    config.validation.schema.strict_mode = True
+    config.validation.quality_schema.strict_mode = True
 
     # DataFrame that will fail validation (too few rows)
     df = pd.DataFrame({"col1": [1, 2]})
 
-    with patch("src.validation.schema_enforcer.SchemaRegistry"):
+    with patch("src.validation.schema_enforcer.SchemaRegistry") as mock_registry:
+        mock_instance = MagicMock()
+        mock_registry.return_value = mock_instance
+        mock_instance.validate_dataframe.return_value = (True, [])
         with pytest.raises(ValidationError) as exc_info:
             enforce_validation(df, "crime", ValidationStage.RAW, config=config)
 
@@ -190,3 +201,77 @@ def test_validation_result_properties(mock_schema_registry, sample_crime_data):
     assert isinstance(result.warnings, list)
     assert isinstance(result.has_errors, bool)
     assert isinstance(result.has_warnings, bool)
+
+
+@pytest.fixture
+def sample_geo_data():
+    """Sample data with geographic coordinates."""
+    return pd.DataFrame(
+        {
+            "latitude": [42.35, 42.40, 50.0],  # Last one is out of bounds
+            "longitude": [-71.05, -71.10, -80.0],
+            "incident_number": ["1", "2", "3"],
+        }
+    )
+
+
+def test_validate_geographic_bounds(mock_storage_client, sample_geo_data):
+    """Test geographic bounds validation."""
+    config = get_config("dev")
+    enforcer = SchemaEnforcer(config)
+    result = ValidationResult(dataset="test", stage=ValidationStage.RAW, is_valid=True)
+
+    enforcer._validate_geographic_bounds(sample_geo_data, result)
+
+    assert result.has_warnings
+    assert any("outside Boston bounds" in error for error in result.warnings)
+
+
+def test_ensure_schema_exists_local_fallback(mock_storage_client):
+    """Test that enforcer can fall back to local schema file."""
+    config = get_config("dev")
+
+    with patch("src.validation.schema_enforcer.SchemaRegistry") as mock_registry_class:
+        mock_registry = MagicMock()
+        mock_registry_class.return_value = mock_registry
+
+        # Mock schema not in GCS
+        mock_registry.schema_exists.return_value = False
+
+        enforcer = SchemaEnforcer(config)
+
+        # Mock local file existence and content
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch(
+                "pathlib.Path.read_text",
+                return_value='{"properties": {"col1": {"type": "string"}}}',
+            ),
+        ):
+            enforcer._ensure_schema_registered("crime", ValidationStage.RAW)
+
+            assert mock_registry.register_schema.called
+            args, kwargs = mock_registry.register_schema.call_args
+            assert kwargs["dataset"] == "crime"
+
+
+def test_enforce_validation_processed(mock_schema_registry, sample_crime_data):
+    """Test enforcement at processed stage."""
+    config = get_config("dev")
+    df = sample_crime_data.copy()
+
+    # Successful validation
+    result = enforce_validation(df, "crime", ValidationStage.PROCESSED, config=config)
+    assert result.is_valid
+    assert result.stage == ValidationStage.PROCESSED
+
+
+def test_enforce_validation_features(mock_schema_registry, sample_crime_data):
+    """Test enforcement at features stage."""
+    config = get_config("dev")
+    df = sample_crime_data.copy()
+
+    # Successful validation
+    result = enforce_validation(df, "crime", ValidationStage.FEATURES, config=config)
+    assert result.is_valid
+    assert result.stage == ValidationStage.FEATURES

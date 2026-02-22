@@ -98,7 +98,7 @@ class TestCrimePreprocessor:
 
         assert "shooting" in df.columns
         assert df["shooting"].dtype == bool
-        assert df["shooting"].iloc[2] is True  # "Y" converted to True
+        assert df["shooting"].iloc[2]  # "Y" converted to True
 
     def test_run_datetime_parsing(self, preprocessor, sample_raw_data):
         """Test datetime field parsing."""

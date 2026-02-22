@@ -161,8 +161,12 @@ class CrimePreprocessor(BasePreprocessor):
     def _process_datetime(self, df: pd.DataFrame) -> pd.DataFrame:
         """Process and validate datetime fields."""
         if "occurred_on_date" in df.columns:
-            # Convert to datetime
+            # Convert to datetime and localize to UTC
             df["occurred_on_date"] = pd.to_datetime(df["occurred_on_date"], errors="coerce")
+            if not df["occurred_on_date"].dt.tz:
+                df["occurred_on_date"] = df["occurred_on_date"].dt.tz_localize(UTC)
+            else:
+                df["occurred_on_date"] = df["occurred_on_date"].dt.tz_convert(UTC)
 
             # Track invalid dates
             invalid_dates = df["occurred_on_date"].isna().sum()
