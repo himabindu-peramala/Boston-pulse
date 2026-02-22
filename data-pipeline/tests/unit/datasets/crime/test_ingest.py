@@ -20,15 +20,15 @@ class TestCrimeIngester:
     def ingester(self):
         """Create a CrimeIngester instance."""
         return CrimeIngester()
-    
+
     @pytest.fixture
     def mock_successful_response(self, sample_api_response):
         """Reusable mock for a successful API response."""
         mock_response = MagicMock()
-        mock_response.status_code = 200       
+        mock_response.status_code = 200
         mock_response.json.return_value = sample_api_response
         mock_response.raise_for_status = MagicMock()
-    return mock_response
+        return mock_response
 
     @pytest.fixture
     def sample_api_response(self):
