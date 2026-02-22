@@ -4,6 +4,7 @@ Tests for Drift Detector
 Tests PSI calculation and distribution drift detection.
 """
 
+import sys
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -12,9 +13,6 @@ import pytest
 
 from src.shared.config import get_config
 from src.validation.drift_detector import DriftDetector, DriftSeverity, check_drift
-
-import sys
-from unittest.mock import MagicMock, patch
 
 # Mock evidently modules before they are imported in the code
 sys.modules["evidently"] = MagicMock()
@@ -186,7 +184,7 @@ def test_detect_drift_with_evidently(reference_data, current_data_with_drift):
     """Test drift detection using Evidently (mocked)."""
     # Get mock from sys.modules
     mock_report_class = sys.modules["evidently.report"].Report
-    
+
     detector = DriftDetector()
 
     mock_report = MagicMock()
@@ -208,9 +206,7 @@ def test_detect_drift_with_evidently(reference_data, current_data_with_drift):
         ]
     }
 
-    result = detector.detect_drift_with_evidently(
-        current_data_with_drift, reference_data, "test"
-    )
+    result = detector.detect_drift_with_evidently(current_data_with_drift, reference_data, "test")
 
     assert result.dataset == "test"
     assert len(result.features_with_drift) == 1

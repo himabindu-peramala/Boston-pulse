@@ -14,8 +14,8 @@ import pytest
 
 from src.shared.config import get_config
 from src.validation.statistics_generator import (
-    FeatureStatistics,
     DataStatistics,
+    FeatureStatistics,
     StatisticsGenerator,
     generate_and_save_statistics,
     get_latest_statistics,
@@ -56,7 +56,7 @@ def test_feature_statistics_to_dict():
         min=5.0,
         max=15.0,
     )
-    
+
     d = stats.to_dict()
     assert d["name"] == "test"
     assert d["mean"] == 10.0
@@ -74,12 +74,12 @@ def test_data_statistics_to_from_dict():
         num_features=1,
         feature_statistics=[
             FeatureStatistics(name="f1", dtype="int", count=100, num_missing=0, missing_ratio=0.0)
-        ]
+        ],
     )
-    
+
     d = stats.to_dict()
     assert d["dataset"] == "test"
-    
+
     new_stats = DataStatistics.from_dict(d)
     assert new_stats.dataset == "test"
     assert len(new_stats.feature_statistics) == 1
@@ -90,7 +90,7 @@ def test_generator_initialization():
     """Test StatisticsGenerator initialization."""
     config = get_config("dev")
     generator = StatisticsGenerator(config)
-    
+
     assert generator.config == config
     assert generator.bucket_name == config.storage.buckets.main
 
@@ -99,21 +99,21 @@ def test_generate_statistics(sample_df):
     """Test generating statistics for a DataFrame."""
     generator = StatisticsGenerator()
     stats = generator.generate_statistics(sample_df, "test", "raw")
-    
+
     assert stats.dataset == "test"
     assert stats.num_examples == 100
     assert stats.num_features == 4
-    
+
     # Check numeric feature
     num_stats = stats.get_feature_stats("numeric")
     assert num_stats.mean is not None
     assert num_stats.std is not None
-    
+
     # Check categorical feature
     cat_stats = stats.get_feature_stats("categorical")
     assert cat_stats.num_unique == 3
     assert "A" in cat_stats.value_counts
-    
+
     # Check null handling
     null_stats = stats.get_feature_stats("with_nulls")
     assert null_stats.num_missing == 20
@@ -127,15 +127,15 @@ def test_save_load_statistics(sample_df):
         mock_blob = MagicMock()
         mock_client.return_value.bucket.return_value = mock_bucket
         mock_bucket.blob.return_value = mock_blob
-        
+
         generator = StatisticsGenerator()
         stats = generator.generate_statistics(sample_df, "test", "raw")
-        
+
         # Save
         path = generator.save_statistics(stats)
         assert "gs://" in path
         assert mock_blob.upload_from_string.called
-        
+
         # Load
         mock_blob.download_as_string.return_value = json.dumps(stats.to_dict())
         loaded_stats = generator.load_statistics("test", "raw")
@@ -146,17 +146,17 @@ def test_save_load_statistics(sample_df):
 def test_compare_statistics(sample_df):
     """Test comparing two sets of statistics."""
     generator = StatisticsGenerator()
-    
+
     # Create reference and current
     ref_stats = generator.generate_statistics(sample_df, "test", "raw")
     curr_df = sample_df.copy()
     curr_df["numeric"] = curr_df["numeric"] + 10  # Shift mean
     curr_stats = generator.generate_statistics(curr_df, "test", "raw")
-    
+
     comparison = generator.compare_statistics(curr_stats, ref_stats)
-    
+
     assert "row_count_change" in comparison
-    
+
     # Check feature comparison
     feat_comps = {f["feature"]: f for f in comparison["feature_comparisons"]}
     assert "numeric" in feat_comps
@@ -167,12 +167,12 @@ def test_visualize_statistics(sample_df, tmp_path):
     """Test HTML visualization generation."""
     generator = StatisticsGenerator()
     stats = generator.generate_statistics(sample_df, "test", "raw")
-    
+
     output_file = str(tmp_path / "stats.html")
     path = generator.visualize_statistics(stats, output_path=output_file)
-    
+
     assert path == output_file
-    with open(output_file, "r") as f:
+    with open(output_file) as f:
         content = f.read()
         assert "Statistics Report: test/raw" in content
         assert "numeric" in content
@@ -183,12 +183,12 @@ def test_convenience_functions(sample_df):
     with patch("src.validation.statistics_generator.StatisticsGenerator") as mock_gen_class:
         mock_gen = MagicMock()
         mock_gen_class.return_value = mock_gen
-        
+
         # generate_and_save
         generate_and_save_statistics(sample_df, "test", "raw")
         assert mock_gen.generate_statistics.called
         assert mock_gen.save_statistics.called
-        
+
         # get_latest
         get_latest_statistics("test", "raw")
         assert mock_gen.load_statistics.called
