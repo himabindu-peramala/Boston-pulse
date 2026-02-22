@@ -13,6 +13,7 @@ from src.shared.config import get_config
 from src.validation.schema_enforcer import (
     SchemaEnforcer,
     ValidationError,
+    ValidationResult,
     ValidationStage,
     enforce_validation,
 )
@@ -200,3 +201,73 @@ def test_validation_result_properties(mock_schema_registry, sample_crime_data):
     assert isinstance(result.warnings, list)
     assert isinstance(result.has_errors, bool)
     assert isinstance(result.has_warnings, bool)
+
+
+@pytest.fixture
+def sample_geo_data():
+    """Sample data with geographic coordinates."""
+    return pd.DataFrame(
+        {
+            "latitude": [42.35, 42.40, 50.0],  # Last one is out of bounds
+            "longitude": [-71.05, -71.10, -80.0],
+            "incident_number": ["1", "2", "3"],
+        }
+    )
+
+
+def test_validate_geographic_bounds(mock_storage_client, sample_geo_data):
+    """Test geographic bounds validation."""
+    config = get_config("dev")
+    enforcer = SchemaEnforcer(config)
+    result = ValidationResult(dataset="test", stage=ValidationStage.RAW, is_valid=True)
+
+    enforcer._validate_geographic_bounds(sample_geo_data, result)
+
+    assert result.has_warnings
+    assert any("outside Boston bounds" in error for error in result.warnings)
+
+
+def test_ensure_schema_exists_local_fallback(mock_storage_client):
+    """Test that enforcer can fall back to local schema file."""
+    config = get_config("dev")
+
+    with patch("src.validation.schema_enforcer.SchemaRegistry") as mock_registry_class:
+        mock_registry = MagicMock()
+        mock_registry_class.return_value = mock_registry
+
+        # Mock schema not in GCS
+        mock_registry.schema_exists.return_value = False
+
+        enforcer = SchemaEnforcer(config)
+
+        # Mock local file existence and content
+        with patch("pathlib.Path.exists", return_value=True), \
+             patch("pathlib.Path.read_text", return_value='{"properties": {"col1": {"type": "string"}}}'):
+
+            enforcer._ensure_schema_registered("crime", ValidationStage.RAW)
+
+            assert mock_registry.register_schema.called
+            args, kwargs = mock_registry.register_schema.call_args
+            assert kwargs["dataset"] == "crime"
+
+
+def test_enforce_validation_processed(mock_schema_registry, sample_crime_data):
+    """Test enforcement at processed stage."""
+    config = get_config("dev")
+    df = sample_crime_data.copy()
+
+    # Successful validation
+    result = enforce_validation(df, "crime", ValidationStage.PROCESSED, config=config)
+    assert result.is_valid
+    assert result.stage == ValidationStage.PROCESSED
+
+
+def test_enforce_validation_features(mock_schema_registry, sample_crime_data):
+    """Test enforcement at features stage."""
+    config = get_config("dev")
+    df = sample_crime_data.copy()
+
+    # Successful validation
+    result = enforce_validation(df, "crime", ValidationStage.FEATURES, config=config)
+    assert result.is_valid
+    assert result.stage == ValidationStage.FEATURES
