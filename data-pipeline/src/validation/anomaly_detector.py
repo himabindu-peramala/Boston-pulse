@@ -389,6 +389,12 @@ class AnomalyDetector:
 
             # Check for future dates
             now = datetime.now(UTC)
+            # Ensure col_data is localized to UTC for comparison
+            if not col_data.dt.tz:
+                col_data = col_data.dt.tz_localize(UTC)
+            else:
+                col_data = col_data.dt.tz_convert(UTC)
+
             max_future = now + timedelta(days=self.config.validation.temporal.max_future_days)
             future_dates = (col_data > max_future).sum()
 
