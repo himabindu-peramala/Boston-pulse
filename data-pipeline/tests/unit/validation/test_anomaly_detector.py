@@ -85,9 +85,20 @@ def test_detect_outliers():
     # Normal distribution with extreme outliers appended
     rng = np.random.RandomState(42)
     normal = rng.normal(loc=100, scale=5, size=80).tolist()
-    outliers = [1000, 1100, 1200, 1300, 1400,
-                1500, 1600, 1700, 1800, 1900,
-                2000, 2100]  # 12 outliers out of 92 = 13%
+    outliers = [
+        1000,
+        1100,
+        1200,
+        1300,
+        1400,
+        1500,
+        1600,
+        1700,
+        1800,
+        1900,
+        2000,
+        2100,
+    ]  # 12 outliers out of 92 = 13%
     df = pd.DataFrame({"value": normal + outliers})
     result = detector.detect_anomalies(df, "test")
 
