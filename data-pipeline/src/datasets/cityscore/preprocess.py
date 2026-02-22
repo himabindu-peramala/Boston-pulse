@@ -7,7 +7,7 @@ Cleans and validates CityScore metric data.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC
 from typing import Any
 
 import pandas as pd
@@ -75,6 +75,15 @@ class CityScorePreprocessor(BasePreprocessor):
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """Apply CityScore-specific transformations."""
+        if df.empty:
+            for col in self.REQUIRED_COLUMNS:
+                if col not in df.columns:
+                    target_dtype = self.DTYPE_MAPPINGS.get(col, "object")
+                    if target_dtype == "datetime":
+                        target_dtype = "datetime64[ns, UTC]"
+                    df[col] = pd.Series(dtype=target_dtype)
+            return df
+
         # Process and validate timestamp
         df = self._process_timestamp(df)
 
@@ -96,7 +105,11 @@ class CityScorePreprocessor(BasePreprocessor):
         """Process and validate timestamp field."""
         if "timestamp" in df.columns:
             df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-            
+            if not df["timestamp"].dt.tz:
+                df["timestamp"] = df["timestamp"].dt.tz_localize(UTC)
+            else:
+                df["timestamp"] = df["timestamp"].dt.tz_convert(UTC)
+
             # Remove records with invalid timestamps
             invalid_dates = df["timestamp"].isna().sum()
             if invalid_dates > 0:
@@ -107,7 +120,7 @@ class CityScorePreprocessor(BasePreprocessor):
             df["year"] = df["timestamp"].dt.year
             df["month_num"] = df["timestamp"].dt.month
             df["date"] = df["timestamp"].dt.date
-            
+
         return df
 
     def _standardize_metrics(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -128,8 +141,15 @@ class CityScorePreprocessor(BasePreprocessor):
     def _select_output_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """Select and order output columns."""
         output_columns = [
-            "metric_name", "timestamp", "target", "day_score", 
-            "week_score", "month_score", "year", "month_num", "date"
+            "metric_name",
+            "timestamp",
+            "target",
+            "day_score",
+            "week_score",
+            "month_score",
+            "year",
+            "month_num",
+            "date",
         ]
         available_columns = [c for c in output_columns if c in df.columns]
         return df[available_columns].copy()

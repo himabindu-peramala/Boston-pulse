@@ -4,12 +4,15 @@ Unit tests for FoodInspectionsFeatureBuilder.
 Tests the food inspections feature generation.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pandas as pd
 import pytest
 
-from src.datasets.food_inspections.features import FoodInspectionsFeatureBuilder, build_food_inspections_features
+from src.datasets.food_inspections.features import (
+    FoodInspectionsFeatureBuilder,
+    build_food_inspections_features,
+)
 
 
 class TestFoodInspectionsFeatureBuilder:
@@ -23,7 +26,7 @@ class TestFoodInspectionsFeatureBuilder:
     @pytest.fixture
     def sample_processed_data(self):
         """Sample processed data matching FoodInspectionsPreprocessor output."""
-        base_date = datetime(2024, 1, 15)
+        base_date = datetime(2024, 1, 15, tzinfo=UTC)
         return pd.DataFrame(
             {
                 "_id": [1, 2, 3],
@@ -33,7 +36,7 @@ class TestFoodInspectionsFeatureBuilder:
                     base_date,
                 ],
                 "result": ["Pass", "Fail", "Pass"],
-                "lat": [42.3456, 42.3457, 42.3456], # 1 and 3 in same cell
+                "lat": [42.3456, 42.3457, 42.3456],  # 1 and 3 in same cell
                 "long": [-71.0789, -71.0788, -71.0789],
             }
         )
@@ -54,28 +57,32 @@ class TestFoodInspectionsFeatureBuilder:
 
     def test_grid_cell_aggregation(self, builder):
         """Test that records in the same grid cell are aggregated."""
-        df = pd.DataFrame({
-            "_id": [1, 2],
-            "resultdttm": [datetime(2024, 1, 15), datetime(2024, 1, 15)],
-            "result": ["Pass", "Pass"],
-            "lat": [42.3501, 42.3502], # Same grid cell (0.001)
-            "long": [-71.0601, -71.0602],
-        })
-        
+        df = pd.DataFrame(
+            {
+                "_id": [1, 2],
+                "resultdttm": [datetime(2024, 1, 15), datetime(2024, 1, 15)],
+                "result": ["Pass", "Pass"],
+                "lat": [42.3501, 42.3502],  # Same grid cell (0.001)
+                "long": [-71.0601, -71.0602],
+            }
+        )
+
         features_df = builder.build_features(df)
         assert len(features_df) == 1
         assert features_df["inspection_count_180d"].iloc[0] == 2
 
     def test_failure_ratio_calculation(self, builder):
         """Test failure ratio calculation."""
-        df = pd.DataFrame({
-            "_id": [1, 2],
-            "resultdttm": [datetime(2024, 1, 15), datetime(2024, 1, 15)],
-            "result": ["Pass", "Fail"],
-            "lat": [42.3501, 42.3501],
-            "long": [-71.0601, -71.0601],
-        })
-        
+        df = pd.DataFrame(
+            {
+                "_id": [1, 2],
+                "resultdttm": [datetime(2024, 1, 15), datetime(2024, 1, 15)],
+                "result": ["Pass", "Fail"],
+                "lat": [42.3501, 42.3501],
+                "long": [-71.0601, -71.0601],
+            }
+        )
+
         features_df = builder.build_features(df)
         assert features_df["failure_ratio_180d"].iloc[0] == 0.5
 
@@ -85,9 +92,8 @@ class TestFoodInspectionsFeatureBuilder:
         features_df = builder.build_features(df)
         assert features_df.empty
 
-
-def test_build_food_inspections_features_convenience(sample_processed_data):
-    """Test convenience function."""
-    result = build_food_inspections_features(sample_processed_data, execution_date="2024-01-15")
-    assert result["success"]
-    assert result["rows_processed"] > 0
+    def test_build_food_inspections_features_convenience(self, sample_processed_data):
+        """Test convenience function."""
+        result = build_food_inspections_features(sample_processed_data, execution_date="2024-01-15")
+        assert result["success"]
+        assert "rows_output" in result

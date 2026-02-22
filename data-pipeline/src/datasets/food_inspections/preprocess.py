@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import UTC, datetime
+from datetime import UTC
 from typing import Any
 
 import numpy as np
@@ -39,7 +39,7 @@ class FoodInspectionsPreprocessor(BasePreprocessor):
 
     # Data type mappings
     DTYPE_MAPPINGS = {
-        "_id": "integer",
+        "_id": "int",
         "businessname": "string",
         "licenseno": "string",
         "result": "string",
@@ -79,7 +79,16 @@ class FoodInspectionsPreprocessor(BasePreprocessor):
         return self.DTYPE_MAPPINGS
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Apply food investigations-specific transformations."""
+        """Apply food inspections transformations."""
+        if df.empty:
+            for col in self.REQUIRED_COLUMNS:
+                if col not in df.columns:
+                    target_dtype = self.DTYPE_MAPPINGS.get(col, "object")
+                    if target_dtype == "datetime":
+                        target_dtype = "datetime64[ns, UTC]"
+                    df[col] = pd.Series(dtype=target_dtype)
+            return df
+
         # Process and validate datetime
         df = self._process_datetimes(df)
 
@@ -105,6 +114,10 @@ class FoodInspectionsPreprocessor(BasePreprocessor):
         for col in ["resultdttm", "issdttm", "violdttm"]:
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], errors="coerce")
+                if not df[col].dt.tz:
+                    df[col] = df[col].dt.tz_localize(UTC)
+                else:
+                    df[col] = df[col].dt.tz_convert(UTC)
 
         if "resultdttm" in df.columns:
             # Remove records with invalid result dates
@@ -169,8 +182,18 @@ class FoodInspectionsPreprocessor(BasePreprocessor):
     def _select_output_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """Select and order output columns."""
         output_columns = [
-            "_id", "businessname", "licenseno", "result", "resultdttm",
-            "address", "zip", "lat", "long", "year", "month", "day_of_week"
+            "_id",
+            "businessname",
+            "licenseno",
+            "result",
+            "resultdttm",
+            "address",
+            "zip",
+            "lat",
+            "long",
+            "year",
+            "month",
+            "day_of_week",
         ]
         available_columns = [c for c in output_columns if c in df.columns]
         return df[available_columns].copy()

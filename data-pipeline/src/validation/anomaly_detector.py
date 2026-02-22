@@ -475,11 +475,12 @@ class AnomalyDetector:
         dup_count = df.duplicated().sum()
         if dup_count > 0:
             dup_ratio = dup_count / len(df)
-            severity = (
-                AnomalySeverity.CRITICAL
-                if dup_ratio > 0.1
-                else AnomalySeverity.WARNING if dup_ratio > 0.01 else AnomalySeverity.INFO
-            )
+            if dup_ratio > 0.1:
+                severity = AnomalySeverity.CRITICAL
+            elif dup_ratio > 0.01:
+                severity = AnomalySeverity.WARNING
+            else:
+                severity = AnomalySeverity.INFO
 
             anomalies.append(
                 Anomaly(

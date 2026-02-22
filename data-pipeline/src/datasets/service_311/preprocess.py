@@ -51,7 +51,7 @@ class Service311Preprocessor(BasePreprocessor):
         "neighborhood": "string",
         "lat": "float",
         "long": "float",
-        "on_time": "string", # Often 'ON TIME' or 'OVERDUE'
+        "on_time": "string",  # Often 'ON TIME' or 'OVERDUE'
     }
 
     # Required output columns
@@ -86,6 +86,17 @@ class Service311Preprocessor(BasePreprocessor):
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """Apply 311-specific transformations."""
+        if df.empty:
+            # Ensure required columns exist even in empty DF
+            for col in self.REQUIRED_COLUMNS:
+                if col not in df.columns:
+                    target_dtype = self.DTYPE_MAPPINGS.get(col, "object")
+                    # Map 'datetime' to the actual numpy/pandas dtype
+                    if target_dtype == "datetime":
+                        target_dtype = "datetime64[ns, UTC]"
+                    df[col] = pd.Series(dtype=target_dtype)
+            return df
+
         # Process and validate datetime
         df = self._process_datetimes(df)
 
@@ -111,6 +122,10 @@ class Service311Preprocessor(BasePreprocessor):
         for col in ["open_date", "close_date"]:
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], errors="coerce")
+                if not df[col].dt.tz:
+                    df[col] = df[col].dt.tz_localize(UTC)
+                else:
+                    df[col] = df[col].dt.tz_convert(UTC)
 
         if "open_date" in df.columns:
             # Remove records with invalid open dates
@@ -164,7 +179,13 @@ class Service311Preprocessor(BasePreprocessor):
 
     def _handle_missing_values(self, df: pd.DataFrame) -> pd.DataFrame:
         """Handle remaining missing values."""
-        categorical_cols = ["case_topic", "service_name", "assigned_department", "case_status", "on_time"]
+        categorical_cols = [
+            "case_topic",
+            "service_name",
+            "assigned_department",
+            "case_status",
+            "on_time",
+        ]
         for col in categorical_cols:
             if col in df.columns:
                 df[col] = df[col].fillna("Unknown")
@@ -173,9 +194,21 @@ class Service311Preprocessor(BasePreprocessor):
     def _select_output_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """Select and order output columns."""
         output_columns = [
-            "case_id", "open_date", "close_date", "case_topic", "service_name",
-            "assigned_department", "case_status", "neighborhood", "on_time",
-            "lat", "long", "year", "month", "hour", "day_of_week"
+            "case_id",
+            "open_date",
+            "close_date",
+            "case_topic",
+            "service_name",
+            "assigned_department",
+            "case_status",
+            "neighborhood",
+            "on_time",
+            "lat",
+            "long",
+            "year",
+            "month",
+            "hour",
+            "day_of_week",
         ]
         available_columns = [c for c in output_columns if c in df.columns]
         return df[available_columns].copy()

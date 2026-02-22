@@ -83,6 +83,19 @@ class FoodInspectionsFeatureBuilder(BaseFeatureBuilder):
         """Build food inspection features from processed data."""
         logger.info(f"Building food inspection features from {len(df)} records")
 
+        if df.empty:
+            return pd.DataFrame(
+                columns=[
+                    "grid_cell",
+                    "grid_lat",
+                    "grid_long",
+                    "execution_date",
+                    "inspection_count_180d",
+                    "failure_count_180d",
+                    "failure_ratio_180d",
+                ]
+            )
+
         # Filter to records with valid coordinates
         df = df[df["lat"].notna() & df["long"].notna()].copy()
         if len(df) == 0:
@@ -93,7 +106,7 @@ class FoodInspectionsFeatureBuilder(BaseFeatureBuilder):
 
         # Get reference date
         reference_date = df["resultdttm"].max()
-        
+
         # Build features by grid cell
         features_list = []
         for grid_cell, group in df.groupby("grid_cell"):
@@ -105,7 +118,7 @@ class FoodInspectionsFeatureBuilder(BaseFeatureBuilder):
             return pd.DataFrame()
 
         features_df = pd.DataFrame(features_list)
-        
+
         # Add grid coordinates from cell ID
         features_df["grid_lat"] = features_df["grid_cell"].apply(lambda x: float(x.split("_")[0]))
         features_df["grid_long"] = features_df["grid_cell"].apply(lambda x: float(x.split("_")[1]))
@@ -123,11 +136,13 @@ class FoodInspectionsFeatureBuilder(BaseFeatureBuilder):
         )
         return df
 
-    def _compute_cell_features(self, group: pd.DataFrame, reference_date: datetime) -> dict[str, Any]:
+    def _compute_cell_features(
+        self, group: pd.DataFrame, reference_date: datetime
+    ) -> dict[str, Any]:
         """Compute features for a single grid cell."""
         features: dict[str, Any] = {}
         # Get neighborhood from another source if needed, but here we'll just skip it or pick a dummy if not in df
-        features["neighborhood"] = "Unknown" # Neighborhood not joined in this simple version
+        features["neighborhood"] = "Unknown"  # Neighborhood not joined in this simple version
 
         for window in self.WINDOW_SIZES:
             window_mask = group["resultdttm"] >= (reference_date - pd.Timedelta(days=window))

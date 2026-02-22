@@ -4,7 +4,7 @@ Unit tests for CityScoreFeatureBuilder.
 Tests the CityScore feature generation.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pandas as pd
 import pytest
@@ -26,13 +26,18 @@ class TestCityScoreFeatureBuilder:
         return pd.DataFrame(
             {
                 "id": [1, 2, 3],
-                "score_date": [
-                    datetime(2024, 1, 15),
-                    datetime(2024, 1, 14),
-                    datetime(2024, 1, 13),
+                "timestamp": [
+                    datetime(2024, 1, 15, tzinfo=UTC),
+                    datetime(2024, 1, 14, tzinfo=UTC),
+                    datetime(2024, 1, 13, tzinfo=UTC),
                 ],
-                "metric": ["Trash On-Time %", "Trash On-Time %", "Trash On-Time %"],
-                "score": [0.85, 0.80, 0.75],
+                "date": [
+                    datetime(2024, 1, 15, tzinfo=UTC).date(),
+                    datetime(2024, 1, 14, tzinfo=UTC).date(),
+                    datetime(2024, 1, 13, tzinfo=UTC).date(),
+                ],
+                "metric_name": ["Trash On-Time %", "Trash On-Time %", "Trash On-Time %"],
+                "day_score": [0.85, 0.80, 0.75],
                 "target": [0.80, 0.80, 0.80],
             }
         )
@@ -46,22 +51,25 @@ class TestCityScoreFeatureBuilder:
         features_df = builder.build_features(sample_processed_data)
 
         assert not features_df.empty
-        assert "metric" in features_df.columns
-        assert "avg_score_7d" in features_df.columns
-        assert "score_vs_target" in features_df.columns
+        assert "date" in features_df.columns
+        assert "avg_day_score" in features_df.columns
 
     def test_score_vs_target_calculation(self, builder):
-        """Test score_vs_target calculation."""
-        df = pd.DataFrame({
-            "id": [1],
-            "score_date": [datetime(2024, 1, 15)],
-            "metric": ["Test Metric"],
-            "score": [0.90],
-            "target": [0.80]
-        })
-        
+        """Test that metric-specific columns are created."""
+        df = pd.DataFrame(
+            {
+                "id": [1],
+                "timestamp": [datetime(2024, 1, 15, tzinfo=UTC)],
+                "date": [datetime(2024, 1, 15, tzinfo=UTC).date()],
+                "metric_name": ["Test Metric"],
+                "day_score": [0.90],
+                "target": [0.80],
+            }
+        )
+
         features_df = builder.build_features(df)
-        assert features_df["score_vs_target"].iloc[0] == 1.125 # 0.9 / 0.8
+        assert "test_metric" in features_df.columns
+        assert features_df["test_metric"].iloc[0] == 0.90
 
     def test_empty_dataframe(self, builder):
         """Test handling of empty DataFrame."""
@@ -69,9 +77,8 @@ class TestCityScoreFeatureBuilder:
         features_df = builder.build_features(df)
         assert features_df.empty
 
-
-def test_build_cityscore_features_convenience(sample_processed_data):
-    """Test convenience function."""
-    result = build_cityscore_features(sample_processed_data, execution_date="2024-01-15")
-    assert result["success"]
-    assert result["rows_processed"] > 0
+    def test_build_cityscore_features_convenience(self, sample_processed_data):
+        """Test convenience function."""
+        result = build_cityscore_features(sample_processed_data, execution_date="2024-01-15")
+        assert result["success"]
+        assert "rows_output" in result

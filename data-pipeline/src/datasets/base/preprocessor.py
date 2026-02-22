@@ -209,8 +209,7 @@ class BasePreprocessor(ABC):
             )
 
             logger.info(
-                f"Preprocessing complete for {dataset_name}: "
-                f"{rows_input} -> {rows_output} rows",
+                f"Preprocessing complete for {dataset_name}: {rows_input} -> {rows_output} rows",
                 extra=result.to_dict(),
             )
 

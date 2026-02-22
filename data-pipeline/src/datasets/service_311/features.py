@@ -91,6 +91,21 @@ class Service311FeatureBuilder(BaseFeatureBuilder):
         """Build 311 features from processed data."""
         logger.info(f"Building 311 features from {len(df)} records")
 
+        if df.empty:
+            return pd.DataFrame(
+                columns=[
+                    "grid_cell",
+                    "grid_lat",
+                    "grid_long",
+                    "execution_date",
+                    "request_count_7d",
+                    "request_count_30d",
+                    "request_count_90d",
+                    "overdue_ratio_30d",
+                    "overdue_ratio_90d",
+                ]
+            )
+
         # Filter to records with valid coordinates
         df = df[df["lat"].notna() & df["long"].notna()].copy()
         if len(df) == 0:
@@ -101,7 +116,7 @@ class Service311FeatureBuilder(BaseFeatureBuilder):
 
         # Get reference date
         reference_date = df["open_date"].max()
-        
+
         # Build features by grid cell
         features_list = []
         for grid_cell, group in df.groupby("grid_cell"):
@@ -113,7 +128,7 @@ class Service311FeatureBuilder(BaseFeatureBuilder):
             return pd.DataFrame()
 
         features_df = pd.DataFrame(features_list)
-        
+
         # Add grid coordinates from cell ID
         features_df["grid_lat"] = features_df["grid_cell"].apply(lambda x: float(x.split("_")[0]))
         features_df["grid_long"] = features_df["grid_cell"].apply(lambda x: float(x.split("_")[1]))
@@ -131,10 +146,14 @@ class Service311FeatureBuilder(BaseFeatureBuilder):
         )
         return df
 
-    def _compute_cell_features(self, group: pd.DataFrame, reference_date: datetime) -> dict[str, Any]:
+    def _compute_cell_features(
+        self, group: pd.DataFrame, reference_date: datetime
+    ) -> dict[str, Any]:
         """Compute features for a single grid cell."""
         features: dict[str, Any] = {}
-        features["neighborhood"] = group["neighborhood"].mode().iloc[0] if len(group) > 0 else "Unknown"
+        features["neighborhood"] = (
+            group["neighborhood"].mode().iloc[0] if len(group) > 0 else "Unknown"
+        )
 
         for window in self.WINDOW_SIZES:
             window_mask = group["open_date"] >= (reference_date - pd.Timedelta(days=window))

@@ -4,8 +4,6 @@ Unit tests for Service311Preprocessor.
 Tests the 311 data preprocessing and validation.
 """
 
-from datetime import UTC, datetime
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -26,7 +24,7 @@ class TestService311Preprocessor:
         """Sample raw data matching API format."""
         return pd.DataFrame(
             {
-                "case_id": ["101", "102", "101"], # Duplicate
+                "case_id": ["101", "102", "101"],  # Duplicate
                 "open_date": ["2024-01-15T14:30:00", "2024-01-15T16:45:00", "2024-01-15T14:30:00"],
                 "close_date": ["2024-01-16T10:00:00", None, "2024-01-16T10:00:00"],
                 "case_topic": ["Sanitation", "Highway", "Sanitation"],
@@ -58,7 +56,7 @@ class TestService311Preprocessor:
         """Test that coordinates are renamed and typed correctly."""
         preprocessor.run(sample_raw_data, execution_date="2024-01-15")
         df = preprocessor.get_data()
-        
+
         assert "lat" in df.columns
         assert "long" in df.columns
         assert df["lat"].dtype == "float64"
@@ -67,24 +65,26 @@ class TestService311Preprocessor:
         """Test that dates are parsed correctly."""
         preprocessor.run(sample_raw_data, execution_date="2024-01-15")
         df = preprocessor.get_data()
-        
+
         assert pd.api.types.is_datetime64_any_dtype(df["open_date"])
         assert df["year"].iloc[0] == 2024
 
     def test_invalid_coordinates(self, preprocessor):
         """Test filtering of invalid coordinates."""
-        df = pd.DataFrame({
-            "case_id": ["1", "2"],
-            "open_date": ["2024-01-15", "2024-01-15"],
-            "neighborhood": ["A", "B"],
-            "latitude": [42.3, 0.0],  # 0.0 is out of bounds for Boston
-            "longitude": [-71.0, 0.0],
-            "case_topic": ["T1", "T2"]
-        })
-        
+        df = pd.DataFrame(
+            {
+                "case_id": ["1", "2"],
+                "open_date": ["2024-01-15", "2024-01-15"],
+                "neighborhood": ["A", "B"],
+                "latitude": [42.3, 0.0],  # 0.0 is out of bounds for Boston
+                "longitude": [-71.0, 0.0],
+                "case_topic": ["T1", "T2"],
+            }
+        )
+
         preprocessor.run(df, execution_date="2024-01-15")
         processed_df = preprocessor.get_data()
-        
+
         # Row 2 should have NaN for lat/long
         assert np.isnan(processed_df.loc[processed_df["case_id"] == "2", "lat"].iloc[0])
 
@@ -95,9 +95,8 @@ class TestService311Preprocessor:
         assert result.success
         assert len(preprocessor.get_data()) == 0
 
-
-def test_preprocess_311_data_convenience(sample_raw_data):
-    """Test convenience function."""
-    result = preprocess_311_data(sample_raw_data, execution_date="2024-01-15")
-    assert result["success"]
-    assert result["rows_processed"] == 2
+    def test_preprocess_311_data_convenience(self, sample_raw_data):
+        """Test convenience function."""
+        result = preprocess_311_data(sample_raw_data, execution_date="2024-01-15")
+        assert result["success"]
+        assert result["rows_output"] == 2

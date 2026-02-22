@@ -160,13 +160,13 @@ def ingest_311_data(
 ) -> dict[str, Any]:
     """Convenience function for ingesting 311 data."""
     ingester = Service311Ingester(config)
-    
+
     # Standard logic consistent with crime pipeline
     until = datetime.strptime(execution_date, "%Y-%m-%d")
     since = watermark_start
-    
+
     df = ingester.fetch_data(since=since, until=until)
     ingester._data = df
-    
+
     result = ingester.run(execution_date, watermark_start)
     return result.to_dict()

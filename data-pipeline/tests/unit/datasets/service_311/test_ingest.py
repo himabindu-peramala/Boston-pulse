@@ -159,10 +159,6 @@ class TestService311Ingester:
         assert not is_valid
         assert any("Primary key" in e for e in errors)
 
-
-class TestConvenienceFunctions:
-    """Test convenience functions."""
-
     @patch("src.datasets.service_311.ingest.Service311Ingester")
     def test_ingest_311_data(self, mock_ingester_class):
         """Test ingest_311_data convenience function."""

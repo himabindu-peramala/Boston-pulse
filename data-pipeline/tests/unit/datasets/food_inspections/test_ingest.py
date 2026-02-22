@@ -4,13 +4,15 @@ Unit tests for FoodInspectionsIngester.
 Tests the food inspections data ingestion from Analyze Boston API.
 """
 
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
-from src.datasets.food_inspections.ingest import FoodInspectionsIngester, ingest_food_inspections_data
+from src.datasets.food_inspections.ingest import (
+    FoodInspectionsIngester,
+    ingest_food_inspections_data,
+)
 
 
 class TestFoodInspectionsIngester:
@@ -82,10 +84,6 @@ class TestFoodInspectionsIngester:
         assert "_id" in df.columns
         assert "resultdttm" in df.columns
         mock_get.assert_called_once()
-
-
-class TestConvenienceFunctions:
-    """Test convenience functions."""
 
     @patch("src.datasets.food_inspections.ingest.FoodInspectionsIngester")
     def test_ingest_food_inspections_data(self, mock_ingester_class):

@@ -4,7 +4,6 @@ Unit tests for CityScoreIngester.
 Tests the CityScore data ingestion from Analyze Boston API.
 """
 
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -29,17 +28,17 @@ class TestCityScoreIngester:
             "result": {
                 "records": [
                     {
-                        "id": 1,
-                        "score_date": "2024-01-15T00:00:00",
-                        "metric": "Trash On-Time %",
-                        "score": 0.85,
+                        "_id": 1,
+                        "score_calculated_ts": "2024-01-15T00:00:00",
+                        "metric_name": "Trash On-Time %",
+                        "day_score": 0.85,
                         "target": 0.80,
                     },
                     {
-                        "id": 2,
-                        "score_date": "2024-01-15T00:00:00",
-                        "metric": "Pothole On-Time %",
-                        "score": 0.92,
+                        "_id": 2,
+                        "score_calculated_ts": "2024-01-15T00:00:00",
+                        "metric_name": "Pothole On-Time %",
+                        "day_score": 0.92,
                         "target": 0.90,
                     },
                 ],
@@ -53,11 +52,11 @@ class TestCityScoreIngester:
 
     def test_get_watermark_field(self, ingester):
         """Test watermark field is correct."""
-        assert ingester.get_watermark_field() == "score_date"
+        assert ingester.get_watermark_field() == "score_calculated_ts"
 
     def test_get_primary_key(self, ingester):
         """Test primary key is correct."""
-        assert ingester.get_primary_key() == "id"
+        assert ingester.get_primary_key() == "_id"
 
     def test_get_api_endpoint(self, ingester):
         """Test API endpoint is constructed correctly."""
@@ -77,8 +76,8 @@ class TestCityScoreIngester:
 
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 2
-        assert "id" in df.columns
-        assert "score_date" in df.columns
+        assert "_id" in df.columns
+        assert "score_calculated_ts" in df.columns
         mock_get.assert_called_once()
 
     @patch("src.datasets.cityscore.ingest.requests.get")
@@ -108,10 +107,6 @@ class TestCityScoreIngester:
         assert result.success
         assert result.dataset == "cityscore"
         assert result.rows_fetched == 2
-
-
-class TestConvenienceFunctions:
-    """Test convenience functions."""
 
     @patch("src.datasets.cityscore.ingest.CityScoreIngester")
     def test_ingest_cityscore_data(self, mock_ingester_class):

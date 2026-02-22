@@ -151,12 +151,12 @@ def ingest_food_inspections_data(
 ) -> dict[str, Any]:
     """Convenience function for ingesting food inspections data."""
     ingester = FoodInspectionsIngester(config)
-    
+
     until = datetime.strptime(execution_date, "%Y-%m-%d")
     since = watermark_start
-    
+
     df = ingester.fetch_data(since=since, until=until)
     ingester._data = df
-    
+
     result = ingester.run(execution_date, watermark_start)
     return result.to_dict()
