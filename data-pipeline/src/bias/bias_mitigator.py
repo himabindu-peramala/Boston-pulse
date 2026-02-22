@@ -31,7 +31,6 @@ import pandas as pd
 from src.bias.fairness_checker import FairnessResult
 from src.shared.config import Settings, get_config
 
-
 logger = logging.getLogger(__name__)
 
 class MitigationStrategy(StrEnum):

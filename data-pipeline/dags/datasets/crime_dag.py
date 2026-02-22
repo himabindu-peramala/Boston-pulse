@@ -474,6 +474,7 @@ def mitigate_bias_task(**context) -> dict:
     # MitigationAction records, so we reconstruct a lightweight stand-in.
     #
     from dataclasses import dataclass
+
     from src.bias.fairness_checker import FairnessMetric, FairnessSeverity, FairnessViolation
 
     @dataclass
