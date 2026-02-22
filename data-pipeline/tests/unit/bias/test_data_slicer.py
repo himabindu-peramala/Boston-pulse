@@ -228,8 +228,12 @@ def test_cross_slice(sample_data):
 def test_cross_slice_min_size_filters(sample_data):
     """Test cross slice min_size properly filters small slices."""
     slicer = DataSlicer()
-    slices_small = slicer.cross_slice(sample_data, ["neighborhood", "hour_of_day"], min_slice_size=1)
-    slices_large = slicer.cross_slice(sample_data, ["neighborhood", "hour_of_day"], min_slice_size=200)
+    slices_small = slicer.cross_slice(
+        sample_data, ["neighborhood", "hour_of_day"], min_slice_size=1
+    )
+    slices_large = slicer.cross_slice(
+        sample_data, ["neighborhood", "hour_of_day"], min_slice_size=200
+    )
     assert len(slices_small) >= len(slices_large)
 
 
