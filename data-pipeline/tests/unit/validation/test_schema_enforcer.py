@@ -12,18 +12,17 @@ import pytest
 from src.shared.config import get_config
 from src.validation.schema_enforcer import (
     SchemaEnforcer,
-    ValidationError,
     ValidationStage,
-    enforce_validation,
 )
 
 
 @pytest.fixture
 def mock_gcs():
     """Mock GCS client for unit tests."""
-    with patch('src.validation.schema_registry.storage.Client') as mock_client:
+    with patch("src.validation.schema_registry.storage.Client") as mock_client:
         mock_client.return_value = MagicMock()
         yield mock_client
+
 
 @pytest.fixture
 def mock_schema_registry(mock_gcs):
@@ -168,7 +167,6 @@ def test_validate_features_infinite_values(mock_schema_registry):
 
     assert not result.is_valid
     assert any("infinite" in error.lower() for error in result.errors)
-
 
 
 def test_validation_result_properties(mock_schema_registry, sample_crime_data):

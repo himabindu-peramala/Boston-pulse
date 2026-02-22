@@ -4,10 +4,12 @@ Tests for Drift Detector
 Tests PSI calculation and distribution drift detection.
 """
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock, patch
+
 from src.shared.config import get_config
 from src.validation.drift_detector import DriftDetector, DriftSeverity, check_drift
 
@@ -25,12 +27,14 @@ def reference_data():
         }
     )
 
+
 @pytest.fixture
 def mock_gcs():
     """Mock GCS client for unit tests."""
-    with patch('src.validation.statistics_generator.storage.Client') as mock_client:
+    with patch("src.validation.statistics_generator.storage.Client") as mock_client:
         mock_client.return_value = MagicMock()
         yield mock_client
+
 
 @pytest.fixture
 def current_data_no_drift():

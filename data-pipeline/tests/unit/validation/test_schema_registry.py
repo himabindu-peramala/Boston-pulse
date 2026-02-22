@@ -91,7 +91,7 @@ def test_create_schema_from_dataframe(mock_gcs_client, sample_dataframe):
     """Test creating schema from DataFrame."""
     _, mock_bucket = mock_gcs_client
     config = get_config("dev")
-    registry = SchemaRegistry(config)
+    _ = SchemaRegistry(config)
 
     schema = create_schema_from_dataframe(
         sample_dataframe,
