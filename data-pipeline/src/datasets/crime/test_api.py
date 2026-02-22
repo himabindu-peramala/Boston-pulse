@@ -192,7 +192,6 @@ def ingest(execution_date: str) -> pd.DataFrame:
 # ─────────────────────────────────────────────
 
 if __name__ == "__main__":
-
     # Simulate running the pipeline today
     today = datetime.now(UTC).strftime("%Y-%m-%d")
     df = ingest(today)

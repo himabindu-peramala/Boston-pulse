@@ -478,7 +478,9 @@ class AnomalyDetector:
             severity = (
                 AnomalySeverity.CRITICAL
                 if dup_ratio > 0.1
-                else AnomalySeverity.WARNING if dup_ratio > 0.01 else AnomalySeverity.INFO
+                else AnomalySeverity.WARNING
+                if dup_ratio > 0.01
+                else AnomalySeverity.INFO
             )
 
             anomalies.append(
