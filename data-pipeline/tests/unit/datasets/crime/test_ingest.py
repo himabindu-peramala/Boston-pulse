@@ -135,7 +135,7 @@ class TestCrimeIngester:
     def test_fetch_data_api_error(self, mock_get, ingester):
         """Test handling of API error response."""
         mock_response = MagicMock()
-        mock_response.status_code = 404
+        mock_response.status_code = 200
         mock_response.json.return_value = {
             "success": False,
             "error": {"message": "Resource not found"},
