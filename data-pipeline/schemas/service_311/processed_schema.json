@@ -1,0 +1,71 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "311 Service Requests Processed Data Schema",
+    "description": "Schema for processed 311 service request data",
+    "type": "object",
+    "properties": {
+        "case_id": {
+            "type": "string"
+        },
+        "open_date": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "close_date": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "format": "date-time"
+        },
+        "case_topic": {
+            "type": "string"
+        },
+        "service_name": {
+            "type": "string"
+        },
+        "assigned_department": {
+            "type": "string"
+        },
+        "case_status": {
+            "type": "string"
+        },
+        "neighborhood": {
+            "type": "string"
+        },
+        "on_time": {
+            "type": "string"
+        },
+        "lat": {
+            "type": [
+                "number",
+                "null"
+            ]
+        },
+        "long": {
+            "type": [
+                "number",
+                "null"
+            ]
+        },
+        "year": {
+            "type": "integer"
+        },
+        "month": {
+            "type": "integer"
+        },
+        "hour": {
+            "type": "integer"
+        },
+        "day_of_week": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "case_id",
+        "open_date",
+        "case_topic",
+        "neighborhood"
+    ],
+    "additionalProperties": true
+}
