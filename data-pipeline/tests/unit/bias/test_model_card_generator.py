@@ -10,9 +10,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from src.bias.fairness_checker import FairnessResult
 from src.bias.model_card_generator import ModelCardGenerator, create_model_card
-from src.validation.schema_enforcer import ValidationResult, ValidationStage
 
 
 @pytest.fixture
@@ -67,13 +65,15 @@ def test_generate_model_card_with_validation(mock_gcs_client, sample_data):
     """Test model card with validation results."""
     generator = ModelCardGenerator()
 
-    validation_result = ValidationResult(
-        dataset="test",
-        stage=ValidationStage.RAW,
-        is_valid=True,
-        row_count=100,
-        column_count=4,
-    )
+    # Helpers expect an XCom-style dict (as produced by the Airflow task)
+    validation_result = {
+        "stage": "raw",
+        "is_valid": True,
+        "error_count": 0,
+        "warning_count": 0,
+        "errors": [],
+        "warnings": [],
+    }
 
     card = generator.generate_model_card(
         dataset="test",
@@ -91,11 +91,15 @@ def test_generate_model_card_with_fairness(mock_gcs_client, sample_data):
     """Test model card with fairness results."""
     generator = ModelCardGenerator()
 
-    fairness_result = FairnessResult(
-        dataset="test",
-        evaluated_at=datetime.now(UTC),
-        slices_evaluated=3,
-    )
+    # Helpers expect an XCom-style dict (as produced by the Airflow task)
+    fairness_result = {
+        "slices_evaluated": 3,
+        "violation_count": 0,
+        "critical_count": 0,
+        "warning_count": 0,
+        "passes_fairness_gate": True,
+        "violations": [],
+    }
 
     card = generator.generate_model_card(
         dataset="test",
