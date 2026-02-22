@@ -4,13 +4,15 @@ Tests for Drift Detector
 Tests PSI calculation and distribution drift detection.
 """
 
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from src.shared.config import get_config
 from src.validation.drift_detector import DriftDetector, DriftSeverity, check_drift
-from unittest.mock import patch, MagicMock
+
 
 @pytest.fixture(autouse=True)
 def mock_storage_client():
