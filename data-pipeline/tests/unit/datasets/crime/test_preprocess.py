@@ -38,9 +38,9 @@ class TestCrimePreprocessor:
                 "REPORTING_AREA": ["101", "202", "303"],
                 "SHOOTING": ["N", "N", "Y"],
                 "OCCURRED_ON_DATE": [
-                    "2024-01-15T14:30:00",
-                    "2024-01-15T16:45:00",
-                    "2024-01-15T22:00:00",
+                    "2024-01-15T14:30:00+00:00",
+                    "2024-01-15T16:45:00+00:00",
+                    "2024-01-15T22:00:00+00:00",
                 ],
                 "YEAR": [2024, 2024, 2024],
                 "MONTH": [1, 1, 1],
@@ -75,7 +75,7 @@ class TestCrimePreprocessor:
     def test_run_success(self, preprocessor, sample_raw_data):
         """Test successful preprocessing run."""
         result = preprocessor.run(sample_raw_data, execution_date="2024-01-15")
-
+        print(result)
         assert result.success
         assert result.dataset == "crime"
         assert result.rows_input == 3
@@ -98,7 +98,7 @@ class TestCrimePreprocessor:
 
         assert "shooting" in df.columns
         assert df["shooting"].dtype == bool
-        assert df["shooting"].iloc[2] is True  # "Y" converted to True
+        assert df["shooting"].iloc[2] == True  # "Y" converted to True
 
     def test_run_datetime_parsing(self, preprocessor, sample_raw_data):
         """Test datetime field parsing."""

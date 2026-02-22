@@ -87,8 +87,12 @@ def test_register_schema_from_dict(mock_gcs_client):
     assert version.startswith("v")
 
 
-def test_create_schema_from_dataframe(sample_dataframe):
+def test_create_schema_from_dataframe(mock_gcs_client, sample_dataframe):
     """Test creating schema from DataFrame."""
+    _, mock_bucket = mock_gcs_client
+    config = get_config("dev")
+    registry = SchemaRegistry(config)
+
     schema = create_schema_from_dataframe(
         sample_dataframe,
         primary_key="incident_number",

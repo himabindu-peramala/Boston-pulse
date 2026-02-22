@@ -7,7 +7,7 @@ Tests PSI calculation and distribution drift detection.
 import numpy as np
 import pandas as pd
 import pytest
-
+from unittest.mock import MagicMock, patch
 from src.shared.config import get_config
 from src.validation.drift_detector import DriftDetector, DriftSeverity, check_drift
 
@@ -25,6 +25,12 @@ def reference_data():
         }
     )
 
+@pytest.fixture
+def mock_gcs():
+    """Mock GCS client for unit tests."""
+    with patch('src.validation.statistics_generator.storage.Client') as mock_client:
+        mock_client.return_value = MagicMock()
+        yield mock_client
 
 @pytest.fixture
 def current_data_no_drift():
@@ -56,7 +62,7 @@ def current_data_with_drift():
     )
 
 
-def test_detector_initialization():
+def test_detector_initialization(mock_gcs):
     """Test DriftDetector initialization."""
     config = get_config("dev")
     detector = DriftDetector(config)
@@ -66,7 +72,7 @@ def test_detector_initialization():
     assert detector.psi_critical_threshold == config.drift.psi.critical
 
 
-def test_detect_drift_no_drift(reference_data, current_data_no_drift):
+def test_detect_drift_no_drift(mock_gcs, reference_data, current_data_no_drift):
     """Test drift detection with no significant drift."""
     config = get_config("dev")
     detector = DriftDetector(config)
@@ -79,7 +85,7 @@ def test_detect_drift_no_drift(reference_data, current_data_no_drift):
     assert not result.has_critical_drift
 
 
-def test_detect_drift_with_drift(reference_data, current_data_with_drift):
+def test_detect_drift_with_drift(mock_gcs, reference_data, current_data_with_drift):
     """Test drift detection with significant drift."""
     config = get_config("dev")
     detector = DriftDetector(config)
@@ -92,7 +98,7 @@ def test_detect_drift_with_drift(reference_data, current_data_with_drift):
     assert any(f.feature_name == "income" for f in result.features_with_drift)
 
 
-def test_detect_numerical_drift():
+def test_detect_numerical_drift(mock_gcs):
     """Test numerical drift detection."""
     config = get_config("dev")
     detector = DriftDetector(config)
@@ -109,7 +115,7 @@ def test_detect_numerical_drift():
     assert drift_feature.psi > 0
 
 
-def test_detect_categorical_drift():
+def test_detect_categorical_drift(mock_gcs):
     """Test categorical drift detection."""
     config = get_config("dev")
     detector = DriftDetector(config)
@@ -128,7 +134,7 @@ def test_detect_categorical_drift():
     assert drift_feature.severity in (DriftSeverity.WARNING, DriftSeverity.CRITICAL)
 
 
-def test_psi_calculation_numerical():
+def test_psi_calculation_numerical(mock_gcs):
     """Test PSI calculation for numerical features."""
     config = get_config("dev")
     detector = DriftDetector(config)
@@ -143,7 +149,7 @@ def test_psi_calculation_numerical():
     assert psi < 0.1  # Should be low for similar distributions
 
 
-def test_drift_result_properties(reference_data, current_data_with_drift):
+def test_drift_result_properties(mock_gcs, reference_data, current_data_with_drift):
     """Test DriftResult properties."""
     config = get_config("dev")
     detector = DriftDetector(config)
@@ -157,7 +163,7 @@ def test_drift_result_properties(reference_data, current_data_with_drift):
     assert isinstance(result.critical_features, list)
 
 
-def test_check_drift_convenience_function(reference_data, current_data_no_drift):
+def test_check_drift_convenience_function(mock_gcs, reference_data, current_data_no_drift):
     """Test convenience function."""
     result = check_drift(current_data_no_drift, reference_data, "test")
 

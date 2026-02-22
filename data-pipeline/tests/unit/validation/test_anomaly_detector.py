@@ -28,7 +28,7 @@ def clean_data():
             "id": range(1000),
             "value": np.random.normal(100, 15, 1000),
             "category": np.random.choice(["A", "B", "C"], 1000),
-            "date": pd.date_range("2024-01-01", periods=1000),
+            "date": pd.date_range("2024-01-01", periods=1000, tz="UTC"),
             "lat": np.random.uniform(42.25, 42.35, 1000),
             "lon": np.random.uniform(-71.15, -71.05, 1000),
         }
@@ -82,10 +82,13 @@ def test_detect_outliers():
     config = get_config("dev")
     detector = AnomalyDetector(config)
 
-    # DataFrame with outliers
-    values = [100] * 90 + [1000, 2000, 3000, 4000, 5000] * 2  # 10% outliers
-    df = pd.DataFrame({"value": values})
-
+    # Normal distribution with extreme outliers appended
+    rng = np.random.RandomState(42)
+    normal = rng.normal(loc=100, scale=5, size=80).tolist()
+    outliers = [1000, 1100, 1200, 1300, 1400,
+                1500, 1600, 1700, 1800, 1900,
+                2000, 2100]  # 12 outliers out of 92 = 13%
+    df = pd.DataFrame({"value": normal + outliers})
     result = detector.detect_anomalies(df, "test")
 
     outlier_anomalies = [a for a in result.anomalies if a.type == AnomalyType.OUTLIER]
