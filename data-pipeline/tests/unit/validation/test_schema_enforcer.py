@@ -241,9 +241,13 @@ def test_ensure_schema_exists_local_fallback(mock_storage_client):
         enforcer = SchemaEnforcer(config)
 
         # Mock local file existence and content
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("pathlib.Path.read_text", return_value='{"properties": {"col1": {"type": "string"}}}'):
-
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch(
+                "pathlib.Path.read_text",
+                return_value='{"properties": {"col1": {"type": "string"}}}',
+            ),
+        ):
             enforcer._ensure_schema_registered("crime", ValidationStage.RAW)
 
             assert mock_registry.register_schema.called
