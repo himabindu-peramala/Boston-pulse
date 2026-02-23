@@ -15,13 +15,9 @@ def preprocess_stations_data(df: pd.DataFrame) -> pd.DataFrame:
     if "FT_SQFT" in df.columns:
         missing_count = df["FT_SQFT"].isna().sum()
 
-        df["FT_SQFT"] = df["FT_SQFT"].fillna(
-            df["FT_SQFT"].median()
-        )
+        df["FT_SQFT"] = df["FT_SQFT"].fillna(df["FT_SQFT"].median())
 
-        logger.info(
-            f"Filled {missing_count} missing FT_SQFT values"
-        )
+        logger.info(f"Filled {missing_count} missing FT_SQFT values")
 
     logger.info("Preprocessing complete")
     return df

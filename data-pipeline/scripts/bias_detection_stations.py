@@ -14,11 +14,7 @@ class StationsBiasDetector:
             logger.warning("Required columns missing for geographic coverage bias detection")
             return self.df
 
-        neighborhood_df = (
-            self.df.groupby("neighborhood")["station_count"]
-            .sum()
-            .reset_index()
-        )
+        neighborhood_df = self.df.groupby("neighborhood")["station_count"].sum().reset_index()
 
         neighborhood_counts = neighborhood_df["neighborhood"].nunique()
         total_stations = neighborhood_df["station_count"].sum()
@@ -29,13 +25,9 @@ class StationsBiasDetector:
 
         avg_stations = total_stations / neighborhood_counts
 
-        overrepresented = neighborhood_df[
-            neighborhood_df["station_count"] > 1.5 * avg_stations
-        ]
+        overrepresented = neighborhood_df[neighborhood_df["station_count"] > 1.5 * avg_stations]
 
-        underrepresented = neighborhood_df[
-            neighborhood_df["station_count"] < 0.5 * avg_stations
-        ]
+        underrepresented = neighborhood_df[neighborhood_df["station_count"] < 0.5 * avg_stations]
 
         self.bias_report["geographic_coverage_bias"] = {
             "neighborhood_distribution": neighborhood_df.to_dict("records"),
@@ -46,12 +38,8 @@ class StationsBiasDetector:
         }
 
         logger.info("Geographic coverage bias analysis complete")
-        logger.info(
-            f"Overrepresented neighborhoods: {overrepresented['neighborhood'].tolist()}"
-        )
-        logger.info(
-            f"Underrepresented neighborhoods: {underrepresented['neighborhood'].tolist()}"
-        )
+        logger.info(f"Overrepresented neighborhoods: {overrepresented['neighborhood'].tolist()}")
+        logger.info(f"Underrepresented neighborhoods: {underrepresented['neighborhood'].tolist()}")
 
         return neighborhood_df
 

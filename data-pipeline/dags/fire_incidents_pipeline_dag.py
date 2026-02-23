@@ -194,7 +194,6 @@ with DAG(
     catchup=False,
     tags=["fire", "dataset"],
 ) as dag:
-
     t_ingest = PythonOperator(
         task_id="ingest_data",
         python_callable=ingest_data,
