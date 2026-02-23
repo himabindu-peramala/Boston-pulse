@@ -1,18 +1,18 @@
-# =============================================================================
-# Boston Pulse - Fire Dataset Configuration
-# =============================================================================
-
+# Boston Pulse - Fire Incidents Dataset Configuration
+#
+# Dataset: Boston Fire Department Incident Reports
+# Source: Analyze Boston (data.boston.gov)
+# Reference: https://data.boston.gov/dataset/fire-incident-reporting
 dataset:
   name: fire
-
+  description: "Fire incident reports from Boston Fire Department"
+api:
+  resource_id: "91a38b1f-8439-46df-ba47-a30c48845e06"
+  base_url: "https://data.boston.gov/dataset/ac9e373a-1303-4563-b28e-29070229fdfe"
+  endpoint: "resource/91a38b1f-8439-46df-ba47-a30c48845e06/download/tmp6xl2bsvx.csv"
+  batch_size: 1000
+  timeout_seconds: 120
 ingestion:
-  watermark_field: incident_date
-  primary_key: incident_id
+  watermark_field: "Alarm Date"
+  primary_key: "Incident Number"
   lookback_days: 7
-
-validation:
-  schema:
-    strict_mode: false
-
-fairness:
-  gate_enabled: false
