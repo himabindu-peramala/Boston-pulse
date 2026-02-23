@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 import pandas as pd
@@ -98,7 +98,7 @@ class StreetSweepingIngester(BaseIngester):
         return data.get("result", {}).get("records", [])
 
     def fetch_data(
-        self, since: datetime | None = None, until: datetime | None = None
+        self, since: datetime | None = None, until: datetime | None = None  # noqa: ARG002
     ) -> pd.DataFrame:
         """Fetch street sweeping data from Analyze Boston API."""
         logger.info("Fetching street sweeping schedule data")
