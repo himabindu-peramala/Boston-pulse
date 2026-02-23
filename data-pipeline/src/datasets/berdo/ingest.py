@@ -99,7 +99,7 @@ class BerdoIngester(BaseIngester):
         return data.get("result", {}).get("records", [])
 
     def fetch_data(
-        self, since: datetime | None = None, until: datetime | None = None
+        self, since: datetime | None = None, until: datetime | None = None  # noqa: ARG002
     ) -> pd.DataFrame:
         """Fetch BERDO data from Analyze Boston API."""
         logger.info("Fetching BERDO building energy data")
