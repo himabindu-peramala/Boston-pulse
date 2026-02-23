@@ -87,30 +87,11 @@ class DriftResult:
         return any(f.severity == DriftSeverity.CRITICAL for f in self.features_with_drift)
 
     @property
-    def severity(self) -> DriftSeverity:
-        """Get overall severity level of detected drift."""
-        if self.has_critical_drift:
-            return DriftSeverity.CRITICAL
-        elif self.has_warning_drift:
-            return DriftSeverity.WARNING
-        return DriftSeverity.NONE
-
-    @property
-    def drifted_features(self) -> list[str]:
-        """Get list of all features with any drift (warning or critical)."""
-        return [f.feature_name for f in self.features_with_drift]
-
-    @property
     def overall_psi(self) -> float:
         """Get overall PSI score (average across drifted features)."""
         if not self.features_with_drift:
             return 0.0
         return sum(f.psi for f in self.features_with_drift) / len(self.features_with_drift)
-
-    @property
-    def feature_results(self) -> dict[str, FeatureDrift]:
-        """Get drift results keyed by feature name."""
-        return {f.feature_name: f for f in self.features_with_drift}
 
     @property
     def warning_features(self) -> list[str]:
@@ -125,11 +106,6 @@ class DriftResult:
         return [
             f.feature_name for f in self.features_with_drift if f.severity == DriftSeverity.CRITICAL
         ]
-
-    @property
-    def has_drift(self) -> bool:
-        """Check if any feature has drift (warning or critical)."""
-        return len(self.features_with_drift) > 0
 
     @property
     def severity(self) -> DriftSeverity:
@@ -150,13 +126,6 @@ class DriftResult:
     def feature_results(self) -> dict[str, FeatureDrift]:
         """Get dictionary mapping feature names to FeatureDrift objects."""
         return {f.feature_name: f for f in self.features_with_drift}
-
-    @property
-    def overall_psi(self) -> float:
-        """Get the maximum PSI score across all features with drift."""
-        if not self.features_with_drift:
-            return 0.0
-        return max(f.psi for f in self.features_with_drift)
 
 
 class DriftDetector:

@@ -380,6 +380,8 @@ def detect_drift(**context) -> dict:
         "drifted_features": result.drifted_features,
         "overall_psi": result.overall_psi,
     }
+
+
 def validate_features(**context) -> dict:
     """Validate features against schema."""
     from dags.utils import alert_validation_failure, read_data
@@ -494,6 +496,8 @@ with DAG(
     t_detect_drift = PythonOperator(
         task_id="detect_drift",
         python_callable=detect_drift,
+        on_failure_callback=on_task_failure,
+    )
     t_validate_features = PythonOperator(
         task_id="validate_features",
         python_callable=validate_features,
@@ -514,9 +518,9 @@ with DAG(
         >> t_preprocess
         >> t_validate_processed
         >> t_build_features
+        >> t_validate_features
         >> [t_detect_drift, t_check_fairness]
         >> t_mitigate_bias
-        >> t_validate_features
         >> t_update_watermark
         >> t_pipeline_complete
     )
