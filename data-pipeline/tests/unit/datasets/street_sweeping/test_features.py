@@ -24,7 +24,7 @@ def sample_df():
             "side_of_street": ["LEFT", "RIGHT", "LEFT"],
             "season_start": ["APR", "APR", "MAY"],
             "season_end": ["NOV", "NOV", "OCT"],
-            "week_type": ["EVERY WEEK", "EVERY OTHER WEEK", "EVERY WEEK"],
+            "week_type": ["EVERY WEEK", "BI-WEEKLY", "EVERY WEEK"],
             "tow_zone": ["YES", "NO", "YES"],
             "lat": [42.3601, 42.3501, 42.3701],
             "long": [-71.0589, -71.0489, -71.0689],
