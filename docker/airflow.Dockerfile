@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# Create secrets directory for GCP key
+RUN mkdir -p /opt/airflow/secrets && chown airflow:root /opt/airflow/secrets
+
 # Switch back to airflow user
 USER airflow
 

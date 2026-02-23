@@ -87,30 +87,11 @@ class DriftResult:
         return any(f.severity == DriftSeverity.CRITICAL for f in self.features_with_drift)
 
     @property
-    def severity(self) -> DriftSeverity:
-        """Get overall severity level of detected drift."""
-        if self.has_critical_drift:
-            return DriftSeverity.CRITICAL
-        elif self.has_warning_drift:
-            return DriftSeverity.WARNING
-        return DriftSeverity.NONE
-
-    @property
-    def drifted_features(self) -> list[str]:
-        """Get list of all features with any drift (warning or critical)."""
-        return [f.feature_name for f in self.features_with_drift]
-
-    @property
     def overall_psi(self) -> float:
         """Get overall PSI score (average across drifted features)."""
         if not self.features_with_drift:
             return 0.0
         return sum(f.psi for f in self.features_with_drift) / len(self.features_with_drift)
-
-    @property
-    def feature_results(self) -> dict[str, FeatureDrift]:
-        """Get drift results keyed by feature name."""
-        return {f.feature_name: f for f in self.features_with_drift}
 
     @property
     def warning_features(self) -> list[str]:
@@ -125,6 +106,26 @@ class DriftResult:
         return [
             f.feature_name for f in self.features_with_drift if f.severity == DriftSeverity.CRITICAL
         ]
+
+    @property
+    def severity(self) -> DriftSeverity:
+        """Get the highest severity level of drift detected."""
+        if self.has_critical_drift:
+            return DriftSeverity.CRITICAL
+        elif self.has_warning_drift:
+            return DriftSeverity.WARNING
+        else:
+            return DriftSeverity.NONE
+
+    @property
+    def drifted_features(self) -> list[str]:
+        """Get list of all features with drift (warning or critical)."""
+        return [f.feature_name for f in self.features_with_drift]
+
+    @property
+    def feature_results(self) -> dict[str, FeatureDrift]:
+        """Get dictionary mapping feature names to FeatureDrift objects."""
+        return {f.feature_name: f for f in self.features_with_drift}
 
 
 class DriftDetector:
@@ -385,8 +386,9 @@ class DriftDetector:
         feature_name: str,
     ) -> FeatureDrift:
         """Detect drift for a single feature."""
-        # Determine if numerical or categorical
-        is_numerical = pd.api.types.is_numeric_dtype(current_series)
+        # Booleans look numeric to pandas but should be treated as categorical
+        is_bool = pd.api.types.is_bool_dtype(current_series)
+        is_numerical = pd.api.types.is_numeric_dtype(current_series) and not is_bool
 
         if is_numerical:
             return self._detect_numerical_drift(current_series, reference_series, feature_name)
@@ -507,14 +509,20 @@ class DriftDetector:
         - PSI 0.1-0.25: Moderate change (warning)
         - PSI > 0.25: Significant change (critical)
         """
-        # Create bins based on reference distribution
-        _, bin_edges = np.histogram(reference, bins=num_bins)
+        # Handle constant (zero-variance) series — no distribution to compare
+        min_val = min(float(current.min()), float(reference.min()))
+        max_val = max(float(current.max()), float(reference.max()))
+        if max_val == min_val:
+            return 0.0
 
-        # Ensure bins cover the range of both distributions
-        min_val = min(current.min(), reference.min())
-        max_val = max(current.max(), reference.max())
-        bin_edges[0] = min_val - 1e-6
-        bin_edges[-1] = max_val + 1e-6
+        # Create bins based on the combined range of both distributions
+        bin_edges = np.linspace(min_val, max_val, num_bins + 1)
+
+        # Remove any duplicate edges that arise from low-cardinality data,
+        # then verify the result is strictly monotonic before proceeding.
+        bin_edges = np.unique(bin_edges)
+        if len(bin_edges) < 2:
+            return 0.0
 
         # Calculate proportions in each bin
         reference_props, _ = np.histogram(reference, bins=bin_edges)

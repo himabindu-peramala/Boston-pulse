@@ -156,6 +156,232 @@ def build_features(**context) -> dict:
     return result.to_dict()
 
 
+def detect_drift(**context) -> dict:
+    """
+    Detect data drift in processed food inspections data.
+
+    Compares today's processed data against the previous day's as reference.
+    Skips gracefully if no reference data is available (e.g. first run).
+    """
+    from dags.utils import alert_drift_detected, read_data
+    from src.validation import DriftDetector
+
+    execution_date = context["ds"]
+
+    current_df = read_data(DATASET, "processed", execution_date)
+
+    try:
+        from datetime import datetime, timedelta
+
+        prev_date = datetime.strptime(execution_date, "%Y-%m-%d") - timedelta(days=1)
+        reference_df = read_data(DATASET, "processed", prev_date.strftime("%Y-%m-%d"))
+    except FileNotFoundError:
+        return {
+            "drift_detected": False,
+            "message": "No reference data available for drift detection",
+            "drifted_features": [],
+        }
+
+    detector = DriftDetector()
+    result = detector.detect_drift(current_df, reference_df, DATASET)
+
+    if result.has_drift:
+        severity = "warning" if result.severity.value == "warning" else "critical"
+        alert_drift_detected(
+            dataset=DATASET,
+            drifted_features=result.drifted_features,
+            psi_scores={f: r.psi for f, r in result.feature_results.items()},
+            severity=severity,
+            execution_date=execution_date,
+            dag_id=DAG_ID,
+        )
+
+    return {
+        "drift_detected": result.has_drift,
+        "severity": result.severity.value,
+        "drifted_features": result.drifted_features,
+        "overall_psi": result.overall_psi,
+    }
+
+
+def check_fairness(**context) -> dict:
+    """
+    Check fairness metrics for the food inspections dataset.
+
+    Evaluates whether inspection outcomes are equitable across neighborhoods.
+    ALERTS on violations but does NOT fail the pipeline.
+    """
+    from dags.utils import alert_fairness_violation, read_data
+    from src.bias.fairness_checker import FairnessChecker, FairnessViolationError
+
+    execution_date = context["ds"]
+    df = read_data(DATASET, "processed", execution_date)
+
+    if df.empty:
+        return {
+            "passes_fairness_gate": True,
+            "has_violations": False,
+            "violation_count": 0,
+            "message": "No data to evaluate",
+        }
+
+    checker = FairnessChecker()
+    result = checker.evaluate_fairness(
+        df=df,
+        dataset=DATASET,
+        outcome_column=None,
+        dimensions=["neighborhood"],  # food inspections: equity across neighborhoods
+    )
+
+    print(checker.create_fairness_report(result))
+
+    if result.has_violations:
+        alert_fairness_violation(
+            dataset=DATASET,
+            violations=[
+                {
+                    "metric": v.metric.value,
+                    "severity": v.severity.value,
+                    "dimension": v.dimension,
+                    "slice_value": str(v.slice_value),
+                    "expected": round(v.expected, 4),
+                    "actual": round(v.actual, 4),
+                    "disparity": round(v.disparity, 4),
+                    "message": v.message,
+                }
+                for v in result.violations
+            ],
+            execution_date=execution_date,
+            dag_id=DAG_ID,
+        )
+
+    if result.has_critical_violations:
+        print(f"CRITICAL FAIRNESS VIOLATIONS ({len(result.critical_violations)}):")
+        for v in result.critical_violations:
+            print(f"  [{v.dimension}={v.slice_value}] {v.message}")
+
+    if not result.passes_fairness_gate:
+        raise FairnessViolationError(result)
+
+    return {
+        "passes_fairness_gate": result.passes_fairness_gate,
+        "has_violations": result.has_violations,
+        "has_critical_violations": result.has_critical_violations,
+        "violation_count": len(result.violations),
+        "critical_count": len(result.critical_violations),
+        "warning_count": len(result.warning_violations),
+        "slices_evaluated": result.slices_evaluated,
+        "violations": [
+            {
+                "metric": v.metric.value,
+                "severity": v.severity.value,
+                "dimension": v.dimension,
+                "slice_value": str(v.slice_value),
+                "expected": round(v.expected, 4),
+                "actual": round(v.actual, 4),
+                "disparity": round(v.disparity, 4),
+                "message": v.message,
+            }
+            for v in result.violations
+        ],
+    }
+
+
+def mitigate_bias_task(**context) -> dict:
+    """
+    Apply bias mitigation when fairness violations are detected.
+
+    Reads processed data, reconstructs violations from XCom, applies
+    reweighting, and saves the mitigated DataFrame as the 'mitigated' stage.
+    """
+    from dataclasses import dataclass
+
+    from dags.utils import read_data, write_data
+    from src.bias.bias_mitigator import BiasMitigator, MitigationStrategy
+    from src.bias.fairness_checker import FairnessMetric, FairnessSeverity, FairnessViolation
+
+    execution_date = context["ds"]
+    ti = context["ti"]
+
+    fairness_xcom: dict = ti.xcom_pull(task_ids="check_fairness")
+
+    if not fairness_xcom or not fairness_xcom.get("has_violations"):
+        return {
+            "mitigation_applied": False,
+            "reason": "No fairness violations detected",
+            "rows_before": None,
+            "rows_after": None,
+        }
+
+    df = read_data(DATASET, "processed", execution_date)
+
+    if df.empty:
+        return {
+            "mitigation_applied": False,
+            "reason": "Empty DataFrame — skipping mitigation",
+        }
+
+    @dataclass
+    class _SlimFairnessResult:
+        dataset: str
+        violations: list
+
+        @property
+        def has_violations(self):
+            return bool(self.violations)
+
+    slim_violations = [
+        FairnessViolation(
+            metric=FairnessMetric(v["metric"]),
+            severity=FairnessSeverity(v["severity"]),
+            dimension=v["dimension"],
+            slice_value=v.get("slice_value", ""),
+            expected=v.get("expected", 0.0),
+            actual=v.get("actual", 0.0),
+            disparity=v.get("disparity", 0.0),
+            message=v.get("message", ""),
+        )
+        for v in fairness_xcom.get("violations", [])
+    ]
+
+    slim_result = _SlimFairnessResult(dataset=DATASET, violations=slim_violations)
+    strategy = MitigationStrategy.REWEIGHTING
+
+    mitigator = BiasMitigator()
+    mitigation_result = mitigator.mitigate(
+        df=df,
+        fairness_result=slim_result,
+        dimension="neighborhood",  # food inspections-specific dimension
+        strategy=strategy,
+    )
+
+    print(mitigation_result.report())
+
+    output_path = write_data(mitigation_result.mitigated_df, DATASET, "mitigated", execution_date)
+
+    return {
+        "mitigation_applied": True,
+        "strategy": strategy.value,
+        "dimension": "neighborhood",
+        "rows_before": mitigation_result.rows_before,
+        "rows_after": mitigation_result.rows_after,
+        "slices_improved": mitigation_result.total_improved,
+        "total_slices": len(mitigation_result.actions),
+        "output_path": output_path,
+        "weight_range": mitigation_result.tradeoffs.get("weight_range"),
+        "actions": [
+            {
+                "slice_value": a.slice_value,
+                "before_disparity": round(a.before_disparity, 4),
+                "after_disparity": round(a.after_disparity, 4),
+                "improvement_pct": round(a.improvement_pct, 2),
+                "details": a.details,
+            }
+            for a in mitigation_result.actions
+        ],
+    }
+
+
 def validate_features(**context) -> dict:
     """Validate features against schema."""
     from dags.utils import alert_validation_failure, read_data
@@ -257,6 +483,23 @@ with DAG(
         python_callable=build_features,
         on_failure_callback=on_task_failure,
     )
+    t_detect_drift = PythonOperator(
+        task_id="detect_drift",
+        python_callable=detect_drift,
+        on_failure_callback=on_task_failure,
+    )
+
+    t_check_fairness = PythonOperator(
+        task_id="check_fairness",
+        python_callable=check_fairness,
+        on_failure_callback=on_task_failure,
+    )
+
+    t_mitigate_bias = PythonOperator(
+        task_id="mitigate_bias",
+        python_callable=mitigate_bias_task,
+        on_failure_callback=on_task_failure,
+    )
     t_validate_features = PythonOperator(
         task_id="validate_features",
         python_callable=validate_features,
@@ -278,6 +521,8 @@ with DAG(
         >> t_validate_processed
         >> t_build_features
         >> t_validate_features
+        >> [t_detect_drift, t_check_fairness]
+        >> t_mitigate_bias
         >> t_update_watermark
         >> t_pipeline_complete
     )
