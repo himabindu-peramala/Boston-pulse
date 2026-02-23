@@ -243,7 +243,7 @@ class DAGAlertManager:
 
         # Helper to format numeric stats with thousands separator
         def fmt_stat(val: Any) -> str:
-            if isinstance(val, (int, float)):
+            if isinstance(val, int | float):
                 return f"{val:,}"
             return str(val)
 
