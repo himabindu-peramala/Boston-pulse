@@ -134,7 +134,7 @@ def validate_raw(**context) -> dict:
         )
 
         # Fail the task if strict mode
-        if enforcer.config.validation.schema.strict_mode:
+        if enforcer.config.validation.quality_schema.strict_mode:
             raise RuntimeError(f"Raw validation failed: {errors[:5]}")
 
     return {
@@ -209,7 +209,7 @@ def validate_processed(**context) -> dict:
             task_id="validate_processed",
         )
 
-        if enforcer.config.validation.schema.strict_mode:
+        if enforcer.config.validation.quality_schema.strict_mode:
             raise RuntimeError(f"Processed validation failed: {errors[:5]}")
 
     return {
@@ -271,7 +271,7 @@ def validate_features(**context) -> dict:
             task_id="validate_features",
         )
 
-        if enforcer.config.validation.schema.strict_mode:
+        if enforcer.config.validation.quality_schema.strict_mode:
             raise RuntimeError(f"Features validation failed: {errors[:5]}")
 
     return {

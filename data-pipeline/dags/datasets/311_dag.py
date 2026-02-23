@@ -79,7 +79,7 @@ def validate_raw(**context) -> dict:
             dag_id=DAG_ID,
             task_id="validate_raw",
         )
-        if enforcer.config.validation.schema.strict_mode:
+        if enforcer.config.validation.quality_schema.strict_mode:
             raise RuntimeError(f"Raw validation failed: {errors[:5]}")
 
     return {"is_valid": result.is_valid, "error_count": len(result.errors)}
@@ -128,7 +128,7 @@ def validate_processed(**context) -> dict:
             dag_id=DAG_ID,
             task_id="validate_processed",
         )
-        if enforcer.config.validation.schema.strict_mode:
+        if enforcer.config.validation.quality_schema.strict_mode:
             raise RuntimeError(f"Processed validation failed: {errors[:5]}")
 
     return {"is_valid": result.is_valid, "error_count": len(result.errors)}
@@ -380,6 +380,31 @@ def detect_drift(**context) -> dict:
         "drifted_features": result.drifted_features,
         "overall_psi": result.overall_psi,
     }
+def validate_features(**context) -> dict:
+    """Validate features against schema."""
+    from dags.utils import alert_validation_failure, read_data
+    from src.validation import SchemaEnforcer
+
+    execution_date = context["ds"]
+    df = read_data(DATASET, "features", execution_date)
+
+    enforcer = SchemaEnforcer()
+    result = enforcer.validate_features(df, DATASET)
+
+    if not result.is_valid:
+        errors = [str(e) for e in result.errors]
+        alert_validation_failure(
+            dataset=DATASET,
+            stage="features",
+            errors=errors,
+            execution_date=execution_date,
+            dag_id=DAG_ID,
+            task_id="validate_features",
+        )
+        if enforcer.config.validation.quality_schema.strict_mode:
+            raise RuntimeError(f"Features validation failed: {errors[:5]}")
+
+    return {"is_valid": result.is_valid, "error_count": len(result.errors)}
 
 
 def update_watermark(**context) -> dict:
@@ -469,6 +494,9 @@ with DAG(
     t_detect_drift = PythonOperator(
         task_id="detect_drift",
         python_callable=detect_drift,
+    t_validate_features = PythonOperator(
+        task_id="validate_features",
+        python_callable=validate_features,
         on_failure_callback=on_task_failure,
     )
     t_update_watermark = PythonOperator(
@@ -488,6 +516,7 @@ with DAG(
         >> t_build_features
         >> [t_detect_drift, t_check_fairness]
         >> t_mitigate_bias
+        >> t_validate_features
         >> t_update_watermark
         >> t_pipeline_complete
     )

@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -159,7 +160,14 @@ class SchemaEnforcer:
         self._ensure_schema_registered(dataset, "raw")
 
         # 1. Schema validation
-        is_valid, schema_errors = self.registry.validate_dataframe(df, dataset, "raw", version)
+        allow_extra = self._get_threshold(
+            dataset,
+            "allow_extra_columns",
+            self.config.validation.quality_schema.allow_extra_columns,
+        )
+        is_valid, schema_errors = self.registry.validate_dataframe(
+            df, dataset, "raw", version, allow_extra=allow_extra
+        )
         if not is_valid:
             for error in schema_errors:
                 result.issues.append(
@@ -173,7 +181,9 @@ class SchemaEnforcer:
             result.is_valid = False
 
         # 2. Row count check
-        min_rows = self.config.validation.quality.min_row_count
+        min_rows = self._get_threshold(
+            dataset, "min_row_count", self.config.validation.quality.min_row_count
+        )
         if len(df) < min_rows:
             result.issues.append(
                 ValidationIssue(
@@ -187,8 +197,10 @@ class SchemaEnforcer:
             result.is_valid = False
 
         # 3. Null ratio check
-        max_null_ratio = self.config.validation.quality.max_null_ratio
         for col in df.columns:
+            max_null_ratio = self._get_threshold(
+                dataset, "max_null_ratio", self.config.validation.quality.max_null_ratio, col
+            )
             null_ratio = df[col].isna().sum() / len(df)
             if null_ratio > max_null_ratio:
                 level = ValidationLevel.ERROR if self.strict_mode else ValidationLevel.WARNING
@@ -268,8 +280,13 @@ class SchemaEnforcer:
         self._ensure_schema_registered(dataset, "processed")
 
         # 1. Schema validation
+        allow_extra = self._get_threshold(
+            dataset,
+            "allow_extra_columns",
+            self.config.validation.quality_schema.allow_extra_columns,
+        )
         is_valid, schema_errors = self.registry.validate_dataframe(
-            df, dataset, "processed", version
+            df, dataset, "processed", version, allow_extra=allow_extra
         )
         if not is_valid:
             for error in schema_errors:
@@ -284,7 +301,9 @@ class SchemaEnforcer:
             result.is_valid = False
 
         # 2. Row count check
-        min_rows = self.config.validation.quality.min_row_count
+        min_rows = self._get_threshold(
+            dataset, "min_row_count", self.config.validation.quality.min_row_count
+        )
         if len(df) < min_rows:
             result.issues.append(
                 ValidationIssue(
@@ -349,7 +368,14 @@ class SchemaEnforcer:
         self._ensure_schema_registered(dataset, "features")
 
         # 1. Schema validation
-        is_valid, schema_errors = self.registry.validate_dataframe(df, dataset, "features", version)
+        allow_extra = self._get_threshold(
+            dataset,
+            "allow_extra_columns",
+            self.config.validation.quality_schema.allow_extra_columns,
+        )
+        is_valid, schema_errors = self.registry.validate_dataframe(
+            df, dataset, "features", version, allow_extra=allow_extra
+        )
         if not is_valid:
             for error in schema_errors:
                 result.issues.append(
@@ -409,6 +435,26 @@ class SchemaEnforcer:
     # =========================================================================
     # Private Validation Methods
     # =========================================================================
+
+    def _get_threshold(
+        self, dataset: str, metric: str, default: Any, column: str | None = None
+    ) -> Any:
+        """
+        Get validation threshold with dataset-specific overrides.
+
+        Priority:
+        1. dataset-specific override for specific column
+        2. dataset-specific override for metric
+        3. global default
+        """
+        overrides = self.config.validation.overrides.get(dataset, {})
+
+        # 1. Column-specific override (e.g., max_null_ratio: {col: X})
+        if column and metric in overrides and isinstance(overrides[metric], dict):
+            return overrides[metric].get(column, default)
+
+        # 2. Dataset-specific metric override (e.g., min_row_count: X)
+        return overrides.get(metric, default)
 
     def _ensure_schema_registered(self, dataset: str, stage: str) -> None:
         """

@@ -72,6 +72,11 @@ class DriftResult:
     features_with_drift: list[FeatureDrift] = field(default_factory=list)
 
     @property
+    def has_drift(self) -> bool:
+        """Check if any drift was detected."""
+        return len(self.features_with_drift) > 0
+
+    @property
     def has_warning_drift(self) -> bool:
         """Check if any feature has warning-level drift."""
         return any(f.severity == DriftSeverity.WARNING for f in self.features_with_drift)
@@ -80,6 +85,32 @@ class DriftResult:
     def has_critical_drift(self) -> bool:
         """Check if any feature has critical-level drift."""
         return any(f.severity == DriftSeverity.CRITICAL for f in self.features_with_drift)
+
+    @property
+    def severity(self) -> DriftSeverity:
+        """Get overall severity level of detected drift."""
+        if self.has_critical_drift:
+            return DriftSeverity.CRITICAL
+        elif self.has_warning_drift:
+            return DriftSeverity.WARNING
+        return DriftSeverity.NONE
+
+    @property
+    def drifted_features(self) -> list[str]:
+        """Get list of all features with any drift (warning or critical)."""
+        return [f.feature_name for f in self.features_with_drift]
+
+    @property
+    def overall_psi(self) -> float:
+        """Get overall PSI score (average across drifted features)."""
+        if not self.features_with_drift:
+            return 0.0
+        return sum(f.psi for f in self.features_with_drift) / len(self.features_with_drift)
+
+    @property
+    def feature_results(self) -> dict[str, FeatureDrift]:
+        """Get drift results keyed by feature name."""
+        return {f.feature_name: f for f in self.features_with_drift}
 
     @property
     def warning_features(self) -> list[str]:
