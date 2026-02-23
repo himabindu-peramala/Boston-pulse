@@ -1,0 +1,21 @@
+# Boston Pulse - Street Sweeping Schedules Dataset Configuration
+#
+# Dataset: Street Sweeping Schedules
+# Source: Analyze Boston (data.boston.gov)
+# Reference: https://data.boston.gov/dataset/street-sweeping
+
+dataset:
+  name: "street_sweeping"
+  description: "Street sweeping schedule information including timing and location throughout Boston"
+
+api:
+  resource_id: "5b4b5c1b-2c77-46e4-b9d6-e1888f36dd7e"
+  base_url: "https://data.boston.gov/api/3/action"
+  endpoint: "datastore_search_sql"
+  batch_size: 1000
+  timeout_seconds: 60
+
+ingestion:
+  watermark_field: "sam_street_id"
+  primary_key: "_id"
+  lookback_days: 30
