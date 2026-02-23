@@ -1,0 +1,21 @@
+# Boston Pulse - BERDO Dataset Configuration
+#
+# Dataset: Building Energy Reporting and Disclosure Ordinance
+# Source: Analyze Boston (data.boston.gov)
+# Reference: https://data.boston.gov/dataset/building-energy-reporting-and-disclosure-ordinance
+
+dataset:
+  name: "berdo"
+  description: "Annual energy, water, and emissions data for large buildings in Boston"
+
+api:
+  resource_id: "ae07be23-7e8e-4a96-bf16-f31851dfb93e"
+  base_url: "https://data.boston.gov/api/3/action"
+  endpoint: "datastore_search_sql"
+  batch_size: 1000
+  timeout_seconds: 60
+
+ingestion:
+  watermark_field: "reporting_year"
+  primary_key: "_id"
+  lookback_days: 365
