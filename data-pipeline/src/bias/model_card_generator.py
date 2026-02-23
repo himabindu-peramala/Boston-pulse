@@ -274,91 +274,46 @@ class ModelCardGenerator:
             "max": max_date.isoformat() if pd.notna(max_date) else None,
         }
 
-    def _create_validation_summary(self, result: Any) -> dict[str, Any]:
-        """Create validation summary from ValidationResult object or dict."""
-        if isinstance(result, dict):
-            return {
-                "stage": result.get("stage", "unknown"),
-                "is_valid": result.get("is_valid", False),
-                "error_count": result.get("error_count", 0),
-                "warning_count": result.get("warning_count", 0),
-                "errors": result.get("errors", []),
-                "warnings": result.get("warnings", []),
-            }
-
-        # Handle object (ValidationResult)
+    def _create_validation_summary(self, result: dict) -> dict[str, Any]:
+        """Create validation summary from XCom dict."""
         return {
-            "stage": getattr(result, "stage", "unknown"),
-            "is_valid": getattr(result, "is_valid", False),
-            "error_count": len(getattr(result, "errors", [])),
-            "warning_count": len(getattr(result, "warnings", [])),
-            "errors": getattr(result, "errors", []),
-            "warnings": getattr(result, "warnings", []),
+            "stage": result.get("stage", "unknown"),
+            "is_valid": result.get("is_valid", False),
+            "error_count": result.get("error_count", 0),
+            "warning_count": result.get("warning_count", 0),
+            "errors": result.get("errors", []),
+            "warnings": result.get("warnings", []),
         }
 
-    def _create_fairness_summary(self, result: Any) -> dict[str, Any]:
-        """Create fairness summary from FairnessResult object or dict."""
-        if isinstance(result, dict):
-            return {
-                "slices_evaluated": result.get("slices_evaluated", 0),
-                "violation_count": result.get("violation_count", 0),
-                "critical_count": result.get("critical_count", 0),
-                "warning_count": result.get("warning_count", 0),
-                "passes_gate": result.get("passes_fairness_gate", True),
-                "critical_violations": result.get("violations", [])[:5],
-            }
-
-        # Handle object (FairnessResult)
+    def _create_fairness_summary(self, result: dict) -> dict[str, Any]:
+        """Create fairness summary from XCom dict."""
         return {
-            "slices_evaluated": getattr(result, "slices_evaluated", 0),
-            "violation_count": len(getattr(result, "violations", [])),
-            "critical_count": len(getattr(result, "critical_violations", [])),
-            "warning_count": len(getattr(result, "warning_violations", [])),
-            "passes_gate": getattr(result, "passes_fairness_gate", True),
-            "critical_violations": [
-                {"metric": v.metric, "message": v.message}
-                for v in getattr(result, "critical_violations", [])
-            ][:5],
+            "slices_evaluated": result.get("slices_evaluated", 0),
+            "violation_count": result.get("violation_count", 0),
+            "critical_count": result.get("critical_count", 0),
+            "warning_count": result.get("warning_count", 0),
+            "passes_gate": result.get("passes_fairness_gate", True),
+            "critical_violations": result.get("violations", [])[:5],
         }
 
-    def _create_drift_summary(self, result: Any) -> dict[str, Any]:
-        """Create drift summary from DriftResult object or dict."""
-        if isinstance(result, dict):
-            return {
-                "features_analyzed": result.get("features_analyzed", 0),
-                "features_with_drift": len(result.get("drifted_features", [])),
-                "warning_count": result.get("warning_count", 0),
-                "critical_count": result.get("critical_count", 0),
-                "critical_features": result.get("drifted_features", [])[:10],
-                "warning_features": result.get("warning_features", [])[:10],
-            }
-
-        # Handle object (DriftResult)
+    def _create_drift_summary(self, result: dict) -> dict[str, Any]:
+        """Create drift summary from XCom dict."""
         return {
-            "features_analyzed": getattr(result, "features_analyzed", 0),
-            "features_with_drift": len(getattr(result, "features_with_drift", [])),
-            "warning_count": len(getattr(result, "warning_features", [])),
-            "critical_count": len(getattr(result, "critical_features", [])),
-            "critical_features": getattr(result, "critical_features", [])[:10],
-            "warning_features": getattr(result, "warning_features", [])[:10],
+            "features_analyzed": result.get("features_analyzed", 0),
+            "features_with_drift": len(result.get("drifted_features", [])),
+            "warning_count": result.get("warning_count", 0),
+            "critical_count": result.get("critical_count", 0),
+            "critical_features": result.get("drifted_features", [])[:10],
+            "warning_features": result.get("warning_features", [])[:10],
         }
 
-    def _create_anomaly_summary(self, result: Any) -> dict[str, Any]:
-        """Create anomaly summary from AnomalyResult object or dict."""
-        if isinstance(result, dict):
-            return {
-                "total_anomalies": result.get("anomaly_count", 0),
-                "critical_count": result.get("critical_count", 0),
-                "warning_count": result.get("warning_count", 0),
-                "anomalies_by_type": result.get("anomalies_by_type", {}),
-            }
-
-        # Handle object (AnomalyResult)
+    def _create_anomaly_summary(self, result: dict) -> dict[str, Any]:
+        """Create anomaly summary from XCom dict."""
         return {
-            "total_anomalies": len(getattr(result, "anomalies", [])),
-            "critical_count": len(getattr(result, "critical_anomalies", [])),
-            "warning_count": len(getattr(result, "warning_anomalies", [])),
-            "anomalies_by_type": getattr(result, "anomalies_by_type", {}),
+            "total_anomalies": result.get("anomaly_count", 0),
+            "critical_count": result.get("critical_count", 0),
+            "warning_count": result.get("warning_count", 0),
+            "anomalies_by_type": result.get("anomalies_by_type", {}),
         }
 
     def _generate_markdown(self, card: ModelCard) -> str:

@@ -520,11 +520,11 @@ class StatisticsGenerator:
             <td>{f.count:,}</td>
             <td>{f.num_missing:,}</td>
             <td>{f.missing_ratio:.2%}</td>
-            <td>{f.num_unique if f.num_unique else "-"}</td>
-            <td>{f"{f.mean:.2f}" if f.mean is not None else "-"}</td>
-            <td>{f"{f.std:.2f}" if f.std is not None else "-"}</td>
-            <td>{f"{f.min:.2f}" if f.min is not None else "-"}</td>
-            <td>{f"{f.max:.2f}" if f.max is not None else "-"}</td>
+            <td>{f.num_unique if f.num_unique else '-'}</td>
+            <td>{f'{f.mean:.2f}' if f.mean is not None else '-'}</td>
+            <td>{f'{f.std:.2f}' if f.std is not None else '-'}</td>
+            <td>{f'{f.min:.2f}' if f.min is not None else '-'}</td>
+            <td>{f'{f.max:.2f}' if f.max is not None else '-'}</td>
         </tr>
 """
 
