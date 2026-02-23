@@ -1,0 +1,21 @@
+# Boston Pulse - Food Inspections Dataset Configuration
+#
+# Dataset: Food Establishment Inspections
+# Source: Analyze Boston (data.boston.gov)
+# Reference: https://data.boston.gov/dataset/food-establishment-inspections
+
+dataset:
+  name: "food_inspections"
+  description: "Food establishment inspection results from the City of Boston"
+
+api:
+  resource_id: "4582bec6-2b4f-4f9e-bc55-cbaa73117f4c"
+  base_url: "https://data.boston.gov/api/3/action"
+  endpoint: "datastore_search_sql"
+  batch_size: 1000
+  timeout_seconds: 60
+
+ingestion:
+  watermark_field: "resultdttm"
+  primary_key: "_id"
+  lookback_days: 7

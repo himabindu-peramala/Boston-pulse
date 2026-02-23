@@ -1,0 +1,319 @@
+# =============================================================================
+# BOSTON PULSE - ALERTING CONFIGURATION
+# =============================================================================
+# Alert channels and routing configuration.
+# These values are used by src/alerting/alert_manager.py
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global Alerting Settings
+# -----------------------------------------------------------------------------
+global:
+  # Enable/disable alerting
+  enabled: true
+
+  # Default severity for unspecified alerts
+  default_severity: "warning"
+
+  # Include environment in alert messages
+  include_environment: true
+
+  # Alert deduplication
+  deduplication:
+    enabled: true
+    window_minutes: 60  # Same alert within 60 min = deduplicated
+
+# -----------------------------------------------------------------------------
+# Severity Levels
+# -----------------------------------------------------------------------------
+severity_levels:
+  info:
+    priority: 1
+    description: "Informational - no action required"
+    icon: "ℹ️"
+
+  warning:
+    priority: 2
+    description: "Warning - review recommended"
+    icon: "⚠️"
+
+  critical:
+    priority: 3
+    description: "Critical - immediate action required"
+    icon: "🚨"
+
+# -----------------------------------------------------------------------------
+# Alert Channels
+# -----------------------------------------------------------------------------
+channels:
+  # Logging (always enabled)
+  log:
+    enabled: true
+    format: "json"
+    include_stacktrace: true
+
+  # Slack Integration
+  slack:
+    enabled: true
+
+    # Webhook URL from environment variable (never hardcode!)
+    webhook_url_env: "SLACK_WEBHOOK_URL"
+
+    # Default channel (can be overridden per alert type)
+    default_channel: "#boston-pulse-alerts"
+
+    # Channel routing by severity
+    channels:
+      info: "#boston-pulse-info"
+      warning: "#boston-pulse-alerts"
+      critical: "#boston-pulse-critical"
+
+    # Message formatting
+    formatting:
+      include_timestamp: true
+      include_environment: true
+      include_dag_link: true
+      mention_on_critical: "@channel"
+
+  # Email Integration
+  email:
+    enabled: true
+
+    # SMTP configuration (from environment)
+    smtp:
+      host_env: "SMTP_HOST"
+      port_env: "SMTP_PORT"
+      username_env: "SMTP_USERNAME"
+      password_env: "SMTP_PASSWORD" # pragma: allowlist secret
+      use_tls: true
+
+    # Sender
+    from_address: "boston-pulse-alerts@example.com"
+    from_name: "Boston Pulse Alerts"
+
+    # Recipients by severity
+    recipients:
+      warning:
+        - "boston-pulse-team@example.com"
+      critical:
+        - "boston-pulse-team@example.com"
+        - "boston-pulse-oncall@example.com"
+
+    # Email formatting
+    formatting:
+      include_details: true
+      include_remediation: true
+      html_enabled: true
+
+  # PagerDuty Integration (critical alerts only)
+  pagerduty:
+    enabled: false  # Enable in production
+
+    # Routing key from environment
+    routing_key_env: "PAGERDUTY_ROUTING_KEY"
+
+    # Service details
+    service_name: "Boston Pulse Data Pipeline"
+
+    # Only trigger for critical alerts
+    min_severity: "critical"
+
+# -----------------------------------------------------------------------------
+# Alert Routing
+# -----------------------------------------------------------------------------
+routing:
+  # Default routing by severity
+  default:
+    info:
+      - log
+    warning:
+      - log
+      - slack
+    critical:
+      - log
+      - slack
+      - email
+      - pagerduty
+
+  # Override routing by alert type
+  by_type:
+    # Schema validation failures
+    schema_violation:
+      warning: [log, slack]
+      critical: [log, slack, email]
+
+    # Data quality issues
+    quality_issue:
+      warning: [log, slack]
+      critical: [log, slack, email]
+
+    # Drift detection
+    drift_detected:
+      warning: [log, slack]
+      critical: [log, slack, email]
+
+    # Fairness/bias violations
+    fairness_violation:
+      warning: [log, slack, email]  # Always email for fairness
+      critical: [log, slack, email, pagerduty]
+
+    # Pipeline failures
+    pipeline_failure:
+      warning: [log, slack]
+      critical: [log, slack, email, pagerduty]
+
+    # Ingestion issues
+    ingestion_failure:
+      warning: [log, slack]
+      critical: [log, slack, email]
+
+    # API errors (external data sources)
+    api_error:
+      warning: [log]
+      critical: [log, slack]
+
+# -----------------------------------------------------------------------------
+# Rate Limiting
+# -----------------------------------------------------------------------------
+rate_limiting:
+  # Global rate limits
+  global:
+    max_alerts_per_hour: 50
+    cooldown_after_limit_minutes: 30
+
+  # Per-channel rate limits
+  per_channel:
+    slack:
+      max_per_hour: 30
+      burst_limit: 10  # Max in 1 minute
+
+    email:
+      max_per_hour: 10
+      cooldown_minutes: 15
+
+    pagerduty:
+      max_per_hour: 5
+      cooldown_minutes: 30
+
+# -----------------------------------------------------------------------------
+# Alert Templates
+# -----------------------------------------------------------------------------
+templates:
+  # Schema violation
+  schema_violation:
+    title: "Schema Validation Failed: {dataset}"
+    body: |
+      **Dataset:** {dataset}
+      **Stage:** {stage}
+      **Violations:** {violation_count}
+
+      **Details:**
+      {violation_details}
+
+      **Remediation:**
+      - Review schema definition in `schemas/{dataset}/`
+      - Check source data for unexpected changes
+      - Update schema if change is intentional
+
+  # Data quality issue
+  quality_issue:
+    title: "Data Quality Issue: {dataset}"
+    body: |
+      **Dataset:** {dataset}
+      **Issue:** {issue_type}
+      **Severity:** {severity}
+
+      **Metrics:**
+      {metrics}
+
+      **Remediation:**
+      {remediation_steps}
+
+  # Drift detected
+  drift_detected:
+    title: "Data Drift Detected: {dataset}"
+    body: |
+      **Dataset:** {dataset}
+      **Drift Type:** {drift_type}
+      **PSI Score:** {psi_score}
+      **Threshold:** {threshold}
+
+      **Affected Columns:**
+      {affected_columns}
+
+      **Remediation:**
+      - Review recent data source changes
+      - Update baseline if drift is expected
+      - Investigate if drift indicates data issues
+
+  # Fairness violation
+  fairness_violation:
+    title: "⚠️ Fairness Violation: {dataset}"
+    body: |
+      **Dataset:** {dataset}
+      **Check:** {check_name}
+      **Severity:** {severity}
+
+      **Disparity Detected:**
+      - Slice: {slice_name}
+      - Metric: {metric}
+      - Value: {value}
+      - Threshold: {threshold}
+
+      **Impact:**
+      {impact_description}
+
+      **Required Action:**
+      - Review fairness report in model card
+      - Consult with Tech Lead before proceeding
+      - Document mitigation in PR
+
+  # Pipeline failure
+  pipeline_failure:
+    title: "Pipeline Failed: {dag_id}"
+    body: |
+      **DAG:** {dag_id}
+      **Task:** {task_id}
+      **Execution Date:** {execution_date}
+
+      **Error:**
+      ```
+      {error_message}
+      ```
+
+      **Logs:** {log_url}
+
+      **Remediation:**
+      {remediation_steps}
+
+# -----------------------------------------------------------------------------
+# Environment-Specific Overrides
+# -----------------------------------------------------------------------------
+environments:
+  dev:
+    # Log only in dev
+    routing:
+      default:
+        info: [log]
+        warning: [log]
+        critical: [log]
+
+    rate_limiting:
+      global:
+        max_alerts_per_hour: 1000  # No real limit
+
+  staging:
+    # Slack only (no email/pagerduty)
+    channels:
+      email:
+        enabled: false
+      pagerduty:
+        enabled: false
+
+  prod:
+    # Full alerting
+    channels:
+      email:
+        enabled: true
+      pagerduty:
+        enabled: true

@@ -94,16 +94,22 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-This installs:
-- pandas: Data manipulation and analysis
-- numpy: Numerical computing
-- requests: HTTP requests for API calls
-- sodapy: Socrata Open Data API client
-- pytest: Testing framework
-- python-dotenv: Environment variable management
-- dvc: Data version control
-- apache-airflow: Workflow orchestration
-- matplotlib, seaborn: Data visualization
+## Development Setup
+
+### Pre-commit Hooks
+
+This project uses [pre-commit](https://pre-commit.com/) to run code quality checks before each commit. The hooks mirror our CI pipeline for fast local feedback.
+
+#### Installation
+
+# Install pre-commit
+pip install pre-commit
+
+# Install the git hooks
+pre-commit install
+
+
+## Usage
 
 ### Step 5: Initialize DVC
 ```bash

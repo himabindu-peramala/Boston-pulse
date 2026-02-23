@@ -1,0 +1,111 @@
+# =============================================================================
+# BOSTON PULSE - DEVELOPMENT CONFIGURATION
+# =============================================================================
+# Local development settings. Inherits from base.yaml.
+# Use with: BP_ENVIRONMENT=dev
+# =============================================================================
+
+# Inherit from base
+_inherit: base
+
+# -----------------------------------------------------------------------------
+# Storage - Use local or emulator
+# -----------------------------------------------------------------------------
+storage:
+  buckets:
+    main: "boston-pulse-data-pipeline"
+    dvc: "boston-pulse-dvc-pipeline"
+    temp: "boston-pulse-temp-pipeline"
+
+  # For local development with fake-gcs-server
+  emulator:
+    enabled: false
+    host: "http://localhost:4443"
+
+# -----------------------------------------------------------------------------
+# Validation - Relaxed for development
+# -----------------------------------------------------------------------------
+validation:
+  schema:
+    strict_mode: false  # Allow schema exploration
+    allow_extra_columns: true
+
+  quality:
+    max_null_ratio: 0.20  # More lenient for testing
+    max_duplicate_ratio: 0.05
+    min_row_count: 10  # Lower threshold for dev
+
+# -----------------------------------------------------------------------------
+# Drift - Relaxed thresholds
+# -----------------------------------------------------------------------------
+drift:
+  psi:
+    warning: 0.2
+    critical: 0.4
+
+  reference:
+    window_days: 7  # Shorter window for faster feedback
+    min_samples: 100
+
+# -----------------------------------------------------------------------------
+# Fairness - Relaxed for development
+# -----------------------------------------------------------------------------
+fairness:
+  thresholds:
+    representation:
+      warning: 0.3
+      critical: 0.5
+
+    outcome_disparity:
+      warning: 0.25
+      critical: 0.4
+
+# -----------------------------------------------------------------------------
+# Alerting - Log only in dev
+# -----------------------------------------------------------------------------
+alerting:
+  routing:
+    info: ["log"]
+    warning: ["log"]
+    critical: ["log"]  # No external alerts in dev
+
+  rate_limit:
+    max_alerts_per_hour: 100  # No real limit in dev
+    cooldown_minutes: 1
+
+# -----------------------------------------------------------------------------
+# Logging - Verbose for debugging
+# -----------------------------------------------------------------------------
+logging:
+  level: "DEBUG"
+  format: "text"  # Human-readable in dev
+  include_timestamp: true
+  include_trace_id: true
+
+# -----------------------------------------------------------------------------
+# Feature Store - Local emulator
+# -----------------------------------------------------------------------------
+feature_store:
+  emulator:
+    enabled: true
+    host: "localhost:8080"
+
+# -----------------------------------------------------------------------------
+# Datasets - Smaller samples for dev
+# -----------------------------------------------------------------------------
+datasets:
+  # Faster schedule for testing
+  default_schedule: "*/15 * * * *"  # Every 15 minutes
+
+  # Limit data for faster iteration
+  dev_limits:
+    max_rows: 10000
+    lookback_days: 30
+
+# -----------------------------------------------------------------------------
+# APIs - Use test endpoints where available
+# -----------------------------------------------------------------------------
+apis:
+  analyze_boston:
+    timeout_seconds: 30
+    rate_limit_per_minute: 30  # Slower to avoid rate limits during testing

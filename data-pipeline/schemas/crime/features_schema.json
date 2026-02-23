@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Boston Crime Features Schema",
+  "description": "Schema for aggregated crime features by grid cell",
+  "type": "object",
+  "properties": {
+    "grid_cell": {
+      "type": "string",
+      "description": "Grid cell identifier (lat_lon format)",
+      "pattern": "^[0-9.-]+_[0-9.-]+$",
+      "primary_key": true
+    },
+    "grid_lat": {
+      "type": "number",
+      "description": "Grid cell center latitude",
+      "minimum": 42.2,
+      "maximum": 42.4
+    },
+    "grid_long": {
+      "type": "number",
+      "description": "Grid cell center longitude",
+      "minimum": -71.2,
+      "maximum": -70.9
+    },
+    "district": {
+      "type": "string",
+      "description": "Police district (mode for grid cell)"
+    },
+    "crime_count_7d": {
+      "type": "integer",
+      "description": "Total crime count in past 7 days",
+      "minimum": 0
+    },
+    "crime_count_30d": {
+      "type": "integer",
+      "description": "Total crime count in past 30 days",
+      "minimum": 0
+    },
+    "crime_count_90d": {
+      "type": "integer",
+      "description": "Total crime count in past 90 days",
+      "minimum": 0
+    },
+    "shooting_count_30d": {
+      "type": "integer",
+      "description": "Shooting incidents in past 30 days",
+      "minimum": 0
+    },
+    "shooting_ratio_30d": {
+      "type": "number",
+      "description": "Ratio of shootings to total crimes (30 days)",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "violent_crime_ratio": {
+      "type": "number",
+      "description": "Ratio of violent crimes to total crimes",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "property_crime_ratio": {
+      "type": "number",
+      "description": "Ratio of property crimes to total crimes",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "night_crime_ratio": {
+      "type": "number",
+      "description": "Ratio of crimes occurring at night (8pm-6am)",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "weekend_crime_ratio": {
+      "type": "number",
+      "description": "Ratio of crimes occurring on weekends",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "crime_risk_score": {
+      "type": "number",
+      "description": "Normalized crime risk score",
+      "minimum": 0.0,
+      "maximum": 1.0
+    }
+  },
+  "required": [
+    "grid_cell",
+    "grid_lat",
+    "grid_long",
+    "district",
+    "crime_count_7d",
+    "crime_count_30d",
+    "crime_count_90d",
+    "crime_risk_score"
+  ],
+  "additionalProperties": false,
+  "metadata": {
+    "dataset": "crime",
+    "stage": "features",
+    "version": "1.0.0",
+    "entity_key": "grid_cell",
+    "grid_size_degrees": 0.001,
+    "feature_windows": [7, 30, 90]
+  }
+}

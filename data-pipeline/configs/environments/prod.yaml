@@ -1,0 +1,155 @@
+# =============================================================================
+# BOSTON PULSE - PRODUCTION CONFIGURATION
+# =============================================================================
+# Production environment settings. Inherits from base.yaml.
+# Use with: BP_ENVIRONMENT=prod
+#
+# IMPORTANT: Production configs should be strict. Any relaxation requires
+# approval from Tech Lead.
+# =============================================================================
+
+# Inherit from base
+_inherit: base
+
+# -----------------------------------------------------------------------------
+# Storage - Production buckets
+# -----------------------------------------------------------------------------
+storage:
+  buckets:
+    main: "boston-pulse-data-prod"
+    dvc: "boston-pulse-dvc-prod"
+    temp: "boston-pulse-temp-prod"
+
+  # Production retention policies
+  retention:
+    raw_days: 365  # 1 year
+    processed_days: 730  # 2 years
+    features_days: 365
+
+# -----------------------------------------------------------------------------
+# Validation - STRICT MODE
+# -----------------------------------------------------------------------------
+validation:
+  schema:
+    strict_mode: true  # ALWAYS strict in production
+    allow_extra_columns: false
+
+  quality:
+    max_null_ratio: 0.05  # Max 5% null values
+    max_duplicate_ratio: 0.01  # Max 1% duplicates
+    min_row_count: 100  # Fail if too few rows
+
+# -----------------------------------------------------------------------------
+# Drift - Production thresholds
+# -----------------------------------------------------------------------------
+drift:
+  psi:
+    warning: 0.1  # Alert at 10% drift
+    critical: 0.25  # Block at 25% drift
+
+  reference:
+    window_days: 30
+    min_samples: 1000
+
+# -----------------------------------------------------------------------------
+# Fairness - Production thresholds (BLOCKS deployment if violated)
+# -----------------------------------------------------------------------------
+fairness:
+  # Enable fairness gate - blocks pipeline on violations
+  gate_enabled: true
+
+  thresholds:
+    representation:
+      warning: 0.2
+      critical: 0.4  # Pipeline FAILS at 40% disparity
+
+    outcome_disparity:
+      warning: 0.15
+      critical: 0.3
+
+# -----------------------------------------------------------------------------
+# Alerting - Full alerting in production
+# -----------------------------------------------------------------------------
+alerting:
+  routing:
+    info: ["log"]
+    warning: ["log", "slack"]
+    critical: ["log", "slack", "email", "pagerduty"]
+
+  channels:
+    slack:
+      webhook_url_env: "SLACK_WEBHOOK_URL_PROD"
+      channel: "#boston-pulse-alerts"
+
+    email:
+      smtp_host_env: "SMTP_HOST"
+      recipients:
+        - "boston-pulse-oncall@example.com"
+
+    pagerduty:
+      routing_key_env: "PAGERDUTY_ROUTING_KEY"
+
+  rate_limit:
+    max_alerts_per_hour: 10
+    cooldown_minutes: 15
+
+# -----------------------------------------------------------------------------
+# Logging - Structured for production monitoring
+# -----------------------------------------------------------------------------
+logging:
+  level: "INFO"
+  format: "json"
+  include_timestamp: true
+  include_trace_id: true
+
+  # Additional production logging
+  export:
+    cloud_logging: true
+    bigquery_table: "boston-pulse.logs.pipeline_logs"
+
+# -----------------------------------------------------------------------------
+# Datasets - Production schedules
+# -----------------------------------------------------------------------------
+datasets:
+  default_schedule: "0 2 * * *"  # 2 AM UTC daily
+
+  retries:
+    max_attempts: 5
+    delay_seconds: 600  # 10 minutes
+    exponential_backoff: true
+
+  # Dataset-specific overrides
+  schedules:
+    crime: "0 3 * * *"  # 3 AM UTC
+    mbta: "streaming"  # Real-time
+    service_311: "0 2 * * *"
+    vision_zero: "0 4 * * *"
+    streetlight: "0 0 * * 0"  # Weekly on Sunday
+
+# -----------------------------------------------------------------------------
+# Feature Store - Production Firestore
+# -----------------------------------------------------------------------------
+feature_store:
+  project: "boston-pulse-prod"
+
+  # Production TTL
+  ttl_hours: 24
+
+  # Backup configuration
+  backup:
+    enabled: true
+    schedule: "0 0 * * *"  # Daily at midnight
+
+# -----------------------------------------------------------------------------
+# APIs - Production rate limits
+# -----------------------------------------------------------------------------
+apis:
+  analyze_boston:
+    timeout_seconds: 120
+    rate_limit_per_minute: 60
+
+  mbta:
+    timeout_seconds: 60
+    rate_limit_per_minute: 100
+    # Require API key in production
+    api_key_env: "MBTA_API_KEY" # pragma: allowlist secret
