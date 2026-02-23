@@ -201,7 +201,7 @@ class CrimeIngester(BaseIngester):
         Returns:
             DataFrame with sample crime data
         """
-        sql = f'SELECT * FROM "{RESOURCE_ID}" ORDER BY "{WATERMARK_FIELD}" DESC LIMIT {n}'
+        sql = f'SELECT * FROM "{RESOURCE_ID}" ' f'ORDER BY "{WATERMARK_FIELD}" DESC ' f"LIMIT {n}"
 
         response = requests.get(
             self.api_url,

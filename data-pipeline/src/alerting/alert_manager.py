@@ -68,7 +68,7 @@ class Alert:
     title: str
     message: str
     severity: AlertSeverity
-    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    timestamp: datetime = field(default_factory=datetime.utcnow)
     dataset: str | None = None
     dag_id: str | None = None
     task_id: str | None = None

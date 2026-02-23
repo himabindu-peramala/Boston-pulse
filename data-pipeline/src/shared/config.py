@@ -135,7 +135,7 @@ class TemporalValidationConfig(BaseModel):
 class ValidationConfig(BaseModel):
     """Validation configuration."""
 
-    quality_schema: SchemaValidationConfig = Field(default_factory=SchemaValidationConfig)
+    schema: SchemaValidationConfig = Field(default_factory=SchemaValidationConfig)
     quality: QualityConfig = Field(default_factory=QualityConfig)
     geo_bounds: GeoBoundsConfig = Field(default_factory=GeoBoundsConfig)
     temporal: TemporalValidationConfig = Field(default_factory=TemporalValidationConfig)

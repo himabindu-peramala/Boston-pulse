@@ -184,7 +184,9 @@ class DAGAlertManager:
     ) -> None:
         """Send alert for anomaly detection."""
         message = (
-            f"Anomaly detected for **{dataset}**\n- Type: {anomaly_type}\n- Details: {details}"
+            f"Anomaly detected for **{dataset}**\n"
+            f"- Type: {anomaly_type}\n"
+            f"- Details: {details}"
         )
 
         send_alert(

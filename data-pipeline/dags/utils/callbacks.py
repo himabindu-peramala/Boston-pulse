@@ -296,7 +296,7 @@ def on_drift_detected(context: dict[str, Any]) -> None:
         extra={**info, "drift_result": drift_result},
     )
 
-    message = f"**DAG:** {info['dag_id']}\n**Execution Date:** {info['execution_date']}\n"
+    message = f"**DAG:** {info['dag_id']}\n" f"**Execution Date:** {info['execution_date']}\n"
 
     if drift_result and isinstance(drift_result, dict):
         drifted_features = drift_result.get("drifted_features", [])

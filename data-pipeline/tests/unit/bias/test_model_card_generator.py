@@ -162,7 +162,7 @@ def test_save_model_card_json(mock_gcs_client, sample_data, tmp_path):
     assert "json" in paths
     # Verify file was created
     json_path = paths["json"]
-    assert str(tmp_path / card.version) in json_path or card.version in json_path
+    assert tmp_path / card.version in json_path or card.version in json_path
 
 
 def test_save_model_card_markdown(mock_gcs_client, sample_data, tmp_path):

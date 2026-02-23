@@ -15,13 +15,6 @@ from src.shared.config import get_config
 from src.validation.schema_registry import SchemaRegistry, create_schema_from_dataframe
 
 
-@pytest.fixture(autouse=True)
-def mock_storage_client():
-    """Mock storage.Client for all tests in this module."""
-    with patch("src.validation.schema_registry.storage.Client"):
-        yield
-
-
 @pytest.fixture
 def mock_gcs_client():
     """Mock GCS client for testing."""
