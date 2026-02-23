@@ -2,6 +2,8 @@
 Crime Data Ingestion Script
 Downloads REAL crime incident reports from Boston Open Data Portal
 """
+import os
+os.makedirs("logs", exist_ok=True)
 
 import logging
 from io import StringIO

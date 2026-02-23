@@ -2,6 +2,8 @@
 Police Stations Data Ingestion Script
 Downloads Boston Police Station locations from Boston Open Data Portal (GeoJSON)
 """
+import os
+os.makedirs("logs", exist_ok=True)
 
 import logging
 from pathlib import Path
