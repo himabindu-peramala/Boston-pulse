@@ -36,7 +36,8 @@ class Service311Preprocessor(BasePreprocessor):
         "neighborhood": "neighborhood",
         "latitude": "lat",
         "longitude": "long",
-        "on_time": "on_time",}
+        "on_time": "on_time",
+    }
 
     # Data type mappings
     DTYPE_MAPPINGS = {
@@ -50,7 +51,8 @@ class Service311Preprocessor(BasePreprocessor):
         "neighborhood": "string",
         "lat": "float",
         "long": "float",
-        "on_time": "string",  # Often 'ON TIME' or 'OVERDUE'}
+        "on_time": "string",  # Often 'ON TIME' or 'OVERDUE'
+    }
 
     # Required output columns
     REQUIRED_COLUMNS = [
