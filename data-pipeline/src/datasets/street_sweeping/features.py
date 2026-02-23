@@ -1,7 +1,7 @@
 """
 Boston Pulse - Street Sweeping Feature Builder
 
-Engineers features from cleaned Street Sweeping Schedules data.
+Builds street sweeping-related features for urban analytics.
 """
 
 from __future__ import annotations
@@ -11,21 +11,10 @@ from typing import Any
 
 import pandas as pd
 
-from src.datasets.base import BaseFeatureBuilder
+from src.datasets.base import BaseFeatureBuilder, FeatureDefinition
 from src.shared.config import Settings
 
 logger = logging.getLogger(__name__)
-
-# Day name to number mapping
-DAY_ORDER = {
-    "MONDAY": 0,
-    "TUESDAY": 1,
-    "WEDNESDAY": 2,
-    "THURSDAY": 3,
-    "FRIDAY": 4,
-    "SATURDAY": 5,
-    "SUNDAY": 6,
-}
 
 
 class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
@@ -46,6 +35,57 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
         """Return dataset name."""
         return "street_sweeping"
 
+    def get_entity_key(self) -> str:
+        """Return entity key for aggregation."""
+        return "sam_street_id"
+
+    def get_feature_definitions(self) -> list[FeatureDefinition]:
+        """Return feature definitions."""
+        return [
+            FeatureDefinition(
+                name="sam_street_id",
+                description="Street segment identifier",
+                dtype="string",
+                source_columns=["sam_street_id"],
+            ),
+            FeatureDefinition(
+                name="tow_enforced",
+                description="Whether tow zone is enforced during sweeping",
+                dtype="int",
+                source_columns=["tow_zone"],
+            ),
+            FeatureDefinition(
+                name="is_every_week",
+                description="Whether street is swept every week",
+                dtype="int",
+                source_columns=["week_type"],
+            ),
+            FeatureDefinition(
+                name="season_start_month",
+                description="Numeric month when sweeping season starts",
+                dtype="int",
+                source_columns=["season_start"],
+            ),
+            FeatureDefinition(
+                name="season_end_month",
+                description="Numeric month when sweeping season ends",
+                dtype="int",
+                source_columns=["season_end"],
+            ),
+            FeatureDefinition(
+                name="active_months_count",
+                description="Total number of months in sweeping season",
+                dtype="int",
+                source_columns=["season_start", "season_end"],
+            ),
+            FeatureDefinition(
+                name="district_code",
+                description="Encoded district identifier",
+                dtype="int",
+                source_columns=["district"],
+            ),
+        ]
+
     def build_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Build features from preprocessed street sweeping data."""
         if df.empty:
@@ -60,7 +100,6 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
 
     def _engineer_schedule_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Extract schedule-related features."""
-        # Parse season months
         month_map = {
             "JAN": 1,
             "FEB": 2,
@@ -83,13 +122,11 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
             if col in df.columns:
                 df[new_col] = df[col].str[:3].str.upper().map(month_map)
 
-        # Flag active season (April - November typical Boston sweeping)
         if "season_start_month" in df.columns and "season_end_month" in df.columns:
             df["active_months_count"] = (
                 df["season_end_month"] - df["season_start_month"] + 1
             ).clip(lower=0)
 
-        # Week type encoding
         if "week_type" in df.columns:
             df["is_every_week"] = (
                 df["week_type"].str.upper().str.contains("EVERY", na=False).astype(int)
