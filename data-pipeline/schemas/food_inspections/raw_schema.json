@@ -34,6 +34,7 @@
         "issdttm": {
             "type": [
                 "string",
+                "datetime",
                 "null"
             ],
             "description": "The date and time the license was issued",
@@ -49,6 +50,7 @@
         "resultdttm": {
             "type": [
                 "string",
+                "datetime",
                 "null"
             ],
             "description": "The date and time of the inspection result",
@@ -97,6 +99,90 @@
                 "null"
             ],
             "description": "Geographic location string (often '(Lat, Long)')"
+        },
+        "namelast": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "city": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "state": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "comments": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "expdttm": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "licstatus": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "viol_status": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "descript": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "viol_level": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "status_date": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "namefirst": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "licensecat": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "property_id": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "legalowner": {
+            "type": [
+                "string",
+                "null"
+            ]
         }
     },
     "required": [

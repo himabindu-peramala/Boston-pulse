@@ -26,12 +26,12 @@ class Service311Preprocessor(BasePreprocessor):
 
     # Column mapping from raw API names to standardized names
     COLUMN_MAPPINGS = {
-        "case_id": "case_id",
-        "open_date": "open_date",
-        "close_date": "close_date",
-        "case_topic": "case_topic",
-        "service_name": "service_name",
-        "assigned_department": "assigned_department",
+        "case_enquiry_id": "case_id",
+        "open_dt": "open_date",
+        "closed_dt": "close_date",
+        "subject": "case_topic",
+        "reason": "service_name",
+        "department": "assigned_department",
         "case_status": "case_status",
         "neighborhood": "neighborhood",
         "latitude": "lat",
@@ -84,6 +84,8 @@ class Service311Preprocessor(BasePreprocessor):
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """Apply 311-specific transformations."""
+        logger.info(f"311 Initial columns: {df.columns.tolist()}")
+
         if df.empty:
             # Ensure required columns exist even in empty DF
             for col in self.REQUIRED_COLUMNS:
@@ -108,7 +110,10 @@ class Service311Preprocessor(BasePreprocessor):
         df = self._handle_missing_values(df)
 
         # Drop duplicates
-        df = self.drop_duplicates(df, subset=["case_id"], keep="last")
+        if "case_id" in df.columns:
+            df = self.drop_duplicates(df, subset=["case_id"], keep="last")
+        else:
+            logger.warning("case_id MISSING during duplicate removal")
 
         # Final column selection
         df = self._select_output_columns(df)

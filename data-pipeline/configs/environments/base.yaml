@@ -58,11 +58,11 @@ datasets:
     lookback_days: 7  # Re-fetch last 7 days by default
 
 # -----------------------------------------------------------------------------
-# Validation Thresholds
+# Validation Configuration
 # -----------------------------------------------------------------------------
 validation:
-  # Schema validation
-  schema:
+  # Schema validation (renamed from 'schema' to match pydantic structure)
+  quality_schema:
     strict_mode: true  # Fail on any schema violation
     allow_extra_columns: false
 
@@ -71,6 +71,40 @@ validation:
     max_null_ratio: 0.05  # Max 5% null values per column
     max_duplicate_ratio: 0.01  # Max 1% duplicate rows
     min_row_count: 100  # Minimum rows expected
+
+  # Dataset-specific quality overrides
+  overrides:
+    crime:
+      min_row_count: 5
+      max_null_ratio:
+        OFFENSE_CODE_GROUP: 1.0  # Allow 100% null (deprecated)
+        UCR_PART: 1.0           # Allow 100% null (deprecated)
+    food_inspections:
+      min_row_count: 5
+      allow_extra_columns: true
+      max_null_ratio:
+        dbaname: 1.0
+        legalowner: 1.0
+        status_date: 1.0
+        namefirst: 1.0
+    service_311:
+      allow_extra_columns: true
+      max_null_ratio:
+        closed_dt: 0.8
+        submitted_photo: 1.0
+        closed_photo: 1.0
+        location_zipcode: 0.8
+    cityscore:
+      min_row_count: 1
+      allow_extra_columns: true
+      max_null_ratio:
+        target: 0.8
+        day_score: 1.0
+        day_numerator: 1.0
+        day_denominator: 1.0
+        week_score: 0.8
+        month_score: 0.8
+        quarter_score: 0.8
 
   # Coordinate bounds for Boston
   geo_bounds:

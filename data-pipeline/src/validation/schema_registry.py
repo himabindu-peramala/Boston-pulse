@@ -109,7 +109,8 @@ class SchemaRegistry:
             Version string of the registered schema
 
         Example:
-            schema = {"incident_number": {"type": "string", "nullable": False},
+            schema = {
+                "incident_number": {"type": "string", "nullable": False},
                 "occurred_date": {"type": "datetime", "nullable": False},
                 "latitude": {"type": "float", "nullable": True},
             }
@@ -145,7 +146,8 @@ class SchemaRegistry:
                 "created_by": metadata.created_by,
                 "description": metadata.description,
                 "num_columns": metadata.num_columns,
-                "primary_key": metadata.primary_key,},
+                "primary_key": metadata.primary_key,
+            },
             "schema": schema,
         }
 
@@ -197,7 +199,40 @@ class SchemaRegistry:
             )
             return schema
         except Exception as e:
+            # Automatic Sync: If schema is missing in GCS, try to find it locally and register it
+            logger.info(f"Schema not found in GCS for {dataset}/{layer}, attempting local sync...")
+            try:
+                local_schema = self._load_local_schema(dataset, layer)
+                if local_schema:
+                    self.register_schema(dataset, layer, local_schema)
+                    # Try downloading again after registration
+                    return self._download_json(path)
+            except Exception as sync_err:
+                logger.warning(f"Failed to sync local schema for {dataset}/{layer}: {sync_err}")
+
             raise FileNotFoundError(f"Schema not found: {dataset}/{layer} version={version}") from e
+
+    def _load_local_schema(self, dataset: str, layer: str) -> dict[str, Any] | None:
+        """Load a schema from the local filesystem (fallback for GCS)."""
+        # Try a few common locations for the schemas directory
+        base_paths = [
+            Path(__file__).parent.parent.parent / "schemas",
+            Path.cwd() / "schemas",
+            Path.cwd() / "data-pipeline" / "schemas",
+            Path("/opt/airflow/data-pipeline/schemas"),
+        ]
+
+        for base in base_paths:
+            schema_file = base / dataset / f"{layer}_schema.json"
+            if schema_file.exists():
+                try:
+                    with open(schema_file) as f:
+                        return json.load(f)
+                except Exception as e:
+                    logger.warning(f"Found local schema file {schema_file} but failed to read: {e}")
+
+        logger.info(f"No local schema file found for {dataset}/{layer}")
+        return None
 
     def get_schema_metadata(
         self,
@@ -253,6 +288,7 @@ class SchemaRegistry:
         dataset: str,
         layer: str,
         version: str | None = None,
+        allow_extra: bool | None = None,
     ) -> tuple[bool, list[str]]:
         """
         Validate a DataFrame against a registered schema.
@@ -274,6 +310,13 @@ class SchemaRegistry:
         """
         schema_doc = self.get_schema(dataset, layer, version)
         schema = schema_doc["schema"]
+
+        # Handle JSON Schema format (with 'properties' key) vs flat column dict
+        # JSON Schema format: {"$schema": "...", "properties": {"col": {"type": "..."}}, ...}
+        # Flat format: {"col": {"type": "..."}, ...}
+        if "properties" in schema and isinstance(schema["properties"], dict):
+            schema = schema["properties"]
+
         errors = []
 
         # Check for missing columns
@@ -285,7 +328,12 @@ class SchemaRegistry:
             errors.append(f"Missing required columns: {missing_columns}")
 
         # Check for extra columns (if strict mode)
-        if not self.config.validation.quality_schema.allow_extra_columns:
+        allow_extra_columns = (
+            allow_extra
+            if allow_extra is not None
+            else self.config.validation.quality_schema.allow_extra_columns
+        )
+        if not allow_extra_columns:
             extra_columns = df_columns - schema_columns
             if extra_columns:
                 errors.append(f"Extra columns not in schema: {extra_columns}")
@@ -342,25 +390,52 @@ class SchemaRegistry:
 
             schema[col] = {
                 "type": type_name,
-                "nullable": bool(nullable),}
+                "nullable": bool(nullable),
+            }
 
         return schema
 
-    def _is_type_compatible(self, actual: str, expected: str) -> bool:
-        """Check if actual dtype is compatible with expected type."""
+    def _is_type_compatible(self, actual: str, expected: str | list[str]) -> bool:
+        """Check if actual dtype is compatible with expected type(s)."""
+        # Handle list of expected types (e.g., ["string", "null"])
+        if isinstance(expected, list):
+            return any(self._is_type_compatible(actual, t) for t in expected)
+
         # Map pandas dtypes to schema types
         type_mappings = {
+            # Standard integer types (covers int8/16/32/64 produced by pandas .dt.year etc.)
+            "int8": ["integer", "float"],
+            "int16": ["integer", "float"],
+            "int32": ["integer", "float"],
             "int64": ["integer", "float"],
-            "float64": ["float"],
-            "object": ["string"],
+            # Unsigned integer types
+            "uint8": ["integer", "float"],
+            "uint16": ["integer", "float"],
+            "uint32": ["integer", "float"],
+            "uint64": ["integer", "float"],
+            # Nullable integer types (pandas extension dtypes)
+            "Int8": ["integer"],
+            "Int16": ["integer"],
+            "Int32": ["integer"],
+            "Int64": ["integer"],
+            # Float types — 'number' is the JSON Schema name for float
+            "float32": ["float", "number"],
+            "float64": ["float", "number"],
+            # Other types
+            "object": ["string", "integer", "float", "number", "datetime", "null"],
             "bool": ["boolean"],
             "datetime64[ns]": ["datetime"],
+            "datetime64[ns, UTC]": ["datetime"],
             "string": ["string"],
-            "Int64": ["integer"],}
+        }
 
-        # Allow 'object' (common when ingesting JSON) to match string, integer, float, or datetime
+        # Allow 'object' (common when ingesting JSON) to match string, integer, float, number, or datetime
         if actual == "object":
-            return expected in ["string", "integer", "float", "datetime"]
+            return expected in ["string", "integer", "float", "number", "datetime", "null"]
+
+        # Null check
+        if expected == "null":
+            return True  # Any pandas column can have nulls
 
         compatible_types = type_mappings.get(actual, [actual])
         return expected in compatible_types
@@ -414,4 +489,5 @@ def create_schema_from_dataframe(
     return {
         "description": description,
         "primary_key": primary_key,
-        "schema": schema,}
+        "schema": schema,
+    }

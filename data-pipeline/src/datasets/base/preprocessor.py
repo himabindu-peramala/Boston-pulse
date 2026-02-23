@@ -245,7 +245,9 @@ class BasePreprocessor(ABC):
         """Apply column name mappings."""
         mappings = self.get_column_mappings()
         if mappings:
+            logger.debug(f"Applying column mappings for {self.get_dataset_name()}: {mappings}")
             df = df.rename(columns=mappings)
+            logger.debug(f"Columns after mapping: {df.columns.tolist()}")
             self._transformations.append(f"renamed_columns: {list(mappings.keys())}")
         return df
 

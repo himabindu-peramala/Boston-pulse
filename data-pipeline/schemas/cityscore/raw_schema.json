@@ -30,6 +30,21 @@
                 "null"
             ],
             "description": "Score for the current day"
+        },
+        "_id": {
+            "type": "integer"
+        },
+        "metric_logic": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "latest_score_flag": {
+            "type": [
+                "string",
+                "null"
+            ]
         }
     },
     "required": [
