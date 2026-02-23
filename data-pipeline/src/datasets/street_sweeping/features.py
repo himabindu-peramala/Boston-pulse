@@ -95,7 +95,6 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
         df = self._engineer_district_features(df)
         df = self._engineer_tow_risk_feature(df)
 
-        self.log_transformation("build_features")
         return df
 
     def _engineer_schedule_features(self, df: pd.DataFrame) -> pd.DataFrame:
