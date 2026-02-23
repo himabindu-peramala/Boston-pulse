@@ -18,8 +18,13 @@ logger = logging.getLogger(__name__)
 
 # Day name to number mapping
 DAY_ORDER = {
-    "MONDAY": 0, "TUESDAY": 1, "WEDNESDAY": 2,
-    "THURSDAY": 3, "FRIDAY": 4, "SATURDAY": 5, "SUNDAY": 6,
+    "MONDAY": 0,
+    "TUESDAY": 1,
+    "WEDNESDAY": 2,
+    "THURSDAY": 3,
+    "FRIDAY": 4,
+    "SATURDAY": 5,
+    "SUNDAY": 6,
 }
 
 
@@ -57,12 +62,24 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
         """Extract schedule-related features."""
         # Parse season months
         month_map = {
-            "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4,
-            "MAY": 5, "JUN": 6, "JUL": 7, "AUG": 8,
-            "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12,
+            "JAN": 1,
+            "FEB": 2,
+            "MAR": 3,
+            "APR": 4,
+            "MAY": 5,
+            "JUN": 6,
+            "JUL": 7,
+            "AUG": 8,
+            "SEP": 9,
+            "OCT": 10,
+            "NOV": 11,
+            "DEC": 12,
         }
 
-        for col, new_col in [("season_start", "season_start_month"), ("season_end", "season_end_month")]:
+        for col, new_col in [
+            ("season_start", "season_start_month"),
+            ("season_end", "season_end_month"),
+        ]:
             if col in df.columns:
                 df[new_col] = df[col].str[:3].str.upper().map(month_map)
 
@@ -74,7 +91,9 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
 
         # Week type encoding
         if "week_type" in df.columns:
-            df["is_every_week"] = df["week_type"].str.upper().str.contains("EVERY", na=False).astype(int)
+            df["is_every_week"] = (
+                df["week_type"].str.upper().str.contains("EVERY", na=False).astype(int)
+            )
 
         return df
 
@@ -87,9 +106,7 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
     def _engineer_tow_risk_feature(self, df: pd.DataFrame) -> pd.DataFrame:
         """Flag streets with tow zone enforcement."""
         if "tow_zone" in df.columns:
-            df["tow_enforced"] = (
-                df["tow_zone"].str.upper().ne("NO").astype(int)
-            )
+            df["tow_enforced"] = df["tow_zone"].str.upper().ne("NO").astype(int)
         return df
 
 

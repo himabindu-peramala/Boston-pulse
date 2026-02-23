@@ -113,8 +113,13 @@ class StreetSweepingPreprocessor(BasePreprocessor):
     def _standardize_strings(self, df: pd.DataFrame) -> pd.DataFrame:
         """Standardize string fields."""
         str_cols = [
-            "full_street_name", "from_street", "to_street",
-            "district", "side_of_street", "week_type", "tow_zone",
+            "full_street_name",
+            "from_street",
+            "to_street",
+            "district",
+            "side_of_street",
+            "week_type",
+            "tow_zone",
         ]
         for col in str_cols:
             if col in df.columns:
@@ -151,10 +156,19 @@ class StreetSweepingPreprocessor(BasePreprocessor):
     def _select_output_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """Select and order output columns."""
         output_columns = [
-            "_id", "sam_street_id", "full_street_name",
-            "from_street", "to_street", "district",
-            "side_of_street", "season_start", "season_end",
-            "week_type", "tow_zone", "lat", "long",
+            "_id",
+            "sam_street_id",
+            "full_street_name",
+            "from_street",
+            "to_street",
+            "district",
+            "side_of_street",
+            "season_start",
+            "season_end",
+            "week_type",
+            "tow_zone",
+            "lat",
+            "long",
         ]
         available = [c for c in output_columns if c in df.columns]
         return df[available].copy()

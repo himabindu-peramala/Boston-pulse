@@ -15,19 +15,21 @@ def builder():
 
 @pytest.fixture
 def sample_df():
-    return pd.DataFrame({
-        "_id": [1, 2, 3],
-        "sam_street_id": ["12345", "67890", "11111"],
-        "full_street_name": ["MAIN ST", "ELM ST", "OAK AVE"],
-        "district": ["1A", "1B", "2A"],
-        "side_of_street": ["LEFT", "RIGHT", "LEFT"],
-        "season_start": ["APR", "APR", "MAY"],
-        "season_end": ["NOV", "NOV", "OCT"],
-        "week_type": ["EVERY WEEK", "EVERY OTHER WEEK", "EVERY WEEK"],
-        "tow_zone": ["YES", "NO", "YES"],
-        "lat": [42.3601, 42.3501, 42.3701],
-        "long": [-71.0589, -71.0489, -71.0689],
-    })
+    return pd.DataFrame(
+        {
+            "_id": [1, 2, 3],
+            "sam_street_id": ["12345", "67890", "11111"],
+            "full_street_name": ["MAIN ST", "ELM ST", "OAK AVE"],
+            "district": ["1A", "1B", "2A"],
+            "side_of_street": ["LEFT", "RIGHT", "LEFT"],
+            "season_start": ["APR", "APR", "MAY"],
+            "season_end": ["NOV", "NOV", "OCT"],
+            "week_type": ["EVERY WEEK", "EVERY OTHER WEEK", "EVERY WEEK"],
+            "tow_zone": ["YES", "NO", "YES"],
+            "lat": [42.3601, 42.3501, 42.3701],
+            "long": [-71.0589, -71.0489, -71.0689],
+        }
+    )
 
 
 def test_get_dataset_name(builder):

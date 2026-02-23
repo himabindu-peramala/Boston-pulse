@@ -15,21 +15,23 @@ def preprocessor():
 
 @pytest.fixture
 def sample_df():
-    return pd.DataFrame({
-        "_id": [1, 2, 3],
-        "sam_street_id": ["12345", "67890", "11111"],
-        "full_street_name": ["main st", "elm st", "oak ave"],
-        "from_street": ["elm st", "oak st", "pine st"],
-        "to_street": ["oak st", "pine st", "maple st"],
-        "district": ["1A", "1B", "2A"],
-        "side_of_street": ["left", "right", "left"],
-        "season_start": ["APR", "APR", "APR"],
-        "season_end": ["NOV", "NOV", "NOV"],
-        "week_type": ["every week", "every other week", "every week"],
-        "tow_zone": ["YES", "NO", "YES"],
-        "lat": ["42.3601", "42.3501", "42.3701"],
-        "long": ["-71.0589", "-71.0489", "-71.0689"],
-    })
+    return pd.DataFrame(
+        {
+            "_id": [1, 2, 3],
+            "sam_street_id": ["12345", "67890", "11111"],
+            "full_street_name": ["main st", "elm st", "oak ave"],
+            "from_street": ["elm st", "oak st", "pine st"],
+            "to_street": ["oak st", "pine st", "maple st"],
+            "district": ["1A", "1B", "2A"],
+            "side_of_street": ["left", "right", "left"],
+            "season_start": ["APR", "APR", "APR"],
+            "season_end": ["NOV", "NOV", "NOV"],
+            "week_type": ["every week", "every other week", "every week"],
+            "tow_zone": ["YES", "NO", "YES"],
+            "lat": ["42.3601", "42.3501", "42.3701"],
+            "long": ["-71.0589", "-71.0489", "-71.0689"],
+        }
+    )
 
 
 def test_get_dataset_name(preprocessor):
