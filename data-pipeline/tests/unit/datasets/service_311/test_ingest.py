@@ -29,8 +29,8 @@ class TestService311Ingester:
             "result": {
                 "records": [
                     {
-                        "case_id": "101001",
-                        "open_date": "2024-01-15T14:30:00",
+                        "case_enquiry_id": "101001",
+                        "open_dt": "2024-01-15T14:30:00",
                         "case_topic": "Sanitation",
                         "service_name": "Trash Pickup",
                         "assigned_department": "Public Works",
@@ -40,8 +40,8 @@ class TestService311Ingester:
                         "longitude": -71.0789,
                     },
                     {
-                        "case_id": "101002",
-                        "open_date": "2024-01-15T16:45:00",
+                        "case_enquiry_id": "101002",
+                        "open_dt": "2024-01-15T16:45:00",
                         "case_topic": "Highway",
                         "service_name": "Pothole",
                         "assigned_department": "Public Works",
@@ -61,11 +61,11 @@ class TestService311Ingester:
 
     def test_get_watermark_field(self, ingester):
         """Test watermark field is correct."""
-        assert ingester.get_watermark_field() == "open_date"
+        assert ingester.get_watermark_field() == "open_dt"
 
     def test_get_primary_key(self, ingester):
         """Test primary key is correct."""
-        assert ingester.get_primary_key() == "case_id"
+        assert ingester.get_primary_key() == "case_enquiry_id"
 
     def test_get_api_endpoint(self, ingester):
         """Test API endpoint is constructed correctly."""
@@ -85,8 +85,8 @@ class TestService311Ingester:
 
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 2
-        assert "case_id" in df.columns
-        assert "open_date" in df.columns
+        assert "case_enquiry_id" in df.columns
+        assert "open_dt" in df.columns
         mock_get.assert_called_once()
 
     @patch("src.datasets.service_311.ingest.requests.get")
@@ -140,8 +140,8 @@ class TestService311Ingester:
         """Test schema validation with valid data."""
         df = pd.DataFrame(
             {
-                "case_id": ["101", "102"],
-                "open_date": ["2024-01-15", "2024-01-16"],
+                "case_enquiry_id": ["101", "102"],
+                "open_dt": ["2024-01-15", "2024-01-16"],
             }
         )
 

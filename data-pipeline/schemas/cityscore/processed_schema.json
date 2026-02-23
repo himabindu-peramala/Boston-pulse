@@ -8,7 +8,10 @@
             "type": "string"
         },
         "timestamp": {
-            "type": "string",
+            "type": [
+                "string",
+                "datetime"
+            ],
             "format": "date-time"
         },
         "target": {

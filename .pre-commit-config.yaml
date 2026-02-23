@@ -4,7 +4,7 @@
 # =============================================================================
 
 default_language_version:
-  python: python3.11
+  python: python3.12
 
 repos:
   # ---------------------------------------------------------------------------
@@ -42,7 +42,7 @@ repos:
     hooks:
       - id: black
         files: ^data-pipeline/
-        language_version: python3.11
+        language_version: python3.12
 
   # ---------------------------------------------------------------------------
   # SECRETS DETECTION
