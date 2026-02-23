@@ -1,1 +1,48 @@
-{}
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Boston BERDO Features Schema",
+  "description": "Schema for engineered BERDO building energy and emissions features",
+  "type": "object",
+  "properties": {
+    "_id": {
+      "type": "integer",
+      "description": "Unique identifier",
+      "primary_key": true
+    },
+    "emissions_per_sqft": {
+      "type": ["number", "null"],
+      "description": "GHG emissions per square foot of floor area",
+      "minimum": 0
+    },
+    "energy_per_sqft": {
+      "type": ["number", "null"],
+      "description": "Site energy use per square foot",
+      "minimum": 0
+    },
+    "high_emitter": {
+      "type": "integer",
+      "description": "Flag for buildings in top 25% of emissions (1=Yes, 0=No)",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "energy_star_category": {
+      "type": "string",
+      "description": "Energy Star efficiency category",
+      "enum": ["High", "Medium", "Low", "Unknown"]
+    },
+    "electricity_ratio": {
+      "type": ["number", "null"],
+      "description": "Ratio of electricity to total energy use",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "required": ["_id", "high_emitter", "energy_star_category"],
+  "additionalProperties": false,
+  "metadata": {
+    "dataset": "berdo",
+    "stage": "features",
+    "version": "1.0.0",
+    "entity_key": "_id"
+  }
+}
