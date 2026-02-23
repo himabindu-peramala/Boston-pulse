@@ -34,7 +34,6 @@ with DAG(
     catchup=False,
     tags=["boston-pulse", "street-sweeping", "public-works"],
 ) as dag:
-
     ingest = PythonOperator(
         task_id="ingest_street_sweeping",
         python_callable=ingest_street_sweeping_data,
