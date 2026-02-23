@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import numpy as np
@@ -36,7 +36,7 @@ from src.shared.config import Settings, get_config
 logger = logging.getLogger(__name__)
 
 
-class AnomalySeverity(str, Enum):
+class AnomalySeverity(StrEnum):
     """Anomaly severity level."""
 
     INFO = "info"
@@ -44,7 +44,7 @@ class AnomalySeverity(str, Enum):
     CRITICAL = "critical"
 
 
-class AnomalyType(str, Enum):
+class AnomalyType(StrEnum):
     """Type of anomaly detected."""
 
     MISSING_VALUES = "missing_values"

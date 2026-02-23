@@ -4,41 +4,19 @@
   "description": "Schema for raw 311 service request data from Analyze Boston API",
   "type": "object",
   "properties": {
-    "case_id": {
+    "case_enquiry_id": {
       "type": "string",
       "description": "Unique identifier for each 311 case",
       "primary_key": true
     },
-    "open_date": {
+    "open_dt": {
       "type": [
         "string",
-        "datetime",
         "null"
       ],
       "description": "Date and time when case was opened",
       "format": "date-time",
       "watermark_field": true
-    },
-    "case_topic": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Topic or category of the case"
-    },
-    "service_name": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Specific service requested"
-    },
-    "assigned_department": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Department assigned to the case"
     },
     "case_status": {
       "type": [
@@ -46,6 +24,24 @@
         "null"
       ],
       "description": "Current status of the case"
+    },
+    "subject": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "type": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "neighborhood": {
       "type": [
@@ -72,7 +68,7 @@
     }
   },
   "required": [
-    "case_id"
+    "case_enquiry_id"
   ],
   "additionalProperties": true,
   "metadata": {

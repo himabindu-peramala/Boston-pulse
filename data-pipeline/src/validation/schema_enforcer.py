@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +37,7 @@ from src.validation.schema_registry import SchemaRegistry
 logger = logging.getLogger(__name__)
 
 
-class ValidationLevel(str, Enum):
+class ValidationLevel(StrEnum):
     """Validation severity level."""
 
     INFO = "info"
@@ -46,7 +46,7 @@ class ValidationLevel(str, Enum):
     CRITICAL = "critical"
 
 
-class ValidationStage(str, Enum):
+class ValidationStage(StrEnum):
     """Data validation stage."""
 
     RAW = "raw"
@@ -368,7 +368,14 @@ class SchemaEnforcer:
         self._ensure_schema_registered(dataset, "features")
 
         # 1. Schema validation
-        is_valid, schema_errors = self.registry.validate_dataframe(df, dataset, "features", version)
+        allow_extra = self._get_threshold(
+            dataset,
+            "allow_extra_columns",
+            self.config.validation.quality_schema.allow_extra_columns,
+        )
+        is_valid, schema_errors = self.registry.validate_dataframe(
+            df, dataset, "features", version, allow_extra=allow_extra
+        )
         if not is_valid:
             for error in schema_errors:
                 result.issues.append(

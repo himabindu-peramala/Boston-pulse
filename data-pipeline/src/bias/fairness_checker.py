@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import pandas as pd
@@ -39,7 +39,7 @@ from src.shared.config import Settings, get_config
 logger = logging.getLogger(__name__)
 
 
-class FairnessSeverity(str, Enum):
+class FairnessSeverity(StrEnum):
     """Fairness violation severity."""
 
     OK = "ok"
@@ -47,7 +47,7 @@ class FairnessSeverity(str, Enum):
     CRITICAL = "critical"
 
 
-class FairnessMetric(str, Enum):
+class FairnessMetric(StrEnum):
     """Fairness metric type."""
 
     REPRESENTATION = "representation"

@@ -87,6 +87,24 @@ validation:
         legalowner: 1.0
         status_date: 1.0
         namefirst: 1.0
+    service_311:
+      allow_extra_columns: true
+      max_null_ratio:
+        closed_dt: 0.8
+        submitted_photo: 1.0
+        closed_photo: 1.0
+        location_zipcode: 0.8
+    cityscore:
+      min_row_count: 1
+      allow_extra_columns: true
+      max_null_ratio:
+        target: 0.8
+        day_score: 1.0
+        day_numerator: 1.0
+        day_denominator: 1.0
+        week_score: 0.8
+        month_score: 0.8
+        quarter_score: 0.8
 
   # Coordinate bounds for Boston
   geo_bounds:

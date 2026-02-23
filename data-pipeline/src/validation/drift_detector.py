@@ -29,7 +29,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import numpy as np
@@ -41,7 +41,7 @@ from src.validation.statistics_generator import StatisticsGenerator
 logger = logging.getLogger(__name__)
 
 
-class DriftSeverity(str, Enum):
+class DriftSeverity(StrEnum):
     """Drift severity level."""
 
     NONE = "none"

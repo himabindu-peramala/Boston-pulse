@@ -34,7 +34,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal
 
 import requests
@@ -44,7 +44,7 @@ from src.shared.config import Settings, get_config
 logger = logging.getLogger(__name__)
 
 
-class AlertSeverity(str, Enum):
+class AlertSeverity(StrEnum):
     """Alert severity levels."""
 
     INFO = "info"
@@ -52,7 +52,7 @@ class AlertSeverity(str, Enum):
     CRITICAL = "critical"
 
 
-class AlertChannel(str, Enum):
+class AlertChannel(StrEnum):
     """Alert delivery channels."""
 
     LOG = "log"
