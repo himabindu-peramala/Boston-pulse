@@ -164,22 +164,22 @@ class TestFireBiasDetector:
 
     def test_geographic_bias_runs(self, sample_processed_data):
         detector = FireBiasDetector(data_path=sample_processed_data)
-        result = detector.detect_geographic_bias()
+        detector.detect_geographic_bias()
         assert "geographic_bias" in detector.bias_report
 
     def test_temporal_bias_runs(self, sample_processed_data):
         detector = FireBiasDetector(data_path=sample_processed_data)
-        result = detector.detect_temporal_bias()
+        detector.detect_temporal_bias()
         assert "temporal_bias" in detector.bias_report
 
     def test_severity_bias_runs(self, sample_processed_data):
         detector = FireBiasDetector(data_path=sample_processed_data)
-        result = detector.detect_severity_bias()
+        detector.detect_severity_bias()
         assert "severity_bias" in detector.bias_report
 
     def test_loss_bias_runs(self, sample_processed_data):
         detector = FireBiasDetector(data_path=sample_processed_data)
-        result = detector.detect_loss_bias()
+        detector.detect_loss_bias()
         assert "loss_bias" in detector.bias_report
 
     def test_report_generated(self, sample_processed_data, tmp_path):
