@@ -33,7 +33,7 @@ DATASET_CONFIG = get_dataset_config("service_311")
 
 # API settings
 API_CONFIG = DATASET_CONFIG.get("api", {})
-RESOURCE_ID = API_CONFIG.get("resource_id", "254adca6-64ab-4c5c-9fc0-a6da622be185")
+RESOURCE_ID = API_CONFIG.get("resource_id", "1a0b420d-99f1-4887-9851-990b2a5a6e17")
 BASE_URL = API_CONFIG.get("base_url", "https://data.boston.gov/api/3/action")
 ENDPOINT = API_CONFIG.get("endpoint", "datastore_search_sql")
 BATCH_SIZE = API_CONFIG.get("batch_size", 1000)
@@ -41,8 +41,8 @@ TIMEOUT = API_CONFIG.get("timeout_seconds", 60)
 
 # Ingestion settings
 INGESTION_CONFIG = DATASET_CONFIG.get("ingestion", {})
-WATERMARK_FIELD = INGESTION_CONFIG.get("watermark_field", "open_date")
-PRIMARY_KEY = INGESTION_CONFIG.get("primary_key", "case_id")
+WATERMARK_FIELD = INGESTION_CONFIG.get("watermark_field", "open_dt")
+PRIMARY_KEY = INGESTION_CONFIG.get("primary_key", "case_enquiry_id")
 LOOKBACK_DAYS = INGESTION_CONFIG.get("lookback_days", 7)
 
 

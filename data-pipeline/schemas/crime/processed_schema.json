@@ -10,7 +10,10 @@
       "primary_key": true
     },
     "offense_code": {
-      "type": ["integer", "null"],
+      "type": [
+        "integer",
+        "null"
+      ],
       "description": "Numeric offense code"
     },
     "offense_category": {
@@ -18,7 +21,10 @@
       "description": "Standardized category of the offense"
     },
     "offense_description": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Detailed description of the offense"
     },
     "district": {
@@ -26,7 +32,10 @@
       "description": "Police district code (standardized, uppercase)"
     },
     "reporting_area": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Reporting area code"
     },
     "shooting": {
@@ -34,7 +43,10 @@
       "description": "Whether shooting was involved"
     },
     "occurred_on_date": {
-      "type": "string",
+      "type": [
+        "string",
+        "datetime"
+      ],
       "format": "date-time",
       "description": "Date and time when incident occurred",
       "watermark_field": true
@@ -54,7 +66,15 @@
     "day_of_week": {
       "type": "string",
       "description": "Day of week when incident occurred",
-      "enum": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+      "enum": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday"
+      ]
     },
     "hour": {
       "type": "integer",
@@ -63,21 +83,33 @@
       "maximum": 23
     },
     "ucr_part": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "UCR classification part"
     },
     "street": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Street name where incident occurred"
     },
     "lat": {
-      "type": ["number", "null"],
+      "type": [
+        "number",
+        "null"
+      ],
       "description": "Latitude coordinate (Boston area)",
       "minimum": 42.2,
       "maximum": 42.4
     },
     "long": {
-      "type": ["number", "null"],
+      "type": [
+        "number",
+        "null"
+      ],
       "description": "Longitude coordinate (Boston area)",
       "minimum": -71.2,
       "maximum": -70.9

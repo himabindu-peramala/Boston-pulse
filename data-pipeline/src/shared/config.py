@@ -139,6 +139,7 @@ class ValidationConfig(BaseModel):
     quality: QualityConfig = Field(default_factory=QualityConfig)
     geo_bounds: GeoBoundsConfig = Field(default_factory=GeoBoundsConfig)
     temporal: TemporalValidationConfig = Field(default_factory=TemporalValidationConfig)
+    overrides: dict[str, Any] = Field(default_factory=dict)
 
 
 class PSIConfig(BaseModel):

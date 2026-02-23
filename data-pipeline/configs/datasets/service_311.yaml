@@ -9,13 +9,13 @@ dataset:
   description: "311 service requests from the City of Boston (New System)"
 
 api:
-  resource_id: "254adca6-64ab-4c5c-9fc0-a6da622be185"
+  resource_id: "1a0b420d-99f1-4887-9851-990b2a5a6e17"
   base_url: "https://data.boston.gov/api/3/action"
   endpoint: "datastore_search_sql"
   batch_size: 1000
   timeout_seconds: 60
 
 ingestion:
-  watermark_field: "open_date"
-  primary_key: "case_id"
+  watermark_field: "open_dt"
+  primary_key: "case_enquiry_id"
   lookback_days: 7

@@ -10,7 +10,13 @@
         "neighborhood": {
             "type": "string"
         },
+        "inspection_count_90d": {
+            "type": "integer"
+        },
         "inspection_count_180d": {
+            "type": "integer"
+        },
+        "inspection_count_365d": {
             "type": "integer"
         },
         "failure_count_180d": {

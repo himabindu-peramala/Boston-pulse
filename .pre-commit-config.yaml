@@ -4,7 +4,7 @@
 # =============================================================================
 
 default_language_version:
-  python: python3.11
+  python: python3.12
 
 repos:
   # ---------------------------------------------------------------------------
@@ -28,7 +28,7 @@ repos:
   # PYTHON LINTING - Ruff (matches CI: ruff==0.1.9)
   # ---------------------------------------------------------------------------
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.1
+    rev: v0.1.9
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
@@ -38,11 +38,11 @@ repos:
   # PYTHON FORMATTING - Black (matches CI: black==23.12.1)
   # ---------------------------------------------------------------------------
   - repo: https://github.com/psf/black
-    rev: 26.1.0
+    rev: 23.12.1
     hooks:
       - id: black
         files: ^data-pipeline/
-        language_version: python3.11
+        language_version: python3.12
 
   # ---------------------------------------------------------------------------
   # SECRETS DETECTION

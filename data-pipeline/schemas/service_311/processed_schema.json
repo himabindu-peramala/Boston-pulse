@@ -8,12 +8,16 @@
             "type": "string"
         },
         "open_date": {
-            "type": "string",
+            "type": [
+                "string",
+                "datetime"
+            ],
             "format": "date-time"
         },
         "close_date": {
             "type": [
                 "string",
+                "datetime",
                 "null"
             ],
             "format": "date-time"

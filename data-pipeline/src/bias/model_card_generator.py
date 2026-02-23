@@ -76,6 +76,7 @@ class ModelCard:
 
     # Fairness
     fairness_summary: dict[str, Any] | None = None
+    mitigation_summary: dict[str, Any] | None = None
 
     # Metadata
     schema_version: str | None = None
@@ -126,6 +127,7 @@ class ModelCardGenerator:
         fairness_result: FairnessResult | None = None,
         drift_result: DriftResult | None = None,
         anomaly_result: AnomalyResult | None = None,
+        mitigation_result: dict | None = None,
         version: str | None = None,
         created_by: str = "system",
         tags: list[str] | None = None,
@@ -188,6 +190,9 @@ class ModelCardGenerator:
         # Add anomaly summary
         if anomaly_result:
             card.anomaly_summary = self._create_anomaly_summary(anomaly_result)
+
+        if mitigation_result:
+            card.mitigation_summary = self._create_mitigation_summary(mitigation_result)
 
         logger.info(f"Generated model card for {dataset} (version {version})")
 
@@ -361,6 +366,20 @@ class ModelCardGenerator:
             "anomalies_by_type": getattr(result, "anomalies_by_type", {}),
         }
 
+    def _create_mitigation_summary(self, result: dict) -> dict[str, Any]:
+        """Create mitigation summary from XCom dict."""
+        return {
+            "applied": result.get("mitigation_applied", False),
+            "strategy": result.get("strategy"),
+            "dimension": result.get("dimension"),
+            "rows_before": result.get("rows_before"),
+            "rows_after": result.get("rows_after"),
+            "slices_improved": result.get("slices_improved"),
+            "total_slices": result.get("total_slices"),
+            "weight_range": result.get("weight_range"),
+            "reason": result.get("reason"),  # populated when mitigation skipped
+        }
+
     def _generate_markdown(self, card: ModelCard) -> str:
         """Generate Markdown representation of model card."""
         lines = []
@@ -428,6 +447,23 @@ class ModelCardGenerator:
                 lines.append("**Critical Violations:**")
                 for v in fs["critical_violations"]:
                     lines.append(f"- [{v['metric']}] {v['message']}")
+            lines.append("")
+
+        if card.mitigation_summary:
+            lines.append("## Bias Mitigation")
+            lines.append("")
+            ms = card.mitigation_summary
+            if ms["applied"]:
+                lines.append(f"- **Strategy:** {ms['strategy']}")
+                lines.append(f"- **Dimension:** {ms['dimension']}")
+                lines.append(f"- **Rows:** {ms['rows_before']} → {ms['rows_after']}")
+                lines.append(
+                    f"- **Slices Improved:** {ms['slices_improved']} / {ms['total_slices']}"
+                )
+                if ms["weight_range"]:
+                    lines.append(f"- **Weight Range:** {ms['weight_range']}")
+            else:
+                lines.append(f"- **Applied:** No — {ms.get('reason', 'no violations detected')}")
             lines.append("")
 
         # Drift Summary
