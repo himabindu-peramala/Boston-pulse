@@ -1,1 +1,63 @@
-{}
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Boston Street Sweeping Features Schema",
+  "description": "Schema for engineered street sweeping features",
+  "type": "object",
+  "properties": {
+    "_id": {
+      "type": "integer",
+      "description": "Unique identifier",
+      "primary_key": true
+    },
+    "sam_street_id": {
+      "type": ["string", "null"],
+      "description": "Street segment identifier"
+    },
+    "district": {
+      "type": ["string", "null"],
+      "description": "City district code"
+    },
+    "tow_enforced": {
+      "type": "integer",
+      "description": "Whether tow zone is enforced (1=Yes, 0=No)",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "is_every_week": {
+      "type": "integer",
+      "description": "Whether street is swept every week (1=Yes, 0=No)",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "season_start_month": {
+      "type": ["integer", "null"],
+      "description": "Numeric month when sweeping season starts",
+      "minimum": 1,
+      "maximum": 12
+    },
+    "season_end_month": {
+      "type": ["integer", "null"],
+      "description": "Numeric month when sweeping season ends",
+      "minimum": 1,
+      "maximum": 12
+    },
+    "active_months_count": {
+      "type": ["integer", "null"],
+      "description": "Total months of sweeping activity",
+      "minimum": 0,
+      "maximum": 12
+    },
+    "district_code": {
+      "type": "integer",
+      "description": "Encoded district identifier"
+    }
+  },
+  "required": ["_id", "tow_enforced", "is_every_week"],
+  "additionalProperties": false,
+  "metadata": {
+    "dataset": "street_sweeping",
+    "stage": "features",
+    "version": "1.0.0",
+    "entity_key": "sam_street_id"
+  }
+}

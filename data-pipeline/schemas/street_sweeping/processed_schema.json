@@ -1,1 +1,87 @@
-{}
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Boston Street Sweeping Processed Data Schema",
+  "description": "Schema for processed and validated street sweeping schedule data",
+  "type": "object",
+  "properties": {
+    "_id": {
+      "type": "integer",
+      "description": "Unique identifier",
+      "primary_key": true
+    },
+    "sam_street_id": {
+      "type": ["string", "null"],
+      "description": "Street segment identifier"
+    },
+    "full_street_name": {
+      "type": "string",
+      "description": "Full street name (uppercase)"
+    },
+    "from_street": {
+      "type": ["string", "null"],
+      "description": "Start cross street (uppercase)"
+    },
+    "to_street": {
+      "type": ["string", "null"],
+      "description": "End cross street (uppercase)"
+    },
+    "district": {
+      "type": "string",
+      "description": "City district code (uppercase)"
+    },
+    "side_of_street": {
+      "type": "string",
+      "description": "Side of street (LEFT/RIGHT)"
+    },
+    "season_start": {
+      "type": ["string", "null"],
+      "description": "Month sweeping season starts"
+    },
+    "season_end": {
+      "type": ["string", "null"],
+      "description": "Month sweeping season ends"
+    },
+    "week_type": {
+      "type": "string",
+      "description": "Sweeping frequency (uppercase)"
+    },
+    "tow_zone": {
+      "type": "string",
+      "description": "Tow zone enforcement (YES/NO)"
+    },
+    "lat": {
+      "type": ["number", "null"],
+      "description": "Latitude coordinate (Boston area)",
+      "minimum": 42.2,
+      "maximum": 42.4
+    },
+    "long": {
+      "type": ["number", "null"],
+      "description": "Longitude coordinate (Boston area)",
+      "minimum": -71.2,
+      "maximum": -70.9
+    }
+  },
+  "required": [
+    "_id",
+    "full_street_name",
+    "district",
+    "side_of_street",
+    "season_start",
+    "season_end"
+  ],
+  "additionalProperties": false,
+  "metadata": {
+    "dataset": "street_sweeping",
+    "stage": "processed",
+    "version": "1.0.0",
+    "validations": {
+      "geo_bounds": {
+        "min_lat": 42.2,
+        "max_lat": 42.4,
+        "min_lon": -71.2,
+        "max_lon": -70.9
+      }
+    }
+  }
+}
