@@ -1,11 +1,12 @@
 """
 Boston Pulse - Street Sweeping Schedules Data Ingester
 
-Fetches Street Sweeping Schedules data from the Analyze Boston API.
+Fetches Street Sweeping Schedules data from the Analyze Boston open data portal
+via direct CSV file download.
 
 Data Source:
     Street Sweeping Schedules
-    https://data.boston.gov/dataset/street-sweeping
+    https://data.boston.gov/dataset/street-sweeping-schedules
 
 Configuration:
     All settings loaded from configs/datasets/street_sweeping.yaml
@@ -14,8 +15,8 @@ Configuration:
 from __future__ import annotations
 
 import logging
-import time
 from datetime import datetime
+from io import StringIO
 from typing import Any
 
 import pandas as pd
@@ -32,30 +33,28 @@ logger = logging.getLogger(__name__)
 DATASET_CONFIG = get_dataset_config("street_sweeping")
 
 API_CONFIG = DATASET_CONFIG.get("api", {})
-RESOURCE_ID = API_CONFIG.get("resource_id", "5b4b5c1b-2c77-46e4-b9d6-e1888f36dd7e")
-BASE_URL = API_CONFIG.get("base_url", "https://data.boston.gov/api/3/action")
-ENDPOINT = API_CONFIG.get("endpoint", "datastore_search_sql")
-BATCH_SIZE = API_CONFIG.get("batch_size", 1000)
+DOWNLOAD_URL = API_CONFIG.get(
+    "download_url",
+    "https://data.boston.gov/dataset/00c015a1-2b62-4072-a71e-79b292ce9670/resource/9fdbdcad-67c8-4b23-b6ec-861e77d56227/download/tmpoij9sywp.csv",
+)
 TIMEOUT = API_CONFIG.get("timeout_seconds", 60)
 
 INGESTION_CONFIG = DATASET_CONFIG.get("ingestion", {})
 WATERMARK_FIELD = INGESTION_CONFIG.get("watermark_field", "sam_street_id")
 PRIMARY_KEY = INGESTION_CONFIG.get("primary_key", "_id")
-LOOKBACK_DAYS = INGESTION_CONFIG.get("lookback_days", 30)
 
 
 class StreetSweepingIngester(BaseIngester):
     """
     Ingester for Boston Street Sweeping Schedules data.
 
-    Fetches data from the Analyze Boston API using the CKAN datastore_search_sql
-    endpoint. Supports full and incremental ingestion.
+    Downloads street sweeping schedule data from the Analyze Boston
+    open data portal as a CSV file and loads it into a DataFrame.
     """
 
     def __init__(self, config: Settings | None = None):
         """Initialize street sweeping ingester with config."""
         super().__init__(config)
-        self.api_url = f"{BASE_URL}/{ENDPOINT}"
 
     def get_dataset_name(self) -> str:
         """Return dataset name."""
@@ -70,64 +69,39 @@ class StreetSweepingIngester(BaseIngester):
         return PRIMARY_KEY
 
     def get_api_endpoint(self) -> str:
-        """Get the API endpoint."""
-        return self.api_url
-
-    def _fetch_page(self, offset: int) -> list[dict]:
-        """Fetch one page of records."""
-        sql = (
-            f'SELECT * FROM "{RESOURCE_ID}" '
-            f'ORDER BY "{PRIMARY_KEY}" ASC '
-            f"LIMIT {BATCH_SIZE} OFFSET {offset}"
-        )
-
-        response = requests.get(
-            self.api_url,
-            params={"sql": sql},
-            timeout=TIMEOUT,
-        )
-
-        if response.status_code != 200:
-            raise RuntimeError(f"HTTP {response.status_code}: {response.text[:200]}")
-
-        data = response.json()
-        if not data.get("success"):
-            error = data.get("error", {})
-            raise ValueError(f"API error: {error}")
-
-        return data.get("result", {}).get("records", [])
+        """Get the download URL."""
+        return DOWNLOAD_URL
 
     def fetch_data(
         self, since: datetime | None = None, until: datetime | None = None  # noqa: ARG002
     ) -> pd.DataFrame:
-        """Fetch street sweeping data from Analyze Boston API."""
-        logger.info("Fetching street sweeping schedule data")
+        """Fetch street sweeping data from Analyze Boston via direct CSV download."""
+        logger.info(f"Downloading street sweeping data from {DOWNLOAD_URL}")
 
-        all_records: list[dict[str, Any]] = []
-        offset = 0
+        try:
+            response = requests.get(DOWNLOAD_URL, timeout=TIMEOUT)
+        except Exception as e:
+            logger.error(f"Download failed: {e}")
+            raise
 
-        while True:
-            try:
-                records = self._fetch_page(offset)
-            except Exception as e:
-                logger.error(f"API request failed: {e}")
-                raise
+        if response.status_code != 200:
+            raise RuntimeError(f"HTTP {response.status_code}: {response.text[:200]}")
 
-            if not records:
-                break
+        logger.info("Parsing street sweeping CSV file")
+        df = pd.read_csv(StringIO(response.text))
 
-            all_records.extend(records)
-            if len(records) < BATCH_SIZE:
-                break
+        # Standardize column names
+        df.columns = [c.lower().strip().replace(" ", "_") for c in df.columns]
 
-            offset += len(records)
-            time.sleep(0.5)
+        # Add a synthetic _id column if not present
+        if "_id" not in df.columns:
+            df.insert(0, "_id", range(1, len(df) + 1))
 
-        if not all_records:
-            return pd.DataFrame()
+        # Convert all object columns to string to avoid pyarrow type errors
+        for col in df.select_dtypes(include=["object"]).columns:
+            df[col] = df[col].astype(str)
 
-        df = pd.DataFrame(all_records)
-        df = df.drop(columns=["_full_text"], errors="ignore")
+        logger.info(f"Fetched {len(df)} street sweeping records")
         return df
 
 
