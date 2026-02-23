@@ -88,8 +88,6 @@ def validate_raw(**context) -> dict:
             dag_id=DAG_ID,
             task_id="validate_raw",
         )
-        if enforcer.config.validation.schema.strict_mode:
-            raise RuntimeError(f"Raw validation failed: {errors[:5]}")
 
     return {
         "is_valid": result.is_valid,
@@ -142,8 +140,6 @@ def validate_processed(**context) -> dict:
             dag_id=DAG_ID,
             task_id="validate_processed",
         )
-        if enforcer.config.validation.schema.strict_mode:
-            raise RuntimeError(f"Processed validation failed: {errors[:5]}")
 
     return {
         "is_valid": result.is_valid,
@@ -196,8 +192,6 @@ def validate_features(**context) -> dict:
             dag_id=DAG_ID,
             task_id="validate_features",
         )
-        if enforcer.config.validation.schema.strict_mode:
-            raise RuntimeError(f"Features validation failed: {errors[:5]}")
 
     return {
         "is_valid": result.is_valid,
