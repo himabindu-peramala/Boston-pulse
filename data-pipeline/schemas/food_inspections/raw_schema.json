@@ -34,6 +34,7 @@
         "issdttm": {
             "type": [
                 "string",
+                "datetime",
                 "null"
             ],
             "description": "The date and time the license was issued",
@@ -49,6 +50,7 @@
         "resultdttm": {
             "type": [
                 "string",
+                "datetime",
                 "null"
             ],
             "description": "The date and time of the inspection result",

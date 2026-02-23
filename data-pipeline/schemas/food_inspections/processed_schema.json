@@ -20,7 +20,10 @@
             "type": "string"
         },
         "resultdttm": {
-            "type": "string",
+            "type": [
+                "string",
+                "datetime"
+            ],
             "format": "date-time"
         },
         "address": {

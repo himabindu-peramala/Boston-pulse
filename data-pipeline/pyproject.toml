@@ -126,6 +126,7 @@ ignore = [
     "ARG001", # unused function argument (common in base classes)
     "SIM102", # nested if statements (sometimes clearer)
     "SIM108", # ternary operator (sometimes clearer without)
+    "UP042",  # use StrEnum instead of (str, Enum) — both forms are valid
 ]
 
 [tool.ruff.lint.per-file-ignores]

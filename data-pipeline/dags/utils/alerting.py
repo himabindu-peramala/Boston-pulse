@@ -240,13 +240,20 @@ class DAGAlertManager:
         dag_id: str | None = None,
     ) -> None:
         """Send alert for successful pipeline completion."""
+
+        # Helper to format numeric stats with thousands separator
+        def fmt_stat(val: Any) -> str:
+            if isinstance(val, (int, float)):
+                return f"{val:,}"
+            return str(val)
+
         message = (
             f"Pipeline completed for **{dataset}**\n"
             f"- Execution date: {execution_date}\n"
             f"- Duration: {duration_seconds:.1f}s\n"
-            f"- Rows ingested: {stats.get('rows_ingested', 'N/A'):,}\n"
-            f"- Rows processed: {stats.get('rows_processed', 'N/A'):,}\n"
-            f"- Features generated: {stats.get('features_generated', 'N/A'):,}"
+            f"- Rows ingested: {fmt_stat(stats.get('rows_ingested', 'N/A'))}\n"
+            f"- Rows processed: {fmt_stat(stats.get('rows_processed', 'N/A'))}\n"
+            f"- Features generated: {fmt_stat(stats.get('features_generated', 'N/A'))}"
         )
 
         send_alert(

@@ -11,6 +11,7 @@
         "score_calculated_ts": {
             "type": [
                 "string",
+                "datetime",
                 "null"
             ],
             "description": "Timestamp when the score was calculated",

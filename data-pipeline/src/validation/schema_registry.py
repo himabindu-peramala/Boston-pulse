@@ -255,6 +255,7 @@ class SchemaRegistry:
         dataset: str,
         layer: str,
         version: str | None = None,
+        allow_extra: bool | None = None,
     ) -> tuple[bool, list[str]]:
         """
         Validate a DataFrame against a registered schema.
@@ -276,6 +277,13 @@ class SchemaRegistry:
         """
         schema_doc = self.get_schema(dataset, layer, version)
         schema = schema_doc["schema"]
+
+        # Handle JSON Schema format (with 'properties' key) vs flat column dict
+        # JSON Schema format: {"$schema": "...", "properties": {"col": {"type": "..."}}, ...}
+        # Flat format: {"col": {"type": "..."}, ...}
+        if "properties" in schema and isinstance(schema["properties"], dict):
+            schema = schema["properties"]
+
         errors = []
 
         # Check for missing columns
@@ -287,7 +295,12 @@ class SchemaRegistry:
             errors.append(f"Missing required columns: {missing_columns}")
 
         # Check for extra columns (if strict mode)
-        if not self.config.validation.quality_schema.allow_extra_columns:
+        allow_extra_columns = (
+            allow_extra
+            if allow_extra is not None
+            else self.config.validation.quality_schema.allow_extra_columns
+        )
+        if not allow_extra_columns:
             extra_columns = df_columns - schema_columns
             if extra_columns:
                 errors.append(f"Extra columns not in schema: {extra_columns}")
@@ -357,18 +370,35 @@ class SchemaRegistry:
 
         # Map pandas dtypes to schema types
         type_mappings = {
+            # Standard integer types (covers int8/16/32/64 produced by pandas .dt.year etc.)
+            "int8": ["integer", "float"],
+            "int16": ["integer", "float"],
+            "int32": ["integer", "float"],
             "int64": ["integer", "float"],
-            "float64": ["float"],
-            "object": ["string", "integer", "float", "datetime", "null"],
+            # Unsigned integer types
+            "uint8": ["integer", "float"],
+            "uint16": ["integer", "float"],
+            "uint32": ["integer", "float"],
+            "uint64": ["integer", "float"],
+            # Nullable integer types (pandas extension dtypes)
+            "Int8": ["integer"],
+            "Int16": ["integer"],
+            "Int32": ["integer"],
+            "Int64": ["integer"],
+            # Float types — 'number' is the JSON Schema name for float
+            "float32": ["float", "number"],
+            "float64": ["float", "number"],
+            # Other types
+            "object": ["string", "integer", "float", "number", "datetime", "null"],
             "bool": ["boolean"],
             "datetime64[ns]": ["datetime"],
+            "datetime64[ns, UTC]": ["datetime"],
             "string": ["string"],
-            "Int64": ["integer"],
         }
 
-        # Allow 'object' (common when ingesting JSON) to match string, integer, float, or datetime
+        # Allow 'object' (common when ingesting JSON) to match string, integer, float, number, or datetime
         if actual == "object":
-            return expected in ["string", "integer", "float", "datetime", "null"]
+            return expected in ["string", "integer", "float", "number", "datetime", "null"]
 
         # Null check
         if expected == "null":
