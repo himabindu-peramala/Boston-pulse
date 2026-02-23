@@ -2,17 +2,14 @@
 #
 # Dataset: Building Energy Reporting and Disclosure Ordinance
 # Source: Analyze Boston (data.boston.gov)
-# Reference: https://data.boston.gov/dataset/building-energy-reporting-and-disclosure-ordinance
+# Reference: https://data.boston.gov/dataset/building-emissions-reduction-and-disclosure-ordinance
 
 dataset:
   name: "berdo"
   description: "Annual energy, water, and emissions data for large buildings in Boston"
 
 api:
-  resource_id: "ae07be23-7e8e-4a96-bf16-f31851dfb93e"
-  base_url: "https://data.boston.gov/api/3/action"
-  endpoint: "datastore_search_sql"
-  batch_size: 1000
+  download_url: "https://data.boston.gov/dataset/b09a8b71-274b-4365-9ce6-49b8b44602ef/resource/87521565-7f15-4b8d-a225-ac4df9e3f309/download/2024-reported-energy-and-water-metrics-1.xlsx"
   timeout_seconds: 60
 
 ingestion:

@@ -25,43 +25,27 @@ class BerdoPreprocessor(BasePreprocessor):
 
     COLUMN_MAPPINGS = {
         "_id": "_id",
-        "reporting_year": "reporting_year",
-        "property_name": "property_name",
-        "address": "address",
-        "zip": "zip",
-        "property_type": "property_type",
-        "gross_floor_area": "gross_floor_area",
-        "site_energy_use_kbtu": "site_energy_use_kbtu",
-        "total_ghg_emissions": "total_ghg_emissions",
+        "berdo_id": "berdo_id",
+        "property_owner_name": "property_owner_name",
+        "building_address": "building_address",
+        "building_address_city": "building_address_city",
+        "building_address_zip__code": "zip",
+        "largest_property_type": "property_type",
+        "reported_gross_floor_area_(sq_ft)": "gross_floor_area",
+        "total_site_energy_usage_(kbtu)": "site_energy_use_kbtu",
+        "estimated_total_ghg_emissions_(kgco2e)": "total_ghg_emissions",
         "energy_star_score": "energy_star_score",
-        "electricity_use_grid_purchase": "electricity_use_grid_purchase",
-        "natural_gas_use": "natural_gas_use",
-        "lat": "lat",
-        "long": "long",
-    }
-
-    DTYPE_MAPPINGS = {
-        "_id": "int",
-        "reporting_year": "int",
-        "property_name": "string",
-        "address": "string",
-        "zip": "string",
-        "property_type": "string",
-        "gross_floor_area": "float",
-        "site_energy_use_kbtu": "float",
-        "total_ghg_emissions": "float",
-        "energy_star_score": "float",
-        "electricity_use_grid_purchase": "float",
-        "natural_gas_use": "float",
-        "lat": "float",
-        "long": "float",
+        "electricity_usage_(kwh)": "electricity_usage_kwh",
+        "natural_gas_usage_(kbtu)": "natural_gas_use",
+        "compliance_status": "compliance_status",
+        "site_eui_(energy_use_intensity_kbtu/ft2)": "site_eui",
     }
 
     REQUIRED_COLUMNS = [
         "_id",
-        "reporting_year",
-        "property_name",
-        "address",
+        "berdo_id",
+        "property_owner_name",
+        "building_address",
         "property_type",
         "total_ghg_emissions",
     ]
@@ -84,7 +68,7 @@ class BerdoPreprocessor(BasePreprocessor):
 
     def get_dtype_mappings(self) -> dict[str, str]:
         """Return data type mappings."""
-        return self.DTYPE_MAPPINGS
+        return {}
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """Apply BERDO transformations."""
@@ -94,9 +78,11 @@ class BerdoPreprocessor(BasePreprocessor):
                     df[col] = pd.Series(dtype="object")
             return df
 
+        # Rename columns to standardized names
+        df = df.rename(columns=self.COLUMN_MAPPINGS)
+
         df = self._standardize_strings(df)
         df = self._process_numeric_fields(df)
-        df = self._validate_coordinates(df)
         df = self._handle_missing_values(df)
         df = self.drop_duplicates(df, subset=["_id"], keep="last")
         df = self._select_output_columns(df)
@@ -105,7 +91,7 @@ class BerdoPreprocessor(BasePreprocessor):
 
     def _standardize_strings(self, df: pd.DataFrame) -> pd.DataFrame:
         """Standardize string fields."""
-        for col in ["property_name", "address", "zip", "property_type"]:
+        for col in ["property_owner_name", "building_address", "zip", "property_type", "compliance_status"]:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.strip().str.upper()
                 df[col] = df[col].replace("NAN", np.nan)
@@ -118,37 +104,19 @@ class BerdoPreprocessor(BasePreprocessor):
             "site_energy_use_kbtu",
             "total_ghg_emissions",
             "energy_star_score",
-            "electricity_use_grid_purchase",
+            "electricity_usage_kwh",
             "natural_gas_use",
-            "reporting_year",
+            "site_eui",
         ]
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
-                if col not in ["reporting_year"]:
-                    df.loc[df[col] < 0, col] = np.nan
-        return df
-
-    def _validate_coordinates(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Validate lat/long against Boston bounds."""
-        for col in ["lat", "long"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-
-        if "lat" in df.columns and "long" in df.columns:
-            bounds = self.config.validation.geo_bounds
-            out_of_bounds = (
-                (df["lat"] < bounds.min_lat)
-                | (df["lat"] > bounds.max_lat)
-                | (df["long"] < bounds.min_lon)
-                | (df["long"] > bounds.max_lon)
-            )
-            df.loc[out_of_bounds, ["lat", "long"]] = np.nan
+                df.loc[df[col] < 0, col] = np.nan
         return df
 
     def _handle_missing_values(self, df: pd.DataFrame) -> pd.DataFrame:
         """Handle missing values."""
-        for col in ["property_type", "property_name"]:
+        for col in ["property_type", "property_owner_name", "compliance_status"]:
             if col in df.columns:
                 df[col] = df[col].fillna("Unknown")
         return df
@@ -157,19 +125,20 @@ class BerdoPreprocessor(BasePreprocessor):
         """Select and order output columns."""
         output_columns = [
             "_id",
-            "reporting_year",
-            "property_name",
-            "address",
+            "berdo_id",
+            "property_owner_name",
+            "building_address",
+            "building_address_city",
             "zip",
             "property_type",
             "gross_floor_area",
             "site_energy_use_kbtu",
+            "site_eui",
             "total_ghg_emissions",
             "energy_star_score",
-            "electricity_use_grid_purchase",
+            "electricity_usage_kwh",
             "natural_gas_use",
-            "lat",
-            "long",
+            "compliance_status",
         ]
         available = [c for c in output_columns if c in df.columns]
         return df[available].copy()

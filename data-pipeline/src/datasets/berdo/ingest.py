@@ -2,11 +2,11 @@
 Boston Pulse - BERDO Data Ingester
 
 Fetches Building Energy Reporting and Disclosure Ordinance (BERDO) data
-from the Analyze Boston API.
+from the Analyze Boston open data portal via direct file download.
 
 Data Source:
     BERDO Reported Energy and Water Metrics
-    https://data.boston.gov/dataset/building-energy-reporting-and-disclosure-ordinance
+    https://data.boston.gov/dataset/building-emissions-reduction-and-disclosure-ordinance
 
 Configuration:
     All settings loaded from configs/datasets/berdo.yaml
@@ -15,8 +15,8 @@ Configuration:
 from __future__ import annotations
 
 import logging
-import time
 from datetime import datetime
+from io import BytesIO
 from typing import Any
 
 import pandas as pd
@@ -33,30 +33,28 @@ logger = logging.getLogger(__name__)
 DATASET_CONFIG = get_dataset_config("berdo")
 
 API_CONFIG = DATASET_CONFIG.get("api", {})
-RESOURCE_ID = API_CONFIG.get("resource_id", "ae07be23-7e8e-4a96-bf16-f31851dfb93e")
-BASE_URL = API_CONFIG.get("base_url", "https://data.boston.gov/api/3/action")
-ENDPOINT = API_CONFIG.get("endpoint", "datastore_search_sql")
-BATCH_SIZE = API_CONFIG.get("batch_size", 1000)
+DOWNLOAD_URL = API_CONFIG.get(
+    "download_url",
+    "https://data.boston.gov/dataset/b09a8b71-274b-4365-9ce6-49b8b44602ef/resource/87521565-7f15-4b8d-a225-ac4df9e3f309/download/2024-reported-energy-and-water-metrics-1.xlsx",
+)
 TIMEOUT = API_CONFIG.get("timeout_seconds", 60)
 
 INGESTION_CONFIG = DATASET_CONFIG.get("ingestion", {})
 WATERMARK_FIELD = INGESTION_CONFIG.get("watermark_field", "reporting_year")
 PRIMARY_KEY = INGESTION_CONFIG.get("primary_key", "_id")
-LOOKBACK_DAYS = INGESTION_CONFIG.get("lookback_days", 365)
 
 
 class BerdoIngester(BaseIngester):
     """
     Ingester for Boston BERDO data.
 
-    Fetches building energy and emissions data from the Analyze Boston API
-    using the CKAN datastore_search_sql endpoint.
+    Downloads BERDO energy and emissions data from the Analyze Boston
+    open data portal as an Excel file and loads it into a DataFrame.
     """
 
     def __init__(self, config: Settings | None = None):
         """Initialize BERDO ingester with config."""
         super().__init__(config)
-        self.api_url = f"{BASE_URL}/{ENDPOINT}"
 
     def get_dataset_name(self) -> str:
         """Return dataset name."""
@@ -71,64 +69,35 @@ class BerdoIngester(BaseIngester):
         return PRIMARY_KEY
 
     def get_api_endpoint(self) -> str:
-        """Get the API endpoint."""
-        return self.api_url
-
-    def _fetch_page(self, offset: int) -> list[dict]:
-        """Fetch one page of records."""
-        sql = (
-            f'SELECT * FROM "{RESOURCE_ID}" '
-            f'ORDER BY "{PRIMARY_KEY}" ASC '
-            f"LIMIT {BATCH_SIZE} OFFSET {offset}"
-        )
-
-        response = requests.get(
-            self.api_url,
-            params={"sql": sql},
-            timeout=TIMEOUT,
-        )
-
-        if response.status_code != 200:
-            raise RuntimeError(f"HTTP {response.status_code}: {response.text[:200]}")
-
-        data = response.json()
-        if not data.get("success"):
-            error = data.get("error", {})
-            raise ValueError(f"API error: {error}")
-
-        return data.get("result", {}).get("records", [])
+        """Get the download URL."""
+        return DOWNLOAD_URL
 
     def fetch_data(
         self, since: datetime | None = None, until: datetime | None = None  # noqa: ARG002
     ) -> pd.DataFrame:
-        """Fetch BERDO data from Analyze Boston API."""
-        logger.info("Fetching BERDO building energy data")
+        """Fetch BERDO data from Analyze Boston via direct file download."""
+        logger.info(f"Downloading BERDO data from {DOWNLOAD_URL}")
 
-        all_records: list[dict[str, Any]] = []
-        offset = 0
+        try:
+            response = requests.get(DOWNLOAD_URL, timeout=TIMEOUT)
+        except Exception as e:
+            logger.error(f"Download failed: {e}")
+            raise
 
-        while True:
-            try:
-                records = self._fetch_page(offset)
-            except Exception as e:
-                logger.error(f"API request failed: {e}")
-                raise
+        if response.status_code != 200:
+            raise RuntimeError(f"HTTP {response.status_code}: {response.text[:200]}")
 
-            if not records:
-                break
+        logger.info("Parsing BERDO Excel file")
+        df = pd.read_excel(BytesIO(response.content))
 
-            all_records.extend(records)
-            if len(records) < BATCH_SIZE:
-                break
+        # Standardize column names
+        df.columns = [c.lower().strip().replace(" ", "_") for c in df.columns]
 
-            offset += len(records)
-            time.sleep(0.5)
+        # Add a synthetic _id column if not present
+        if "_id" not in df.columns:
+            df.insert(0, "_id", range(1, len(df) + 1))
 
-        if not all_records:
-            return pd.DataFrame()
-
-        df = pd.DataFrame(all_records)
-        df = df.drop(columns=["_full_text"], errors="ignore")
+        logger.info(f"Fetched {len(df)} BERDO records")
         return df
 
 
