@@ -97,6 +97,15 @@ class BerdoIngester(BaseIngester):
         if "_id" not in df.columns:
             df.insert(0, "_id", range(1, len(df) + 1))
 
+        # Drop footer/notes rows — filter out rows where berdo_id is a long string
+        if "berdo_id" in df.columns:
+            df = df[df["berdo_id"].astype(str).str.len() < 50].copy()
+            df = df.reset_index(drop=True)
+
+        # Convert all object columns to string to avoid pyarrow type errors
+        for col in df.select_dtypes(include=["object"]).columns:
+            df[col] = df[col].astype(str)
+
         logger.info(f"Fetched {len(df)} BERDO records")
         return df
 
