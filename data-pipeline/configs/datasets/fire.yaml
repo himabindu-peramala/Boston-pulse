@@ -1,0 +1,18 @@
+# =============================================================================
+# Boston Pulse - Fire Dataset Configuration
+# =============================================================================
+
+dataset:
+  name: fire
+
+ingestion:
+  watermark_field: incident_date
+  primary_key: incident_id
+  lookback_days: 7
+
+validation:
+  schema:
+    strict_mode: false
+
+fairness:
+  gate_enabled: false

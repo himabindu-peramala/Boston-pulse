@@ -12,7 +12,10 @@ import pandas as pd
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("logs/fire_bias_detection.log"), logging.StreamHandler()],
+    handlers=[
+        logging.FileHandler("logs/fire_bias_detection.log"),
+        logging.StreamHandler(),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -47,7 +50,11 @@ class FireBiasDetector:
         district_stats = []
         for district, count in district_counts.items():
             district_stats.append(
-                {"district": district, "incident_count": count, "percentage": (count / total) * 100}
+                {
+                    "district": district,
+                    "incident_count": count,
+                    "percentage": (count / total) * 100,
+                }
             )
 
         district_df = pd.DataFrame(district_stats).sort_values("incident_count", ascending=False)
@@ -63,9 +70,7 @@ class FireBiasDetector:
             "underrepresented_districts": underrepresented["district"].tolist(),
         }
 
-        logger.info(f"Geographic bias: overrepresented: {
-                overrepresented['district'].tolist()}")
-        return district_df
+        logger.info(f"Geographic bias: overrepresented: {overrepresented['district'].tolist()}")
 
     def detect_temporal_bias(self):
         """Analyze bias across time periods"""
@@ -100,8 +105,7 @@ class FireBiasDetector:
             "expected_percentage": expected_pct,
         }
 
-        logger.info(f"Temporal bias: biased periods: {
-                biased_periods['time_period'].tolist()}")
+        logger.info(f"Temporal bias: biased periods: {biased_periods['time_period'].tolist()}")
         return time_df
 
     def detect_severity_bias(self):
@@ -124,7 +128,11 @@ class FireBiasDetector:
 
         if "District" in self.df.columns:
             district_severity = (
-                pd.crosstab(self.df["District"], self.df["severity_category"], normalize="index")
+                pd.crosstab(
+                    self.df["District"],
+                    self.df["severity_category"],
+                    normalize="index",
+                )
                 * 100
             )
 
@@ -150,7 +158,7 @@ class FireBiasDetector:
 
                 if biased_districts:
                     self.bias_report["mitigation_recommendations"].append(
-                        "Severity Bias: Some districts have disproportionate actual fire rates — review resource allocation"
+                        "Severity Bias: Some districts have disproportionate actual fire rates"
                     )
 
         self.bias_report["severity_bias"] = severity_stats
@@ -192,11 +200,10 @@ class FireBiasDetector:
 
         if biased_districts:
             self.bias_report["mitigation_recommendations"].append(
-                "Loss Bias: Districts with disproportionate financial losses may need additional fire prevention resources"
+                "Loss Bias: Districts with disproportionate losses need additional resources"
             )
 
-        logger.info(f"Loss bias analysis complete: {
-                len(biased_districts)} districts flagged")
+        logger.info(f"Loss bias analysis complete: {len(biased_districts)} districts flagged")
         return loss_by_district
 
     def generate_bias_report(self, output_path: str = "data/processed/fire_bias_report.txt"):
@@ -220,10 +227,8 @@ class FireBiasDetector:
             f.write("-" * 80 + "\n")
             geo = self.bias_report.get("geographic_bias", {})
             if geo:
-                f.write(f"Avg incidents per district: {
-                        geo.get(
-                            'avg_incidents_per_district',
-                            0):.0f}\n\n")
+                avg = geo.get("avg_incidents_per_district", 0)
+                f.write(f"Avg incidents per district: {avg:.0f}\n\n")
                 f.write("Overrepresented Districts (>2x average):\n")
                 for d in geo.get("overrepresented_districts", []):
                     f.write(f"  - {d}\n")
@@ -232,27 +237,25 @@ class FireBiasDetector:
                     f.write(f"  - {d}\n")
                 f.write("\nTop 5 Districts by Incident Count:\n")
                 for item in geo.get("district_distribution", [])[:5]:
-                    f.write(f"  {
-                            item['district']}: {
-                            item['incident_count']} ({
-                            item['percentage']:.2f}%)\n")
+                    d = item["district"]
+                    c = item["incident_count"]
+                    p = item["percentage"]
+                    f.write(f"  {d}: {c} ({p:.2f}%)\n")
             f.write("\n")
 
             f.write("2. TEMPORAL BIAS ANALYSIS\n")
             f.write("-" * 80 + "\n")
             temp = self.bias_report.get("temporal_bias", {})
             if temp:
-                f.write(f"Expected per time period: {
-                        temp.get(
-                            'expected_percentage',
-                            25):.1f}%\n\n")
+                exp = temp.get("expected_percentage", 25)
+                f.write(f"Expected per time period: {exp:.1f}%\n\n")
                 for item in temp.get("time_distribution", []):
                     deviation = item.get("deviation", 0)
-                    status = "⚠️ BIASED" if deviation > 10 else "✓ Normal"
-                    f.write(f"  {
-                            item['time_period']}: {
-                            item['incident_count']} ({
-                            item['percentage']:.2f}%) [{status}]\n")
+                    status = "BIASED" if deviation > 10 else "Normal"
+                    tp = item["time_period"]
+                    ic = item["incident_count"]
+                    pct = item["percentage"]
+                    f.write(f"  {tp}: {ic} ({pct:.2f}%) [{status}]\n")
             f.write("\n")
 
             f.write("3. SEVERITY BIAS ANALYSIS\n")
@@ -261,26 +264,24 @@ class FireBiasDetector:
             if sev:
                 f.write("Overall Severity Distribution:\n")
                 for severity, stats in sev.get("overall_distribution", {}).items():
-                    f.write(f"  {severity}: {
-                            stats['count']} ({
-                            stats['percentage']:.2f}%)\n")
+                    c = stats["count"]
+                    p = stats["percentage"]
+                    f.write(f"  {severity}: {c} ({p:.2f}%)\n")
             f.write("\n")
 
             f.write("4. FINANCIAL LOSS BIAS ANALYSIS\n")
             f.write("-" * 80 + "\n")
             loss = self.bias_report.get("loss_bias", {})
             if loss:
-                f.write(f"Overall mean loss per incident: ${
-                        loss.get(
-                            'overall_mean_loss',
-                            0):,.0f}\n\n")
+                mean_loss = loss.get("overall_mean_loss", 0)
+                f.write(f"Overall mean loss per incident: ${mean_loss:,.0f}\n\n")
                 if loss.get("biased_districts"):
                     f.write("Districts with Disproportionate Losses:\n")
                     for item in loss["biased_districts"]:
-                        f.write(f"  {
-                                item['district']}: ${
-                                item['mean_loss']:,.0f} mean loss (deviation: {
-                                item['deviation_pct']:.1f}%)\n")
+                        d = item["district"]
+                        ml = item["mean_loss"]
+                        dp = item["deviation_pct"]
+                        f.write(f"  {d}: ${ml:,.0f} mean loss (deviation: {dp:.1f}%)\n")
             f.write("\n")
 
             f.write("5. BIAS MITIGATION RECOMMENDATIONS\n")
@@ -345,8 +346,8 @@ class FireBiasDetector:
             plt.title("Fire Incidents by Time of Day", fontsize=14, fontweight="bold")
             plt.xlabel("Time Period")
             plt.ylabel("Number of Incidents")
-            plt.axhline(y=counts.mean(), color="red", linestyle="--", label=f"Average: {
-                    counts.mean():.0f}")
+            avg = counts.mean()
+            plt.axhline(y=avg, color="red", linestyle="--", label=f"Average: {avg:.0f}")
             plt.legend()
             plt.tight_layout()
             plt.savefig(f"{output_dir}/temporal_bias.png", dpi=300)
@@ -365,20 +366,20 @@ def main():
     print("=" * 80)
 
     geo = bias_report.get("geographic_bias", {})
-    print("\n📍 Geographic Bias:")
+    print("\nGeographic Bias:")
     print(f"  Overrepresented: {geo.get('overrepresented_districts', [])}")
     print(f"  Underrepresented: {geo.get('underrepresented_districts', [])}")
 
     temp = bias_report.get("temporal_bias", {})
-    print("\n⏰ Temporal Bias:")
+    print("\nTemporal Bias:")
     print(f"  Biased time periods: {temp.get('biased_periods', [])}")
 
-    print("\n✅ Mitigation Recommendations:")
+    print("\nMitigation Recommendations:")
     for i, rec in enumerate(bias_report.get("mitigation_recommendations", []), 1):
         print(f"  {i}. {rec}")
 
-    print("\n📄 Full report: data/processed/fire_bias_report.txt")
-    print("📈 Visualizations: data/processed/fire_visualizations/")
+    print("\nFull report: data/processed/fire_bias_report.txt")
+    print("Visualizations: data/processed/fire_visualizations/")
     print("=" * 80 + "\n")
 
 

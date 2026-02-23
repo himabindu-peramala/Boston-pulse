@@ -81,8 +81,7 @@ class FeatureStatistics:
             "num_zeros": self.num_zeros,
             "num_unique": self.num_unique,
             "top_values": self.top_values,
-            "value_counts": self.value_counts,
-        }
+            "value_counts": self.value_counts,}
 
 
 @dataclass
@@ -104,8 +103,7 @@ class DataStatistics:
             "date": self.date.isoformat(),
             "num_examples": self.num_examples,
             "num_features": self.num_features,
-            "feature_statistics": [f.to_dict() for f in self.feature_statistics],
-        }
+            "feature_statistics": [f.to_dict() for f in self.feature_statistics],}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DataStatistics:
@@ -380,14 +378,12 @@ class StatisticsGenerator:
             Dictionary with comparison metrics
         """
         comparison = {
-            "datasets": {
-                "current": f"{current.dataset}/{current.layer}",
+            "datasets": {"current": f"{current.dataset}/{current.layer}",
                 "reference": f"{reference.dataset}/{reference.layer}",
             },
             "dates": {
                 "current": current.date.isoformat(),
-                "reference": reference.date.isoformat(),
-            },
+                "reference": reference.date.isoformat(),},
             "row_count_change": {
                 "current": current.num_examples,
                 "reference": reference.num_examples,
@@ -396,13 +392,11 @@ class StatisticsGenerator:
                     (current.num_examples - reference.num_examples) / reference.num_examples * 100
                     if reference.num_examples > 0
                     else 0
-                ),
-            },
+                ),},
             "column_count_change": {
                 "current": current.num_features,
                 "reference": reference.num_features,
-                "change": current.num_features - reference.num_features,
-            },
+                "change": current.num_features - reference.num_features,},
             "feature_comparisons": [],
         }
 
@@ -419,8 +413,7 @@ class StatisticsGenerator:
             feat_comparison = {
                 "feature": feature_name,
                 "in_current": curr_feat is not None,
-                "in_reference": ref_feat is not None,
-            }
+                "in_reference": ref_feat is not None,}
 
             if curr_feat and ref_feat:
                 feat_comparison["missing_ratio_change"] = (

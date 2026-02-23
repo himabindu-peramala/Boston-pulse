@@ -227,8 +227,7 @@ class FeatureStoreConfig(BaseModel):
         default_factory=lambda: {
             "crime_features": "crime_features",
             "transit_features": "transit_features",
-            "safety_scores": "safety_scores",
-        }
+            "safety_scores": "safety_scores",}
     )
     ttl_hours: int = 24
 

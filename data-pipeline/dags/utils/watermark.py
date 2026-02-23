@@ -21,7 +21,10 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from google.cloud import storage
+try:
+    from google.cloud import storage
+except ImportError:
+    storage = None
 
 from src.shared.config import Settings, get_config
 

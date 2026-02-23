@@ -271,8 +271,7 @@ class ModelCardGenerator:
         return {
             "column": date_col,
             "min": min_date.isoformat() if pd.notna(min_date) else None,
-            "max": max_date.isoformat() if pd.notna(max_date) else None,
-        }
+            "max": max_date.isoformat() if pd.notna(max_date) else None,}
 
     def _create_validation_summary(self, result: Any) -> dict[str, Any]:
         """Create validation summary from ValidationResult object or dict."""
@@ -283,8 +282,7 @@ class ModelCardGenerator:
                 "error_count": result.get("error_count", 0),
                 "warning_count": result.get("warning_count", 0),
                 "errors": result.get("errors", []),
-                "warnings": result.get("warnings", []),
-            }
+                "warnings": result.get("warnings", []),}
 
         # Handle object (ValidationResult)
         return {
@@ -293,8 +291,7 @@ class ModelCardGenerator:
             "error_count": len(getattr(result, "errors", [])),
             "warning_count": len(getattr(result, "warnings", [])),
             "errors": getattr(result, "errors", []),
-            "warnings": getattr(result, "warnings", []),
-        }
+            "warnings": getattr(result, "warnings", []),}
 
     def _create_fairness_summary(self, result: Any) -> dict[str, Any]:
         """Create fairness summary from FairnessResult object or dict."""
@@ -305,8 +302,7 @@ class ModelCardGenerator:
                 "critical_count": result.get("critical_count", 0),
                 "warning_count": result.get("warning_count", 0),
                 "passes_gate": result.get("passes_fairness_gate", True),
-                "critical_violations": result.get("violations", [])[:5],
-            }
+                "critical_violations": result.get("violations", [])[:5],}
 
         # Handle object (FairnessResult)
         return {
@@ -315,8 +311,7 @@ class ModelCardGenerator:
             "critical_count": len(getattr(result, "critical_violations", [])),
             "warning_count": len(getattr(result, "warning_violations", [])),
             "passes_gate": getattr(result, "passes_fairness_gate", True),
-            "critical_violations": [
-                {"metric": v.metric, "message": v.message}
+            "critical_violations": [{"metric": v.metric, "message": v.message}
                 for v in getattr(result, "critical_violations", [])
             ][:5],
         }
@@ -330,8 +325,7 @@ class ModelCardGenerator:
                 "warning_count": result.get("warning_count", 0),
                 "critical_count": result.get("critical_count", 0),
                 "critical_features": result.get("drifted_features", [])[:10],
-                "warning_features": result.get("warning_features", [])[:10],
-            }
+                "warning_features": result.get("warning_features", [])[:10],}
 
         # Handle object (DriftResult)
         return {
@@ -340,8 +334,7 @@ class ModelCardGenerator:
             "warning_count": len(getattr(result, "warning_features", [])),
             "critical_count": len(getattr(result, "critical_features", [])),
             "critical_features": getattr(result, "critical_features", [])[:10],
-            "warning_features": getattr(result, "warning_features", [])[:10],
-        }
+            "warning_features": getattr(result, "warning_features", [])[:10],}
 
     def _create_anomaly_summary(self, result: Any) -> dict[str, Any]:
         """Create anomaly summary from AnomalyResult object or dict."""
@@ -349,16 +342,14 @@ class ModelCardGenerator:
             return {
                 "total_anomalies": result.get("anomaly_count", 0),
                 "critical_count": result.get("critical_count", 0),
-                "warning_count": result.get("warning_count", 0),
-                "anomalies_by_type": result.get("anomalies_by_type", {}),
+                "warning_count": result.get("warning_count", 0),"anomalies_by_type": result.get("anomalies_by_type", {}),
             }
 
         # Handle object (AnomalyResult)
         return {
             "total_anomalies": len(getattr(result, "anomalies", [])),
             "critical_count": len(getattr(result, "critical_anomalies", [])),
-            "warning_count": len(getattr(result, "warning_anomalies", [])),
-            "anomalies_by_type": getattr(result, "anomalies_by_type", {}),
+            "warning_count": len(getattr(result, "warning_anomalies", [])),"anomalies_by_type": getattr(result, "anomalies_by_type", {}),
         }
 
     def _generate_markdown(self, card: ModelCard) -> str:

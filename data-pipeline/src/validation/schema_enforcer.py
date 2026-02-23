@@ -227,8 +227,7 @@ class SchemaEnforcer:
             extra={
                 "dataset": dataset,
                 "is_valid": result.is_valid,
-                "issues_count": len(result.issues),
-            },
+                "issues_count": len(result.issues),},
         )
 
         return result
@@ -308,8 +307,7 @@ class SchemaEnforcer:
             extra={
                 "dataset": dataset,
                 "is_valid": result.is_valid,
-                "issues_count": len(result.issues),
-            },
+                "issues_count": len(result.issues),},
         )
 
         return result
@@ -400,8 +398,7 @@ class SchemaEnforcer:
             extra={
                 "dataset": dataset,
                 "is_valid": result.is_valid,
-                "issues_count": len(result.issues),
-            },
+                "issues_count": len(result.issues),},
         )
 
         return result

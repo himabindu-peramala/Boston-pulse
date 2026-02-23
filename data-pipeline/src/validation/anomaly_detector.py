@@ -191,8 +191,7 @@ class AnomalyDetector:
             extra={
                 "dataset": dataset,
                 "total_anomalies": len(result.anomalies),
-                "critical_count": len(result.critical_anomalies),
-            },
+                "critical_count": len(result.critical_anomalies),},
         )
 
         return result
@@ -273,8 +272,7 @@ class AnomalyDetector:
                         message=f"Column '{col}' has {outlier_ratio:.1%} outliers",
                         count=outlier_count,
                         percentage=outlier_ratio,
-                        details={
-                            "bounds": {"lower": float(lower_bound), "upper": float(upper_bound)},
+                        details={"bounds": {"lower": float(lower_bound), "upper": float(upper_bound)},
                             "mean": float(col_data.mean()),
                             "std": float(col_data.std()),
                         },
@@ -314,12 +312,10 @@ class AnomalyDetector:
                     message=f"{count} records with latitude outside Boston bounds",
                     count=count,
                     percentage=count / len(df),
-                    details={
-                        "bounds": {"min": bounds.min_lat, "max": bounds.max_lat},
+                    details={"bounds": {"min": bounds.min_lat, "max": bounds.max_lat},
                         "actual_range": {
                             "min": float(df[lat_col].min()),
-                            "max": float(df[lat_col].max()),
-                        },
+                            "max": float(df[lat_col].max()),},
                     },
                 )
             )
@@ -339,12 +335,10 @@ class AnomalyDetector:
                     message=f"{count} records with longitude outside Boston bounds",
                     count=count,
                     percentage=count / len(df),
-                    details={
-                        "bounds": {"min": bounds.min_lon, "max": bounds.max_lon},
+                    details={"bounds": {"min": bounds.min_lon, "max": bounds.max_lon},
                         "actual_range": {
                             "min": float(df[lon_col].min()),
-                            "max": float(df[lon_col].max()),
-                        },
+                            "max": float(df[lon_col].max()),},
                     },
                 )
             )

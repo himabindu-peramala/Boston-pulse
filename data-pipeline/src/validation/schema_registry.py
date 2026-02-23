@@ -109,8 +109,7 @@ class SchemaRegistry:
             Version string of the registered schema
 
         Example:
-            schema = {
-                "incident_number": {"type": "string", "nullable": False},
+            schema = {"incident_number": {"type": "string", "nullable": False},
                 "occurred_date": {"type": "datetime", "nullable": False},
                 "latitude": {"type": "float", "nullable": True},
             }
@@ -146,8 +145,7 @@ class SchemaRegistry:
                 "created_by": metadata.created_by,
                 "description": metadata.description,
                 "num_columns": metadata.num_columns,
-                "primary_key": metadata.primary_key,
-            },
+                "primary_key": metadata.primary_key,},
             "schema": schema,
         }
 
@@ -344,8 +342,7 @@ class SchemaRegistry:
 
             schema[col] = {
                 "type": type_name,
-                "nullable": bool(nullable),
-            }
+                "nullable": bool(nullable),}
 
         return schema
 
@@ -359,8 +356,7 @@ class SchemaRegistry:
             "bool": ["boolean"],
             "datetime64[ns]": ["datetime"],
             "string": ["string"],
-            "Int64": ["integer"],
-        }
+            "Int64": ["integer"],}
 
         # Allow 'object' (common when ingesting JSON) to match string, integer, float, or datetime
         if actual == "object":
@@ -418,5 +414,4 @@ def create_schema_from_dataframe(
     return {
         "description": description,
         "primary_key": primary_key,
-        "schema": schema,
-    }
+        "schema": schema,}

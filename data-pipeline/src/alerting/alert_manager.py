@@ -86,8 +86,7 @@ class Alert:
             "dag_id": self.dag_id,
             "task_id": self.task_id,
             "execution_date": self.execution_date,
-            "metadata": self.metadata,
-        }
+            "metadata": self.metadata,}
 
 
 @dataclass
@@ -375,8 +374,7 @@ class AlertManager:
         log_level = {
             AlertSeverity.INFO: logging.INFO,
             AlertSeverity.WARNING: logging.WARNING,
-            AlertSeverity.CRITICAL: logging.CRITICAL,
-        }[alert.severity]
+            AlertSeverity.CRITICAL: logging.CRITICAL,}[alert.severity]
 
         logger.log(
             log_level,
@@ -386,8 +384,7 @@ class AlertManager:
                 "dataset": alert.dataset,
                 "dag_id": alert.dag_id,
                 "task_id": alert.task_id,
-                "metadata": alert.metadata,
-            },
+                "metadata": alert.metadata,},
         )
 
     def _send_to_slack(self, alert: Alert) -> None:
@@ -402,8 +399,7 @@ class AlertManager:
         color = {
             AlertSeverity.INFO: "#36a64f",  # Green
             AlertSeverity.WARNING: "#ff9900",  # Orange
-            AlertSeverity.CRITICAL: "#ff0000",  # Red
-        }[alert.severity]
+            AlertSeverity.CRITICAL: "#ff0000",  # Red}[alert.severity]
 
         payload = {
             "attachments": [
@@ -411,13 +407,11 @@ class AlertManager:
                     "color": color,
                     "title": alert.title,
                     "text": alert.message,
-                    "fields": [
-                        {"title": "Severity", "value": alert.severity.value.upper(), "short": True},
+                    "fields": [{"title": "Severity", "value": alert.severity.value.upper(), "short": True},
                         {
                             "title": "Timestamp",
                             "value": alert.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC"),
-                            "short": True,
-                        },
+                            "short": True,},
                     ],
                     "footer": "Boston Pulse Data Pipeline",
                     "ts": int(alert.timestamp.timestamp()),
@@ -488,8 +482,7 @@ class AlertManager:
         #     'payload': {
         #         'summary': alert.title,
         #         'severity': alert.severity.value,
-        #         'source': 'boston-pulse-pipeline',
-        #     }
+        #         'source': 'boston-pulse-pipeline',#     }
         # })
 
 

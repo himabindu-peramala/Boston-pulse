@@ -203,8 +203,7 @@ class FairnessChecker:
                 "dataset": dataset,
                 "violations": len(result.violations),
                 "critical": len(result.critical_violations),
-                "passes_gate": result.passes_fairness_gate,
-            },
+                "passes_gate": result.passes_fairness_gate,},
         )
 
         return result
@@ -287,8 +286,7 @@ class FairnessChecker:
                     disparity=disparity,
                     details={
                         "slice_size": slice_obj.size,
-                        "total_slices": len(slices),
-                    },
+                        "total_slices": len(slices),},
                 )
             )
 
@@ -360,8 +358,7 @@ class FairnessChecker:
                     disparity=disparity,
                     details={
                         "slice_size": slice_obj.size,
-                        "outcome_column": outcome_column,
-                    },
+                        "outcome_column": outcome_column,},
                 )
             )
 

@@ -63,8 +63,7 @@ class PreprocessingResult:
             "success": self.success,
             "error_message": self.error_message,
             "transformations_applied": self.transformations_applied,
-            "drop_reasons": self.drop_reasons,
-        }
+            "drop_reasons": self.drop_reasons,}
 
 
 class BasePreprocessor(ABC):
@@ -170,8 +169,7 @@ class BasePreprocessor(ABC):
             extra={
                 "dataset": dataset_name,
                 "execution_date": execution_date,
-                "rows_input": rows_input,
-            },
+                "rows_input": rows_input,},
         )
 
         try:
