@@ -108,13 +108,10 @@ class BerdoFeatureBuilder(BaseFeatureBuilder):
                 0, float("nan")
             )
 
-        if (
-            "electricity_use_grid_purchase" in df.columns
-            and "site_energy_use_kbtu" in df.columns
-        ):
-            df["electricity_ratio"] = df[
-                "electricity_use_grid_purchase"
-            ] / df["site_energy_use_kbtu"].replace(0, float("nan"))
+        if "electricity_use_grid_purchase" in df.columns and "site_energy_use_kbtu" in df.columns:
+            df["electricity_ratio"] = df["electricity_use_grid_purchase"] / df[
+                "site_energy_use_kbtu"
+            ].replace(0, float("nan"))
 
         return df
 
