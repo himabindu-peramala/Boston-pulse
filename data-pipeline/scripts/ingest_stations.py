@@ -3,27 +3,22 @@ Police Stations Data Ingestion Script
 Downloads Boston Police Station locations from Boston Open Data Portal (GeoJSON)
 """
 
-import pandas as pd
 import logging
-import json
-import requests
 from pathlib import Path
+
+import pandas as pd
+import requests
 
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/stations_ingestion.log'),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("logs/stations_ingestion.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
 
-def download_stations_data(
-    output_path: str = "data/raw/police_stations.csv"
-):
+def download_stations_data(output_path: str = "data/raw/police_stations.csv"):
     """
     Download Boston Police Station data from Analyze Boston (GeoJSON → CSV)
 
@@ -43,12 +38,12 @@ def download_stations_data(
         )
 
         headers = {
-            'User-Agent': (
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                'AppleWebKit/537.36 (KHTML, like Gecko) '
-                'Chrome/91.0.4472.124 Safari/537.36'
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/91.0.4472.124 Safari/537.36"
             ),
-            'Accept': 'application/json',
+            "Accept": "application/json",
         }
 
         logger.info(f"Downloading from: {url}")
@@ -110,53 +105,49 @@ def validate_stations_data(file_path: str):
             df = pd.read_csv(file_path)
         except pd.errors.EmptyDataError:
             return {
-                'total_rows': 0,
-                'missing_values': 0,
-                'duplicate_rows': 0,
-                'columns': [],
-                'column_count': 0,
-                'critical_issues': ['Dataset is empty']
+                "total_rows": 0,
+                "missing_values": 0,
+                "duplicate_rows": 0,
+                "columns": [],
+                "column_count": 0,
+                "critical_issues": ["Dataset is empty"],
             }
 
         validation_results = {
-            'total_rows': len(df),
-            'missing_values': df.isnull().sum().sum(),
-            'duplicate_rows': df.duplicated().sum(),
-            'columns': list(df.columns),
-            'column_count': len(df.columns)
+            "total_rows": len(df),
+            "missing_values": df.isnull().sum().sum(),
+            "duplicate_rows": df.duplicated().sum(),
+            "columns": list(df.columns),
+            "column_count": len(df.columns),
         }
 
         critical_issues = []
 
-        if validation_results['total_rows'] == 0:
+        if validation_results["total_rows"] == 0:
             critical_issues.append("Dataset is empty")
 
         # Expected columns based on BPD GeoJSON schema
-        expected_columns = ['NAME', 'District', 'NEIGHBORHOOD', 'ADDRESS']
+        expected_columns = ["NAME", "District", "NEIGHBORHOOD", "ADDRESS"]
         missing_cols = [col for col in expected_columns if col not in df.columns]
         if missing_cols:
             critical_issues.append(f"Missing expected columns: {missing_cols}")
 
         # Validate coordinate bounds for Boston
-        for lat_col in ['latitude', 'POINT_Y']:
+        for lat_col in ["latitude", "POINT_Y"]:
             if lat_col in df.columns:
-                df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
-                invalid = (
-                    (df[lat_col] < 42.2) | (df[lat_col] > 42.5)
-                ).sum()
+                df[lat_col] = pd.to_numeric(df[lat_col], errors="coerce")
+                invalid = ((df[lat_col] < 42.2) | (df[lat_col] > 42.5)).sum()
                 if invalid > 0:
-                    critical_issues.append(
-                        f"{invalid} stations have invalid latitude values"
-                    )
+                    critical_issues.append(f"{invalid} stations have invalid latitude values")
                 break
 
         # Check for duplicate station names
-        if 'NAME' in df.columns:
-            dup_names = df['NAME'].duplicated().sum()
+        if "NAME" in df.columns:
+            dup_names = df["NAME"].duplicated().sum()
             if dup_names > 0:
                 critical_issues.append(f"{dup_names} duplicate station names found")
 
-        validation_results['critical_issues'] = critical_issues
+        validation_results["critical_issues"] = critical_issues
 
         if critical_issues:
             logger.warning(f"Validation issues: {critical_issues}")

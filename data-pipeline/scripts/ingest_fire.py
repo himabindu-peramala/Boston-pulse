@@ -3,27 +3,23 @@ Fire Incident Data Ingestion Script
 Downloads Boston Fire Incident reports from Analyze Boston
 """
 
-import pandas as pd
 import logging
-import requests
 from io import StringIO
 from pathlib import Path
 
+import pandas as pd
+import requests
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/fire_ingestion.log'),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("logs/fire_ingestion.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
 
 def download_fire_data(
-    output_path: str = "data/raw/fire_incidents.csv",
-    year: str = "current",
-    nrows: int = None
+    output_path: str = "data/raw/fire_incidents.csv", year: str = "current", nrows: int = None
 ):
     """
     Download Boston Fire Incident data from Analyze Boston
@@ -46,18 +42,20 @@ def download_fire_data(
         }
 
         if year not in fire_urls:
-            raise ValueError(f"Year {year} not available. Choose from: {list(fire_urls.keys())}")
+            raise ValueError(f"Year {year} not available. Choose from: {
+                    list(
+                        fire_urls.keys())}")
 
         url = fire_urls[year]
         logger.info(f"Downloading from: {url}")
 
         headers = {
-            'User-Agent': (
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                'AppleWebKit/537.36 (KHTML, like Gecko) '
-                'Chrome/91.0.4472.124 Safari/537.36'
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/91.0.4472.124 Safari/537.36"
             ),
-            'Accept': 'text/csv',
+            "Accept": "text/csv",
         }
 
         response = requests.get(url, headers=headers, timeout=120, stream=True)
@@ -108,40 +106,40 @@ def validate_fire_data(file_path: str):
             df = pd.read_csv(file_path)
         except pd.errors.EmptyDataError:
             return {
-                'total_rows': 0,
-                'missing_values': 0,
-                'duplicate_rows': 0,
-                'columns': [],
-                'column_count': 0,
-                'critical_issues': ['Dataset is empty']
+                "total_rows": 0,
+                "missing_values": 0,
+                "duplicate_rows": 0,
+                "columns": [],
+                "column_count": 0,
+                "critical_issues": ["Dataset is empty"],
             }
 
         validation_results = {
-            'total_rows': len(df),
-            'missing_values': df.isnull().sum().sum(),
-            'duplicate_rows': df.duplicated().sum(),
-            'columns': list(df.columns),
-            'column_count': len(df.columns)
+            "total_rows": len(df),
+            "missing_values": df.isnull().sum().sum(),
+            "duplicate_rows": df.duplicated().sum(),
+            "columns": list(df.columns),
+            "column_count": len(df.columns),
         }
 
         critical_issues = []
 
-        if validation_results['total_rows'] == 0:
+        if validation_results["total_rows"] == 0:
             critical_issues.append("Dataset is empty")
 
         # Expected columns
-        expected_columns = ['Incident Number', 'Alarm Date', 'Incident Type', 'District']
+        expected_columns = ["Incident Number", "Alarm Date", "Incident Type", "District"]
         missing_cols = [col for col in expected_columns if col not in df.columns]
         if missing_cols:
             critical_issues.append(f"Missing expected columns: {missing_cols}")
 
         # Check duplicate incident numbers
-        if 'Incident Number' in df.columns:
-            dup_incidents = df['Incident Number'].duplicated().sum()
+        if "Incident Number" in df.columns:
+            dup_incidents = df["Incident Number"].duplicated().sum()
             if dup_incidents > len(df) * 0.1:
                 critical_issues.append(f"High duplicate incident rate: {dup_incidents}")
 
-        validation_results['critical_issues'] = critical_issues
+        validation_results["critical_issues"] = critical_issues
 
         if critical_issues:
             logger.warning(f"Validation issues: {critical_issues}")

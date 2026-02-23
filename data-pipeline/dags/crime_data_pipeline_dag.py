@@ -3,40 +3,39 @@ Crime Data Pipeline DAG
 Automated pipeline for ingesting, preprocessing, and validating crime data
 """
 
+import os
+import sys
+from datetime import datetime, timedelta
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.operators.bash import BashOperator
-from datetime import datetime, timedelta
-import sys
-import os
 
 # Add scripts directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from ingest_crime import download_crime_data, validate_crime_data
-from preprocess_crime import preprocess_crime_data, generate_statistics
-
+from preprocess_crime import generate_statistics, preprocess_crime_data
 
 # Default arguments for the DAG
 default_args = {
-    'owner': 'boston-pulse-team',
-    'depends_on_past': False,
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    "owner": "boston-pulse-team",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 1,
+    "retry_delay": timedelta(minutes=5),
 }
 
 
 # Define the DAG
 dag = DAG(
-    'crime_data_pipeline',
+    "crime_data_pipeline",
     default_args=default_args,
-    description='Automated pipeline for Boston crime data',
-    schedule_interval='@weekly',  # Run every week
+    description="Automated pipeline for Boston crime data",
+    schedule_interval="@weekly",  # Run every week
     start_date=datetime(2026, 2, 18),
     catchup=False,
-    tags=['boston-pulse', 'crime', 'mlops'],
+    tags=["boston-pulse", "crime", "mlops"],
 )
 
 
@@ -50,7 +49,7 @@ def download_data_task():
 
 
 download_task = PythonOperator(
-    task_id='download_crime_data',
+    task_id="download_crime_data",
     python_callable=download_data_task,
     dag=dag,
 )
@@ -61,17 +60,17 @@ def validate_data_task():
     """Validate the downloaded crime data"""
     print("Starting data validation...")
     validation = validate_crime_data("data/raw/crime_data.csv")
-    
+
     # Check for critical issues
-    if validation['critical_issues']:
+    if validation["critical_issues"]:
         raise ValueError(f"Data validation failed: {validation['critical_issues']}")
-    
+
     print(f"Validation passed: {validation['total_rows']} rows")
     return validation
 
 
 validate_task = PythonOperator(
-    task_id='validate_crime_data',
+    task_id="validate_crime_data",
     python_callable=validate_data_task,
     dag=dag,
 )
@@ -87,7 +86,7 @@ def preprocess_data_task():
 
 
 preprocess_task = PythonOperator(
-    task_id='preprocess_crime_data',
+    task_id="preprocess_crime_data",
     python_callable=preprocess_data_task,
     dag=dag,
 )
@@ -98,17 +97,17 @@ def generate_stats_task():
     """Generate statistics about processed data"""
     print("Generating data statistics...")
     stats = generate_statistics()
-    
+
     print("\n=== Pipeline Statistics ===")
     print(f"Total records: {stats['total_records']}")
     print(f"Date range: {stats['date_range']}")
     print(f"Top offenses: {list(stats['top_offenses'].keys())[:3]}")
-    
+
     return stats
 
 
 stats_task = PythonOperator(
-    task_id='generate_statistics',
+    task_id="generate_statistics",
     python_callable=generate_stats_task,
     dag=dag,
 )
