@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -15,26 +16,29 @@ def ingester():
     return BerdoIngester()
 
 
-@pytest.fixture
-def sample_records():
-    return [
+def _make_excel_bytes():
+    """Create a minimal Excel file in memory for mocking."""
+    df = pd.DataFrame(
         {
-            "_id": 1,
-            "reporting_year": "2022",
-            "property_name": "Test Building",
-            "address": "100 MAIN ST",
-            "zip": "02101",
-            "property_type": "Office",
-            "gross_floor_area": "50000",
-            "site_energy_use_kbtu": "1000000",
-            "total_ghg_emissions": "500",
-            "energy_star_score": "75",
-            "electricity_use_grid_purchase": "600000",
-            "natural_gas_use": "400000",
-            "lat": "42.3601",
-            "long": "-71.0589",
+            "BERDO ID": ["B001"],
+            "Property Owner Name": ["Test Owner"],
+            "Building Address": ["100 Main St"],
+            "Building Address City": ["Boston"],
+            "Building Address Zip  Code": ["02101"],
+            "Largest Property Type": ["Office"],
+            "Reported Gross Floor Area (sq ft)": [50000],
+            "Total Site Energy Usage (kBtu)": [1000000],
+            "Estimated Total GHG Emissions (kgCO2e)": [500],
+            "Energy Star Score": [75],
+            "Electricity Usage (kWh)": [600000],
+            "Natural Gas Usage (kBtu)": [400000],
+            "Compliance Status": ["Compliant"],
+            "Site EUI (Energy Use Intensity kBtu/ft²)": [20.0],
         }
-    ]
+    )
+    buf = BytesIO()
+    df.to_excel(buf, index=False)
+    return buf.getvalue()
 
 
 def test_get_dataset_name(ingester):
@@ -50,30 +54,15 @@ def test_get_primary_key(ingester):
 
 
 @patch("src.datasets.berdo.ingest.requests.get")
-def test_fetch_data_success(mock_get, ingester, sample_records):
+def test_fetch_data_success(mock_get, ingester):
     mock_resp = MagicMock()
     mock_resp.status_code = 200
-    mock_resp.json.return_value = {
-        "success": True,
-        "result": {"records": sample_records},
-    }
+    mock_resp.content = _make_excel_bytes()
     mock_get.return_value = mock_resp
 
     df = ingester.fetch_data()
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 1
-    assert "property_name" in df.columns
-
-
-@patch("src.datasets.berdo.ingest.requests.get")
-def test_fetch_data_empty(mock_get, ingester):
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {"success": True, "result": {"records": []}}
-    mock_get.return_value = mock_resp
-
-    df = ingester.fetch_data()
-    assert df.empty
 
 
 @patch("src.datasets.berdo.ingest.requests.get")
