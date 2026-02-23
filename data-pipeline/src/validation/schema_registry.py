@@ -199,7 +199,40 @@ class SchemaRegistry:
             )
             return schema
         except Exception as e:
+            # Automatic Sync: If schema is missing in GCS, try to find it locally and register it
+            logger.info(f"Schema not found in GCS for {dataset}/{layer}, attempting local sync...")
+            try:
+                local_schema = self._load_local_schema(dataset, layer)
+                if local_schema:
+                    self.register_schema(dataset, layer, local_schema)
+                    # Try downloading again after registration
+                    return self._download_json(path)
+            except Exception as sync_err:
+                logger.warning(f"Failed to sync local schema for {dataset}/{layer}: {sync_err}")
+
             raise FileNotFoundError(f"Schema not found: {dataset}/{layer} version={version}") from e
+
+    def _load_local_schema(self, dataset: str, layer: str) -> dict[str, Any] | None:
+        """Load a schema from the local filesystem (fallback for GCS)."""
+        # Try a few common locations for the schemas directory
+        base_paths = [
+            Path(__file__).parent.parent.parent / "schemas",
+            Path.cwd() / "schemas",
+            Path.cwd() / "data-pipeline" / "schemas",
+            Path("/opt/airflow/data-pipeline/schemas"),
+        ]
+
+        for base in base_paths:
+            schema_file = base / dataset / f"{layer}_schema.json"
+            if schema_file.exists():
+                try:
+                    with open(schema_file) as f:
+                        return json.load(f)
+                except Exception as e:
+                    logger.warning(f"Found local schema file {schema_file} but failed to read: {e}")
+
+        logger.info(f"No local schema file found for {dataset}/{layer}")
+        return None
 
     def get_schema_metadata(
         self,

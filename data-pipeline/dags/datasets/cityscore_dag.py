@@ -40,7 +40,7 @@ def ingest_data(**context) -> dict:
     from src.datasets.cityscore import CityScoreIngester
 
     execution_date = context["ds"]
-    watermark = get_effective_watermark(DATASET)
+    watermark = get_effective_watermark(DATASET, lookback_days=30)
 
     ingester = CityScoreIngester()
     result = ingester.run(execution_date=execution_date, watermark_start=watermark)
