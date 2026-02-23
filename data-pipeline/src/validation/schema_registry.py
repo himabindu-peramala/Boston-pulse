@@ -349,13 +349,17 @@ class SchemaRegistry:
 
         return schema
 
-    def _is_type_compatible(self, actual: str, expected: str) -> bool:
-        """Check if actual dtype is compatible with expected type."""
+    def _is_type_compatible(self, actual: str, expected: str | list[str]) -> bool:
+        """Check if actual dtype is compatible with expected type(s)."""
+        # Handle list of expected types (e.g., ["string", "null"])
+        if isinstance(expected, list):
+            return any(self._is_type_compatible(actual, t) for t in expected)
+
         # Map pandas dtypes to schema types
         type_mappings = {
             "int64": ["integer", "float"],
             "float64": ["float"],
-            "object": ["string"],
+            "object": ["string", "integer", "float", "datetime", "null"],
             "bool": ["boolean"],
             "datetime64[ns]": ["datetime"],
             "string": ["string"],
@@ -364,7 +368,11 @@ class SchemaRegistry:
 
         # Allow 'object' (common when ingesting JSON) to match string, integer, float, or datetime
         if actual == "object":
-            return expected in ["string", "integer", "float", "datetime"]
+            return expected in ["string", "integer", "float", "datetime", "null"]
+
+        # Null check
+        if expected == "null":
+            return True  # Any pandas column can have nulls
 
         compatible_types = type_mappings.get(actual, [actual])
         return expected in compatible_types
