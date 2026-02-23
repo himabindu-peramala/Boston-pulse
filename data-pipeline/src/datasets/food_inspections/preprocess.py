@@ -34,7 +34,8 @@ class FoodInspectionsPreprocessor(BasePreprocessor):
         "resultdttm": "resultdttm",
         "address": "address",
         "zip": "zip",
-        "location": "location",}
+        "location": "location",
+    }
 
     # Data type mappings
     DTYPE_MAPPINGS = {
@@ -45,7 +46,8 @@ class FoodInspectionsPreprocessor(BasePreprocessor):
         "resultdttm": "datetime",
         "address": "string",
         "zip": "string",
-        "location": "string",}
+        "location": "string",
+    }
 
     # Required output columns
     REQUIRED_COLUMNS = [

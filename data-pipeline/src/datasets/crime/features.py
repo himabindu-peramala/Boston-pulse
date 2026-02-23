@@ -307,7 +307,8 @@ class CrimeFeatureBuilder(BaseFeatureBuilder):
         if total == 0:
             return {
                 "violent_crime_ratio": 0.0,
-                "property_crime_ratio": 0.0,}
+                "property_crime_ratio": 0.0,
+            }
 
         # Define violent crime categories
         violent_categories = [
@@ -351,7 +352,8 @@ class CrimeFeatureBuilder(BaseFeatureBuilder):
         if total == 0:
             return {
                 "night_crime_ratio": 0.0,
-                "weekend_crime_ratio": 0.0,}
+                "weekend_crime_ratio": 0.0,
+            }
 
         # Night crimes (8pm - 6am)
         if "hour" in group.columns:
@@ -396,7 +398,8 @@ class CrimeFeatureBuilder(BaseFeatureBuilder):
         weights = {
             "crime": 0.5,
             "violent": 0.3,
-            "shooting": 0.2,}
+            "shooting": 0.2,
+        }
 
         df["crime_risk_score"] = (
             crime_normalized * weights["crime"]

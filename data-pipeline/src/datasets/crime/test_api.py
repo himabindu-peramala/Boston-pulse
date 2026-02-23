@@ -50,7 +50,8 @@ def write_watermark(date: datetime):
         json.dump(
             {
                 "last_successful_date": date.isoformat(),
-                "written_at": datetime.now(UTC).isoformat(),},
+                "written_at": datetime.now(UTC).isoformat(),
+            },
             f,
             indent=2,
         )

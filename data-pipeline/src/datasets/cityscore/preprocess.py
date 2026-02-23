@@ -33,7 +33,8 @@ class CityScorePreprocessor(BasePreprocessor):
         "day_numerator": "day_numerator",
         "day_denominator": "day_denominator",
         "week_score": "week_score",
-        "month_score": "month_score",}
+        "month_score": "month_score",
+    }
 
     # Data type mappings
     DTYPE_MAPPINGS = {
@@ -42,7 +43,8 @@ class CityScorePreprocessor(BasePreprocessor):
         "target": "float",
         "day_score": "float",
         "week_score": "float",
-        "month_score": "float",}
+        "month_score": "float",
+    }
 
     # Required output columns
     REQUIRED_COLUMNS = [

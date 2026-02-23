@@ -64,7 +64,8 @@ class IngestionResult:
             "duration_seconds": self.duration_seconds,
             "success": self.success,
             "error_message": self.error_message,
-            "metadata": self.metadata,}
+            "metadata": self.metadata,
+        }
 
 
 class BaseIngester(ABC):
@@ -165,7 +166,8 @@ class BaseIngester(ABC):
             extra={
                 "dataset": dataset_name,
                 "execution_date": execution_date,
-                "watermark_start": watermark_start.isoformat() if watermark_start else None,},
+                "watermark_start": watermark_start.isoformat() if watermark_start else None,
+            },
         )
 
         try:
@@ -209,7 +211,8 @@ class BaseIngester(ABC):
                 metadata={
                     "primary_key": primary_key,
                     "watermark_field": watermark_field,
-                    "columns": list(df.columns),},
+                    "columns": list(df.columns),
+                },
             )
 
             logger.info(

@@ -421,7 +421,8 @@ class DataSlicer:
                     "dimension": slice_obj.dimension,
                     "value": slice_obj.value,
                     "size": slice_obj.size,
-                    "percentage": slice_obj.percentage,}
+                    "percentage": slice_obj.percentage,
+                }
             )
 
         return pd.DataFrame(summary)

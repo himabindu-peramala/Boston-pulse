@@ -59,7 +59,8 @@ class CrimePreprocessor(BasePreprocessor):
         "STREET": "street",
         "Lat": "lat",
         "Long": "long",
-        "Location": "location",}
+        "Location": "location",
+    }
 
     # Data type mappings
     DTYPE_MAPPINGS = {
@@ -77,7 +78,8 @@ class CrimePreprocessor(BasePreprocessor):
         "ucr_part": "string",
         "street": "string",
         "lat": "float",
-        "long": "float",}
+        "long": "float",
+    }
 
     # Required output columns
     REQUIRED_COLUMNS = [
@@ -254,7 +256,8 @@ class CrimePreprocessor(BasePreprocessor):
             # Map known district variations
             district_map = {
                 "": "UNKNOWN",
-                " ": "UNKNOWN",}
+                " ": "UNKNOWN",
+            }
             df["district"] = df["district"].replace(district_map)
             df["district"] = df["district"].fillna("UNKNOWN")
             self.log_transformation("standardize_district")
@@ -278,7 +281,8 @@ class CrimePreprocessor(BasePreprocessor):
         fill_values = {
             "offense_description": "Unknown",
             "street": "Unknown",
-            "reporting_area": "Unknown",}
+            "reporting_area": "Unknown",
+        }
 
         for col, fill_val in fill_values.items():
             if col in df.columns:

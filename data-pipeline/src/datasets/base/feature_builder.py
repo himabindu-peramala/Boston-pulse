@@ -72,7 +72,8 @@ class FeatureBuildResult:
             "duration_seconds": self.duration_seconds,
             "success": self.success,
             "error_message": self.error_message,
-            "feature_stats": self.feature_stats,}
+            "feature_stats": self.feature_stats,
+        }
 
 
 class BaseFeatureBuilder(ABC):
@@ -167,7 +168,8 @@ class BaseFeatureBuilder(ABC):
             extra={
                 "dataset": dataset_name,
                 "execution_date": execution_date,
-                "rows_input": rows_input,},
+                "rows_input": rows_input,
+            },
         )
 
         try:
@@ -236,7 +238,8 @@ class BaseFeatureBuilder(ABC):
             stats: dict[str, Any] = {
                 "dtype": str(df[col].dtype),
                 "null_count": int(df[col].isna().sum()),
-                "null_ratio": float(df[col].isna().mean()),}
+                "null_ratio": float(df[col].isna().mean()),
+            }
 
             if pd.api.types.is_numeric_dtype(df[col]):
                 non_null = df[col].dropna()
@@ -247,7 +250,8 @@ class BaseFeatureBuilder(ABC):
                             "std": float(non_null.std()) if len(non_null) > 1 else 0.0,
                             "min": float(non_null.min()),
                             "max": float(non_null.max()),
-                            "median": float(non_null.median()),}
+                            "median": float(non_null.median()),
+                        }
                     )
             else:
                 stats["unique_count"] = int(df[col].nunique())

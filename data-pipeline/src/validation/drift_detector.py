@@ -177,7 +177,8 @@ class DriftDetector:
             extra={
                 "dataset": dataset,
                 "current_rows": len(current_df),
-                "reference_rows": len(reference_df),},
+                "reference_rows": len(reference_df),
+            },
         )
 
         drift_result = DriftResult(
@@ -215,7 +216,8 @@ class DriftDetector:
             extra={
                 "dataset": dataset,
                 "warning_count": len(drift_result.warning_features),
-                "critical_count": len(drift_result.critical_features),},
+                "critical_count": len(drift_result.critical_features),
+            },
         )
 
         return drift_result
@@ -251,7 +253,8 @@ class DriftDetector:
             extra={
                 "dataset": dataset,
                 "current_rows": len(current_df),
-                "reference_rows": len(reference_df),},
+                "reference_rows": len(reference_df),
+            },
         )
 
         # Create column mapping
@@ -430,14 +433,16 @@ class DriftDetector:
             "std": float(reference_clean.std()),
             "min": float(reference_clean.min()),
             "max": float(reference_clean.max()),
-            "median": float(reference_clean.median()),}
+            "median": float(reference_clean.median()),
+        }
 
         current_stats = {
             "mean": float(current_clean.mean()),
             "std": float(current_clean.std()),
             "min": float(current_clean.min()),
             "max": float(current_clean.max()),
-            "median": float(current_clean.median()),}
+            "median": float(current_clean.median()),
+        }
 
         return FeatureDrift(
             feature_name=feature_name,
@@ -473,11 +478,13 @@ class DriftDetector:
         # Collect statistics
         reference_stats = {
             "unique_count": len(reference_counts),
-            "top_values": reference_counts.head(5).to_dict(),}
+            "top_values": reference_counts.head(5).to_dict(),
+        }
 
         current_stats = {
             "unique_count": len(current_counts),
-            "top_values": current_counts.head(5).to_dict(),}
+            "top_values": current_counts.head(5).to_dict(),
+        }
 
         return FeatureDrift(
             feature_name=feature_name,
