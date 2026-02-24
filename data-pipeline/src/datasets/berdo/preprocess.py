@@ -91,7 +91,13 @@ class BerdoPreprocessor(BasePreprocessor):
 
     def _standardize_strings(self, df: pd.DataFrame) -> pd.DataFrame:
         """Standardize string fields."""
-        for col in ["property_owner_name", "building_address", "zip", "property_type", "compliance_status"]:
+        for col in [
+            "property_owner_name",
+            "building_address",
+            "zip",
+            "property_type",
+            "compliance_status",
+        ]:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.strip().str.upper()
                 df[col] = df[col].replace("NAN", np.nan)
