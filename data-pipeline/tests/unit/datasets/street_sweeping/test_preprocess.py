@@ -18,18 +18,22 @@ def sample_df():
     return pd.DataFrame(
         {
             "_id": [1, 2, 3],
-            "sam_street_id": ["12345", "67890", "11111"],
-            "full_street_name": ["main st", "elm st", "oak ave"],
-            "from_street": ["elm st", "oak st", "pine st"],
-            "to_street": ["oak st", "pine st", "maple st"],
-            "district": ["1A", "1B", "2A"],
-            "side_of_street": ["left", "right", "left"],
-            "season_start": ["APR", "APR", "APR"],
-            "season_end": ["NOV", "NOV", "NOV"],
-            "week_type": ["every week", "every other week", "every week"],
-            "tow_zone": ["YES", "NO", "YES"],
-            "lat": ["42.3601", "42.3501", "42.3701"],
-            "long": ["-71.0589", "-71.0489", "-71.0689"],
+            "main_id": ["12345", "67890", "11111"],
+            "st_name": ["main st", "elm st", "oak ave"],
+            "dist": ["1A", "1B", "2A"],
+            "dist_name": ["District 1A", "District 1B", "District 2A"],
+            "side": ["left", "right", "left"],
+            "from": ["elm st", "oak st", "pine st"],
+            "to": ["oak st", "pine st", "maple st"],
+            "start_time": ["8:00 AM", "9:00 AM", "10:00 AM"],
+            "end_time": ["12:00 PM", "1:00 PM", "2:00 PM"],
+            "week_1": ["Y", "Y", "Y"],
+            "week_2": ["Y", "N", "Y"],
+            "week_3": ["Y", "N", "Y"],
+            "week_4": ["Y", "N", "Y"],
+            "year_round": ["Y", "N", "Y"],
+            "one_way": ["N", "Y", "N"],
+            "miles": [0.5, 0.3, 0.7],
         }
     )
 
@@ -64,12 +68,14 @@ def test_drop_duplicates(preprocessor, sample_df):
 
 
 def test_handle_missing_values(preprocessor, sample_df):
-    sample_df.loc[0, "district"] = None
+    sample_df.loc[0, "dist"] = None
     result = preprocessor.transform(sample_df)
     assert result["district"].isna().sum() == 0
 
 
-def test_validate_coordinates(preprocessor, sample_df):
-    sample_df.loc[0, "lat"] = "999"  # out of bounds
+def test_column_mapping(preprocessor, sample_df):
     result = preprocessor.transform(sample_df)
-    assert pd.isna(result.loc[0, "lat"])
+    assert "full_street_name" in result.columns
+    assert "district" in result.columns
+    assert "sam_street_id" in result.columns
+    assert "side_of_street" in result.columns
