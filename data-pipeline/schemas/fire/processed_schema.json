@@ -1,0 +1,27 @@
+{
+  "description": "Processed schema for Boston fire incident data",
+  "metadata": {
+    "version": "v1.0.0",
+    "dataset": "fire",
+    "stage": "processed"
+  },
+  "properties": {
+    "incident_number": {"type": "string", "primary_key": true, "nullable": false},
+    "alarm_date": {"type": "datetime", "nullable": false},
+    "alarm_time": {"type": "string", "nullable": true},
+    "incident_type": {"type": "string", "nullable": true},
+    "incident_description": {"type": "string", "nullable": true},
+    "district": {"type": "string", "nullable": false},
+    "neighborhood": {"type": "string", "nullable": true},
+    "zip": {"type": "string", "nullable": true},
+    "property_use": {"type": "string", "nullable": true},
+    "property_description": {"type": "string", "nullable": true},
+    "estimated_property_loss": {"type": "float", "nullable": true},
+    "estimated_content_loss": {"type": "float", "nullable": true},
+    "address": {"type": "string", "nullable": true},
+    "year": {"type": "integer", "nullable": true},
+    "month": {"type": "integer", "nullable": true},
+    "day_of_week": {"type": "string", "nullable": true},
+    "hour": {"type": "integer", "nullable": true}
+  }
+}
