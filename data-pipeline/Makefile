@@ -139,17 +139,17 @@ test-fast:  ## Run tests excluding slow ones
 
 airflow-up:  ## Start local Airflow environment
 	@echo "$(BLUE)Starting Airflow...$(NC)"
-	cd ../docker && docker-compose -f docker-compose.airflow.yml up -d
+	cd docker/ && docker compose --env-file ../.env -f docker-compose.airflow.yml up -d
 	@echo "$(GREEN)Airflow is starting at http://localhost:8080$(NC)"
 	@echo "$(YELLOW)Default credentials: airflow/airflow$(NC)"
 
 airflow-down:  ## Stop local Airflow environment
 	@echo "$(BLUE)Stopping Airflow...$(NC)"
-	cd ../docker && docker-compose -f docker-compose.airflow.yml down
+	cd docker/ && docker compose --env-file ../.env -f docker-compose.airflow.yml down
 	@echo "$(GREEN)Airflow stopped.$(NC)"
 
 airflow-logs:  ## View Airflow logs
-	cd ../docker && docker-compose -f docker-compose.airflow.yml logs -f
+	cd docker/ && docker compose --env-file ../.env -f docker-compose.airflow.yml logs -f
 
 airflow-restart:  ## Restart Airflow
 	$(MAKE) airflow-down
