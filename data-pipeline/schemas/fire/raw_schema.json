@@ -1,0 +1,35 @@
+{
+  "description": "Raw schema for Boston fire incident data",
+  "metadata": {
+    "version": "v1.0.0",
+    "dataset": "fire",
+    "stage": "raw"
+  },
+  "properties": {
+    "_id": {"type": "string", "nullable": true},
+    "incident_number": {"type": "string", "primary_key": true, "nullable": false},
+    "exposure_number": {"type": "string", "nullable": true},
+    "alarm_date": {"type": "string", "nullable": false},
+    "alarm_time": {"type": "string", "nullable": true},
+    "incident_type": {"type": "string", "nullable": true},
+    "incident_description": {"type": "string", "nullable": true},
+    "estimated_property_loss": {"type": "string", "nullable": true},
+    "estimated_content_loss": {"type": "string", "nullable": true},
+    "district": {"type": "string", "nullable": true},
+    "city_section": {"type": "string", "nullable": true},
+    "neighborhood": {"type": "string", "nullable": true},
+    "zip": {"type": "string", "nullable": true},
+    "property_use": {"type": "string", "nullable": true},
+    "property_description": {"type": "string", "nullable": true},
+    "street_number": {"type": "string", "nullable": true},
+    "street_prefix": {"type": "string", "nullable": true},
+    "street_name": {"type": "string", "nullable": true},
+    "street_suffix": {"type": "string", "nullable": true},
+    "street_type": {"type": "string", "nullable": true},
+    "address_2": {"type": "string", "nullable": true},
+    "xstreet_prefix": {"type": "string", "nullable": true},
+    "xstreet_name": {"type": "string", "nullable": true},
+    "xstreet_suffix": {"type": "string", "nullable": true},
+    "xstreet_type": {"type": "string", "nullable": true}
+  }
+}
