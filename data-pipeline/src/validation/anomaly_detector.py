@@ -274,7 +274,10 @@ class AnomalyDetector:
                         count=outlier_count,
                         percentage=outlier_ratio,
                         details={
-                            "bounds": {"lower": float(lower_bound), "upper": float(upper_bound)},
+                            "bounds": {
+                                "lower": float(lower_bound),
+                                "upper": float(upper_bound),
+                            },
                             "mean": float(col_data.mean()),
                             "std": float(col_data.std()),
                         },
@@ -484,9 +487,7 @@ class AnomalyDetector:
             severity = (
                 AnomalySeverity.CRITICAL
                 if dup_ratio > 0.1
-                else AnomalySeverity.WARNING
-                if dup_ratio > 0.01
-                else AnomalySeverity.INFO
+                else (AnomalySeverity.WARNING if dup_ratio > 0.01 else AnomalySeverity.INFO)
             )
 
             anomalies.append(

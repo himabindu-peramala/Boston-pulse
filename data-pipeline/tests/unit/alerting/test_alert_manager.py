@@ -290,7 +290,12 @@ def test_should_send_alert_after_record(manager):
     config.alerting.rate_limit.cooldown_minutes = 60  # long cooldown
     manager = AlertManager(config)
 
-    alert = Alert(title="Cooldown Test", message="Msg", severity=AlertSeverity.WARNING, dataset="x")
+    alert = Alert(
+        title="Cooldown Test",
+        message="Msg",
+        severity=AlertSeverity.WARNING,
+        dataset="x",
+    )
     manager._record_alert(alert)
     # Second call within cooldown should be suppressed
     result = manager._should_send_alert(alert)

@@ -309,7 +309,11 @@ class FairnessChecker:
         Uses Fairlearn's MetricFrame and demographic_parity_difference for
         statistically grounded disparity measurement.
         """
-        from fairlearn.metrics import MetricFrame, demographic_parity_difference, selection_rate
+        from fairlearn.metrics import (
+            MetricFrame,
+            demographic_parity_difference,
+            selection_rate,
+        )
 
         violations = []
 
@@ -410,7 +414,9 @@ class FairnessChecker:
                     details={
                         "slice_size": slice_obj.size,
                         "outcome_column": outcome_column,
-                        "demographic_parity_difference": round(dpd, 4) if dpd is not None else None,
+                        "demographic_parity_difference": (
+                            round(dpd, 4) if dpd is not None else None
+                        ),
                         "fairlearn_used": mf is not None,
                     },
                 )

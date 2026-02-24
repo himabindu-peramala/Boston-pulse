@@ -199,7 +199,10 @@ class SchemaEnforcer:
         # 3. Null ratio check
         for col in df.columns:
             max_null_ratio = self._get_threshold(
-                dataset, "max_null_ratio", self.config.validation.quality.max_null_ratio, col
+                dataset,
+                "max_null_ratio",
+                self.config.validation.quality.max_null_ratio,
+                col,
             )
             null_ratio = df[col].isna().sum() / len(df)
             if null_ratio > max_null_ratio:

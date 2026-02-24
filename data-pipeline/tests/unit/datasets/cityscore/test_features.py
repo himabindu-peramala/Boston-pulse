@@ -9,7 +9,10 @@ from datetime import UTC, datetime
 import pandas as pd
 import pytest
 
-from src.datasets.cityscore.features import CityScoreFeatureBuilder, build_cityscore_features
+from src.datasets.cityscore.features import (
+    CityScoreFeatureBuilder,
+    build_cityscore_features,
+)
 
 
 class TestCityScoreFeatureBuilder:
@@ -36,7 +39,11 @@ class TestCityScoreFeatureBuilder:
                     datetime(2024, 1, 14, tzinfo=UTC).date(),
                     datetime(2024, 1, 13, tzinfo=UTC).date(),
                 ],
-                "metric_name": ["Trash On-Time %", "Trash On-Time %", "Trash On-Time %"],
+                "metric_name": [
+                    "Trash On-Time %",
+                    "Trash On-Time %",
+                    "Trash On-Time %",
+                ],
                 "day_score": [0.85, 0.80, 0.75],
                 "target": [0.80, 0.80, 0.80],
             }
