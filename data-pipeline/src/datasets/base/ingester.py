@@ -58,8 +58,8 @@ class IngestionResult:
             "rows_fetched": self.rows_fetched,
             "rows_new": self.rows_new,
             "rows_updated": self.rows_updated,
-            "watermark_start": self.watermark_start.isoformat() if self.watermark_start else None,
-            "watermark_end": self.watermark_end.isoformat() if self.watermark_end else None,
+            "watermark_start": (self.watermark_start.isoformat() if self.watermark_start else None),
+            "watermark_end": (self.watermark_end.isoformat() if self.watermark_end else None),
             "output_path": self.output_path,
             "duration_seconds": self.duration_seconds,
             "success": self.success,
@@ -166,7 +166,7 @@ class BaseIngester(ABC):
             extra={
                 "dataset": dataset_name,
                 "execution_date": execution_date,
-                "watermark_start": watermark_start.isoformat() if watermark_start else None,
+                "watermark_start": (watermark_start.isoformat() if watermark_start else None),
             },
         )
 

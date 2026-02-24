@@ -74,7 +74,11 @@ class StorageConfig(BaseModel):
     paths: StoragePathsConfig = Field(default_factory=StoragePathsConfig)
     emulator: StorageEmulatorConfig = Field(default_factory=StorageEmulatorConfig)
     formats: dict[str, str] = Field(
-        default_factory=lambda: {"raw": "parquet", "processed": "parquet", "features": "parquet"}
+        default_factory=lambda: {
+            "raw": "parquet",
+            "processed": "parquet",
+            "features": "parquet",
+        }
     )
 
 

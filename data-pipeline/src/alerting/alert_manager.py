@@ -412,7 +412,11 @@ class AlertManager:
                     "title": alert.title,
                     "text": alert.message,
                     "fields": [
-                        {"title": "Severity", "value": alert.severity.value.upper(), "short": True},
+                        {
+                            "title": "Severity",
+                            "value": alert.severity.value.upper(),
+                            "short": True,
+                        },
                         {
                             "title": "Timestamp",
                             "value": alert.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC"),
