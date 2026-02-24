@@ -28,6 +28,7 @@ dependencies = [
     "numpy",
     "pyarrow",
     "scipy",
+    "openpyxl",
 
 
     # Configuration & Validation

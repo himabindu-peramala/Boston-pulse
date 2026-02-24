@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Boston BERDO Raw Data Schema",
+  "description": "Schema for raw BERDO building energy and emissions data from Analyze Boston API",
+  "type": "object",
+  "properties": {
+    "_id": {
+      "type": ["integer", "string"],
+      "description": "Unique identifier",
+      "primary_key": true
+    },
+    "reporting_year": {
+      "type": ["integer", "string", "null"],
+      "description": "Year of energy reporting"
+    },
+    "property_name": {
+      "type": ["string", "null"],
+      "description": "Name of the building/property"
+    },
+    "address": {
+      "type": ["string", "null"],
+      "description": "Property address"
+    },
+    "zip": {
+      "type": ["string", "null"],
+      "description": "ZIP code"
+    },
+    "property_type": {
+      "type": ["string", "null"],
+      "description": "Type of property (Office, Residential, etc.)"
+    },
+    "gross_floor_area": {
+      "type": ["number", "string", "null"],
+      "description": "Total floor area in square feet"
+    },
+    "site_energy_use_kbtu": {
+      "type": ["number", "string", "null"],
+      "description": "Total site energy use in kBtu"
+    },
+    "total_ghg_emissions": {
+      "type": ["number", "string", "null"],
+      "description": "Total greenhouse gas emissions in metric tons CO2e"
+    },
+    "energy_star_score": {
+      "type": ["number", "string", "null"],
+      "description": "EPA Energy Star score (1-100)"
+    },
+    "electricity_use_grid_purchase": {
+      "type": ["number", "string", "null"],
+      "description": "Grid electricity purchased in kBtu"
+    },
+    "natural_gas_use": {
+      "type": ["number", "string", "null"],
+      "description": "Natural gas use in kBtu"
+    },
+    "lat": {
+      "type": ["number", "string", "null"],
+      "description": "Latitude coordinate"
+    },
+    "long": {
+      "type": ["number", "string", "null"],
+      "description": "Longitude coordinate"
+    }
+  },
+  "required": ["_id"],
+  "additionalProperties": true,
+  "metadata": {
+    "dataset": "berdo",
+    "stage": "raw",
+    "source": "Analyze Boston API",
+    "resource_id": "ae07be23-7e8e-4a96-bf16-f31851dfb93e",
+    "version": "1.0.0"
+  }
+}
