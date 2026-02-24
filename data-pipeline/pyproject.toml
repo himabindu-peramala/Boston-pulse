@@ -75,7 +75,7 @@ dev = [
 
     # Linting & Formatting
     "ruff",
-    "black",
+    "black==26.1.0",
     "mypy",
 
     # Type stubs
