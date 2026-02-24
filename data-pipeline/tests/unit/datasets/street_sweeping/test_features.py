@@ -21,13 +21,19 @@ def sample_df():
             "sam_street_id": ["12345", "67890", "11111"],
             "full_street_name": ["MAIN ST", "ELM ST", "OAK AVE"],
             "district": ["1A", "1B", "2A"],
+            "district_name": ["DISTRICT 1A", "DISTRICT 1B", "DISTRICT 2A"],
             "side_of_street": ["LEFT", "RIGHT", "LEFT"],
-            "season_start": ["APR", "APR", "MAY"],
-            "season_end": ["NOV", "NOV", "OCT"],
-            "week_type": ["EVERY WEEK", "BI-WEEKLY", "EVERY WEEK"],
-            "tow_zone": ["YES", "NO", "YES"],
-            "lat": [42.3601, 42.3501, 42.3701],
-            "long": [-71.0589, -71.0489, -71.0689],
+            "from_street": ["ELM ST", "OAK ST", "PINE ST"],
+            "to_street": ["OAK ST", "PINE ST", "MAPLE ST"],
+            "start_time": ["8:00 AM", "9:00 AM", "10:00 AM"],
+            "end_time": ["12:00 PM", "1:00 PM", "2:00 PM"],
+            "week_1": ["Y", "Y", "Y"],
+            "week_2": ["Y", "N", "Y"],
+            "week_3": ["Y", "N", "Y"],
+            "week_4": ["Y", "N", "Y"],
+            "year_round": ["Y", "N", "Y"],
+            "one_way": ["N", "Y", "N"],
+            "miles": [0.5, 0.3, 0.7],
         }
     )
 
@@ -36,17 +42,21 @@ def test_get_dataset_name(builder):
     assert builder.get_dataset_name() == "street_sweeping"
 
 
+def test_get_entity_key(builder):
+    assert builder.get_entity_key() == "sam_street_id"
+
+
 def test_build_features_empty_df(builder):
     df = pd.DataFrame()
     result = builder.build_features(df)
     assert isinstance(result, pd.DataFrame)
 
 
-def test_tow_enforced_feature(builder, sample_df):
+def test_is_year_round_feature(builder, sample_df):
     result = builder.build_features(sample_df)
-    assert "tow_enforced" in result.columns
-    assert result.loc[0, "tow_enforced"] == 1
-    assert result.loc[1, "tow_enforced"] == 0
+    assert "is_year_round" in result.columns
+    assert result.loc[0, "is_year_round"] == 1
+    assert result.loc[1, "is_year_round"] == 0
 
 
 def test_is_every_week_feature(builder, sample_df):
@@ -54,19 +64,6 @@ def test_is_every_week_feature(builder, sample_df):
     assert "is_every_week" in result.columns
     assert result.loc[0, "is_every_week"] == 1
     assert result.loc[1, "is_every_week"] == 0
-
-
-def test_season_months_feature(builder, sample_df):
-    result = builder.build_features(sample_df)
-    assert "season_start_month" in result.columns
-    assert "season_end_month" in result.columns
-    assert result.loc[0, "season_start_month"] == 4  # APR
-
-
-def test_active_months_count(builder, sample_df):
-    result = builder.build_features(sample_df)
-    assert "active_months_count" in result.columns
-    assert result.loc[0, "active_months_count"] == 8  # APR to NOV
 
 
 def test_district_code_feature(builder, sample_df):
