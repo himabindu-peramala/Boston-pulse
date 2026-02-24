@@ -5,7 +5,7 @@ This directory contains the **Boston Pulse Data Pipeline**: an Airflow‑orchest
 
 ## Quick links
 
-- **End-to-end Pipeline Report**: [DataPipeline Report.docx](https://northeastern-my.sharepoint.com/:w:/g/personal/sridarhaladhi_m_northeastern_edu/IQBQb8CmV97JQZ9FnYcRcMfUAXmOSnmpDlu4GI9uQwRxehk?e=NsvT5K)
+- **End-to-end Pipeline Report**: [`DataPipeline Report.docx`](https://northeastern-my.sharepoint.com/:w:/g/personal/sridarhaladhi_m_northeastern_edu/IQBQb8CmV97JQZ9FnYcRcMfUAf045FBVfK8XWY_f5K6Npdo?e=YNG2c8)
 - **Contributor guide**: [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 - **DAGs overview**: [`dags/README.md`](./dags/README.md)
 - **Schemas & validation**: [`schemas/README.md`](./schemas/README.md)
