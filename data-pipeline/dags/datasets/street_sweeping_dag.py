@@ -414,6 +414,21 @@ def update_watermark(**context) -> dict:
     }
 
 
+def record_lineage(**context) -> dict:
+    """
+    Record data lineage for this pipeline run.
+    Captures exact GCS generation numbers for all artifacts,
+    enabling precise point-in-time recovery and debugging.
+    """
+    from dags.utils import record_pipeline_lineage
+
+    return record_pipeline_lineage(
+        dataset=DATASET,
+        dag_id=DAG_ID,
+        context=context,
+    )
+
+
 def pipeline_complete(**context) -> dict:
     """Final task to mark pipeline completion and send summary alert."""
     from dags.utils import alert_pipeline_complete
@@ -533,6 +548,12 @@ with DAG(
         on_failure_callback=on_task_failure,
     )
 
+    t_record_lineage = PythonOperator(
+        task_id="record_lineage",
+        python_callable=record_lineage,
+        on_failure_callback=on_task_failure,
+    )
+
     t_pipeline_complete = PythonOperator(
         task_id="pipeline_complete",
         python_callable=pipeline_complete,
@@ -551,5 +572,6 @@ with DAG(
         >> t_mitigate_bias
         >> t_generate_model_card
         >> t_update_watermark
+        >> t_record_lineage
         >> t_pipeline_complete
     )
