@@ -15,6 +15,7 @@ from src.shared.config import Settings
 
 logger = logging.getLogger(__name__)
 
+
 class FireIngester(BaseIngester):
     BASE_URL = "https://data.boston.gov/api/3/action/datastore_search"
     RESOURCE_ID = "91a38b1f-8439-46df-ba47-a30c48845e06"
@@ -78,9 +79,7 @@ class FireIngester(BaseIngester):
             timeout=60,
         )
         if response.status_code != 200:
-            raise RuntimeError(
-                f"HTTP {response.status_code}: {response.text[:500]}"
-            )
+            raise RuntimeError(f"HTTP {response.status_code}: {response.text[:500]}")
         data = response.json()
         if not data.get("success", False):
             raise RuntimeError(f"CKAN error: {data}")

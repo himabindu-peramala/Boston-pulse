@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 class FirePreprocessor(BasePreprocessor):
-
     COLUMN_MAPPINGS = {
         "incident_number": "incident_number",
         "alarm_date": "alarm_date",

@@ -46,6 +46,7 @@ default_args = {
 # TASK FUNCTIONS
 # =============================================================================
 
+
 def ingest_data(**context) -> dict:
     from dags.utils import get_effective_watermark, write_data
     from src.datasets.fire import FireIngester
@@ -252,16 +253,21 @@ with DAG(
     tags=["fire", "dataset"],
     max_active_runs=1,
 ) as dag:
-
     t_ingest = PythonOperator(task_id="ingest_data", python_callable=ingest_data)
     t_validate_raw = PythonOperator(task_id="validate_raw", python_callable=validate_raw)
     t_preprocess = PythonOperator(task_id="preprocess_data", python_callable=preprocess_data)
-    t_validate_processed = PythonOperator(task_id="validate_processed", python_callable=validate_processed)
+    t_validate_processed = PythonOperator(
+        task_id="validate_processed", python_callable=validate_processed
+    )
     t_build_features = PythonOperator(task_id="build_features", python_callable=build_features)
     t_detect_drift = PythonOperator(task_id="detect_drift", python_callable=detect_drift)
     t_check_fairness = PythonOperator(task_id="check_fairness", python_callable=check_fairness)
-    t_update_watermark = PythonOperator(task_id="update_watermark", python_callable=update_watermark)
-    t_pipeline_complete = PythonOperator(task_id="pipeline_complete", python_callable=pipeline_complete)
+    t_update_watermark = PythonOperator(
+        task_id="update_watermark", python_callable=update_watermark
+    )
+    t_pipeline_complete = PythonOperator(
+        task_id="pipeline_complete", python_callable=pipeline_complete
+    )
 
     (
         t_ingest

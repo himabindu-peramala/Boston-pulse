@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 class FireFeatureBuilder(BaseFeatureBuilder):
-
     WINDOW_SIZES = [7, 30, 90]
 
     def __init__(self, config: Settings | None = None):
@@ -125,10 +124,7 @@ class FireFeatureBuilder(BaseFeatureBuilder):
         logger.info(f"Built features for {len(features)} districts")
         return features
 
-    def _build_district_features(
-        self, df: pd.DataFrame, reference_date: datetime
-    ) -> pd.DataFrame:
-
+    def _build_district_features(self, df: pd.DataFrame, reference_date: datetime) -> pd.DataFrame:
         features_list = []
 
         for district, group in df.groupby("district"):
@@ -149,24 +145,17 @@ class FireFeatureBuilder(BaseFeatureBuilder):
     def _compute_district_features(
         self, group: pd.DataFrame, reference_date: datetime
     ) -> dict[str, Any]:
-
         features: dict[str, Any] = {}
 
         for window in self.WINDOW_SIZES:
-            mask = group["alarm_date"] >= (
-                reference_date - pd.Timedelta(days=window)
-            )
+            mask = group["alarm_date"] >= (reference_date - pd.Timedelta(days=window))
             features[f"fire_count_{window}d"] = mask.sum()
 
         # Avg property loss last 30 days
         if "estimated_property_loss" in group.columns:
-            mask_30d = group["alarm_date"] >= (
-                reference_date - pd.Timedelta(days=30)
-            )
+            mask_30d = group["alarm_date"] >= (reference_date - pd.Timedelta(days=30))
             features["avg_property_loss_30d"] = (
-                group.loc[mask_30d, "estimated_property_loss"].mean()
-                if mask_30d.sum() > 0
-                else 0.0
+                group.loc[mask_30d, "estimated_property_loss"].mean() if mask_30d.sum() > 0 else 0.0
             )
         else:
             features["avg_property_loss_30d"] = 0.0
