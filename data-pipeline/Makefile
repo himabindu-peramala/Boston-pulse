@@ -4,6 +4,7 @@
 
 .PHONY: help setup setup-dev install lint format test test-unit test-integration \
         test-schema test-cov clean airflow-up airflow-down airflow-logs \
+        airflow-up-dp airflow-down-dp airflow-logs-dp \
         create-dataset docker-build docker-push validate-dags
 
 # Default target
@@ -150,6 +151,19 @@ airflow-down:  ## Stop local Airflow environment
 
 airflow-logs:  ## View Airflow logs
 	cd ../docker && docker-compose -f docker-compose.airflow.yml logs -f
+
+airflow-up-dp:  ## Start Airflow (compose in data-pipeline/docker)
+	@echo "$(BLUE)Starting Airflow (data-pipeline/docker)...$(NC)"
+	cd docker && docker compose --env-file ../.env -f docker-compose.airflow.yml up -d --build
+	@echo "$(GREEN)Airflow is starting at http://localhost:8080$(NC)"
+
+airflow-down-dp:  ## Stop Airflow (compose in data-pipeline/docker)
+	@echo "$(BLUE)Stopping Airflow (data-pipeline/docker)...$(NC)"
+	cd docker && docker compose --env-file ../.env -f docker-compose.airflow.yml down
+	@echo "$(GREEN)Airflow stopped.$(NC)"
+
+airflow-logs-dp:  ## View Airflow logs (compose in data-pipeline/docker)
+	cd docker && docker compose --env-file ../.env -f docker-compose.airflow.yml logs -f
 
 airflow-restart:  ## Restart Airflow
 	$(MAKE) airflow-down
