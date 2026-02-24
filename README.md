@@ -1,15 +1,14 @@
 # Boston Pulse
 
-Boston Pulse is a machine‑learning–driven “digital twin” of the City of Boston. It unifies municipal open data, real‑time feeds, and analytics into a conversational and navigation system that helps residents and newcomers understand, navigate, and make decisions about city life.
+Boston Pulse is a machine-learning–driven “digital twin” of the City of Boston. It unifies municipal open data, real-time feeds, and analytics into a conversational and navigation system that helps residents and newcomers understand, navigate, and make decisions about city life.
 
-This repository is organized as a **monorepo of micro‑services**: each top‑level directory is its own component with its own README and setup, so you can learn and work on each part (data pipeline, backend, frontend) independently.
-
-## Project Objectives
-
-- Integrate heterogeneous Boston city datasets into a unified **city state**
-- Build predictive models for civic services, neighborhood recommendations, and urban risk
-- Enable **natural‑language interaction** with structured and real‑time city data
-- Demonstrate an **end‑to‑end ML pipeline** grounded in public open data
+The system:
+- Integrates heterogeneous Boston city datasets into a unified city state
+- Builds predictive models for civic services, neighborhood recommendations, and urban risk
+- Enables natural-language interaction with structured and real-time city data
+- Demonstrates an end-to-end ML pipeline grounded in public open data
+  
+This repository is organized as a **monorepo of micro-services**: each top-level directory is its own component with its own README and setup, so you can work on the data pipeline, backend, and frontend independently.
 
 ## Monorepo Structure
 
@@ -27,7 +26,7 @@ Boston-pulse/
 └── .github/          # CI workflows (tests, lint, etc.)
 ```
 
-Each of these acts as a **separate micro‑service**:
+Each of these acts as a separate micro‑service:
 
 - **`backend/` (WIP)** – Backend APIs and model endpoints used by the UI and chatbot.
 - **`frontend/`(WIP)** – Single‑page application that talks to `backend/`.
