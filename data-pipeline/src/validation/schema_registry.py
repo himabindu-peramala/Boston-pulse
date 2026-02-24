@@ -431,7 +431,14 @@ class SchemaRegistry:
 
         # Allow 'object' (common when ingesting JSON) to match string, integer, float, number, or datetime
         if actual == "object":
-            return expected in ["string", "integer", "float", "number", "datetime", "null"]
+            return expected in [
+                "string",
+                "integer",
+                "float",
+                "number",
+                "datetime",
+                "null",
+            ]
 
         # Null check
         if expected == "null":

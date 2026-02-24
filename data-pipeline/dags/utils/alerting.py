@@ -72,7 +72,10 @@ class DAGAlertManager:
             dataset=dataset,
             dag_id=dag_id,
             execution_date=execution_date,
-            metadata={"rows_fetched": rows_fetched, "duration_seconds": duration_seconds},
+            metadata={
+                "rows_fetched": rows_fetched,
+                "duration_seconds": duration_seconds,
+            },
         )
 
     def alert_preprocessing_complete(

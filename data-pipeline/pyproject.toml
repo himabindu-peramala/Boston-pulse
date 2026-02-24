@@ -28,6 +28,7 @@ dependencies = [
     "numpy",
     "pyarrow",
     "scipy",
+    "openpyxl",
 
 
     # Configuration & Validation
@@ -75,7 +76,7 @@ dev = [
 
     # Linting & Formatting
     "ruff",
-    "black",
+    "black==26.1.0",
     "mypy",
 
     # Type stubs

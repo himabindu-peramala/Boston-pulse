@@ -6,6 +6,7 @@ Common utilities for Airflow DAGs including:
 - Watermark management
 - Task callbacks
 - DAG alerting
+- Lineage tracking
 
 Usage:
     from dags.utils import (
@@ -13,6 +14,7 @@ Usage:
         get_watermark, set_watermark,
         on_task_failure, on_dag_failure,
         alert_validation_failure, alert_drift_detected,
+        record_pipeline_lineage, get_lineage_for_date,
     )
 """
 
@@ -41,6 +43,18 @@ from dags.utils.gcs_io import (
     get_latest_data,
     read_data,
     write_data,
+)
+from dags.utils.lineage_utils import (
+    compare_runs,
+    create_record_lineage_task,
+    find_runs_with_schema,
+    get_dataset_lineage_history,
+    get_lineage_for_date,
+    get_restore_commands,
+    print_lineage_diff,
+    print_lineage_summary,
+    print_restore_commands,
+    record_pipeline_lineage,
 )
 from dags.utils.watermark import (
     WatermarkManager,
@@ -78,4 +92,15 @@ __all__ = [
     "alert_anomaly_detected",
     "alert_fairness_violation",
     "alert_pipeline_complete",
+    # Lineage
+    "record_pipeline_lineage",
+    "create_record_lineage_task",
+    "get_lineage_for_date",
+    "get_dataset_lineage_history",
+    "compare_runs",
+    "find_runs_with_schema",
+    "get_restore_commands",
+    "print_restore_commands",
+    "print_lineage_summary",
+    "print_lineage_diff",
 ]

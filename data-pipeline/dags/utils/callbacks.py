@@ -31,8 +31,6 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any
 
-from airflow.models import TaskInstance
-
 from src.alerting import send_alert
 
 logger = logging.getLogger(__name__)
@@ -40,6 +38,8 @@ logger = logging.getLogger(__name__)
 
 def _extract_context_info(context: dict[str, Any]) -> dict[str, Any]:
     """Extract relevant information from Airflow context."""
+    from airflow.models import TaskInstance
+
     ti: TaskInstance | None = context.get("task_instance") or context.get("ti")
     dag_run = context.get("dag_run")
 

@@ -322,6 +322,161 @@ class GCSDataIO:
 
         return sorted(dates, reverse=True)
 
+    # =========================================================================
+    # Generation Tracking Methods (for Lineage)
+    # =========================================================================
+
+    def get_blob_generation(
+        self,
+        dataset: str,
+        layer: str,
+        execution_date: str,
+        filename: str = "data.parquet",
+    ) -> str | None:
+        """
+        Get the GCS generation number for a blob.
+
+        Generation numbers uniquely identify exact versions of files.
+        Used for lineage tracking and data recovery.
+
+        Args:
+            dataset: Dataset name
+            layer: Data layer
+            execution_date: Execution date
+            filename: Filename
+
+        Returns:
+            Generation number as string, or None if blob doesn't exist
+        """
+        path = self.get_path(dataset, layer, execution_date, filename)
+
+        try:
+            blob = self.bucket.get_blob(path)
+            if blob is not None:
+                return str(blob.generation)
+        except Exception as e:
+            logger.debug(f"Could not get generation for {path}: {e}")
+
+        return None
+
+    def get_blob_metadata(
+        self,
+        dataset: str,
+        layer: str,
+        execution_date: str,
+        filename: str = "data.parquet",
+    ) -> dict[str, Any] | None:
+        """
+        Get full metadata for a blob including generation number.
+
+        Args:
+            dataset: Dataset name
+            layer: Data layer
+            execution_date: Execution date
+            filename: Filename
+
+        Returns:
+            Dict with path, generation, size, md5_hash, updated_at
+        """
+        path = self.get_path(dataset, layer, execution_date, filename)
+
+        try:
+            blob = self.bucket.get_blob(path)
+            if blob is not None:
+                return {
+                    "path": f"gs://{self.bucket_name}/{path}",
+                    "generation": str(blob.generation),
+                    "size_bytes": blob.size,
+                    "md5_hash": blob.md5_hash,
+                    "updated_at": blob.updated.isoformat() if blob.updated else None,
+                }
+        except Exception as e:
+            logger.debug(f"Could not get metadata for {path}: {e}")
+
+        return None
+
+    def copy_blob_version(
+        self,
+        source_path: str,
+        generation: str,
+        dest_path: str,
+    ) -> bool:
+        """
+        Copy a specific version of a blob to a new location.
+
+        Uses GCS generation number to copy exact version.
+
+        Args:
+            source_path: Source blob path (without gs:// prefix)
+            generation: GCS generation number
+            dest_path: Destination blob path
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            source_blob = self.bucket.blob(source_path, generation=int(generation))
+
+            # Copy the specific version
+            self.bucket.copy_blob(source_blob, self.bucket, dest_path)
+
+            logger.info(f"Copied {source_path}#{generation} to {dest_path}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to copy blob version: {e}")
+            return False
+
+    def list_blob_versions(
+        self,
+        dataset: str,
+        layer: str,
+        execution_date: str,
+        filename: str = "data.parquet",
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """
+        List all versions of a blob (requires bucket versioning enabled).
+
+        Args:
+            dataset: Dataset name
+            layer: Data layer
+            execution_date: Execution date
+            filename: Filename
+            limit: Maximum versions to return
+
+        Returns:
+            List of version metadata dicts
+        """
+        path = self.get_path(dataset, layer, execution_date, filename)
+        versions = []
+
+        try:
+            blobs = self.client.list_blobs(
+                self.bucket_name,
+                prefix=path,
+                versions=True,
+            )
+
+            for blob in blobs:
+                if blob.name == path:
+                    versions.append(
+                        {
+                            "generation": str(blob.generation),
+                            "size_bytes": blob.size,
+                            "updated_at": (blob.updated.isoformat() if blob.updated else None),
+                            "is_live": not blob.time_deleted,
+                        }
+                    )
+
+                    if len(versions) >= limit:
+                        break
+
+        except Exception as e:
+            logger.debug(f"Could not list versions for {path}: {e}")
+
+        return versions
+
 
 # =============================================================================
 # Convenience Functions

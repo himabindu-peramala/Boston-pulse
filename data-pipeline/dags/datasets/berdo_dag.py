@@ -1,10 +1,10 @@
 """
-Boston Pulse - Street Sweeping Schedules DAG
+Boston Pulse - BERDO Dataset DAG
 
-Complete Airflow DAG for the street sweeping schedules data pipeline.
+Complete Airflow DAG for the BERDO building energy and emissions data pipeline.
 
 Pipeline Stages:
-    1. Ingest: Fetch data from Analyze Boston API
+    1. Ingest: Download BERDO Excel data from Analyze Boston
     2. Validate Raw: Check raw data schema and quality
     3. Preprocess: Clean and transform data
     4. Validate Processed: Check processed data schema and quality
@@ -25,9 +25,9 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 
 # DAG Configuration
-DAG_ID = "street_sweeping_pipeline"
-DATASET = "street_sweeping"
-SCHEDULE = "@monthly"
+DAG_ID = "berdo_pipeline"
+DATASET = "berdo"
+SCHEDULE = "@yearly"
 START_DATE = datetime(2024, 1, 1)
 
 default_args = {
@@ -47,13 +47,13 @@ default_args = {
 
 
 def ingest_data(**context) -> dict:
-    """Ingest street sweeping data from Analyze Boston API."""
+    """Ingest BERDO data from Analyze Boston via direct file download."""
     from dags.utils import write_data
-    from src.datasets.street_sweeping.ingest import StreetSweepingIngester
+    from src.datasets.berdo.ingest import BerdoIngester
 
     execution_date = context["ds"]
 
-    ingester = StreetSweepingIngester()
+    ingester = BerdoIngester()
     result = ingester.run(execution_date=execution_date, watermark_start=None)
 
     if not result.success:
@@ -68,7 +68,7 @@ def ingest_data(**context) -> dict:
 
 
 def validate_raw(**context) -> dict:
-    """Validate raw street sweeping data against schema."""
+    """Validate raw BERDO data against schema."""
     from dags.utils import alert_validation_failure, read_data
     from src.validation import SchemaEnforcer
 
@@ -98,14 +98,14 @@ def validate_raw(**context) -> dict:
 
 
 def preprocess_data(**context) -> dict:
-    """Preprocess raw street sweeping data."""
+    """Preprocess raw BERDO data."""
     from dags.utils import read_data, write_data
-    from src.datasets.street_sweeping.preprocess import StreetSweepingPreprocessor
+    from src.datasets.berdo.preprocess import BerdoPreprocessor
 
     execution_date = context["ds"]
     raw_df = read_data(DATASET, "raw", execution_date)
 
-    preprocessor = StreetSweepingPreprocessor()
+    preprocessor = BerdoPreprocessor()
     result = preprocessor.run(raw_df, execution_date)
 
     if not result.success:
@@ -120,7 +120,7 @@ def preprocess_data(**context) -> dict:
 
 
 def validate_processed(**context) -> dict:
-    """Validate processed street sweeping data against schema."""
+    """Validate processed BERDO data against schema."""
     from dags.utils import alert_validation_failure, read_data
     from src.validation import SchemaEnforcer
 
@@ -150,14 +150,14 @@ def validate_processed(**context) -> dict:
 
 
 def build_features(**context) -> dict:
-    """Build street sweeping features from processed data."""
+    """Build BERDO features from processed data."""
     from dags.utils import read_data, write_data
-    from src.datasets.street_sweeping.features import StreetSweepingFeatureBuilder
+    from src.datasets.berdo.features import BerdoFeatureBuilder
 
     execution_date = context["ds"]
     processed_df = read_data(DATASET, "processed", execution_date)
 
-    builder = StreetSweepingFeatureBuilder()
+    builder = BerdoFeatureBuilder()
     result = builder.run(processed_df, execution_date)
 
     if not result.success:
@@ -172,7 +172,7 @@ def build_features(**context) -> dict:
 
 
 def validate_features(**context) -> dict:
-    """Validate street sweeping features against schema."""
+    """Validate BERDO features against schema."""
     from dags.utils import alert_validation_failure, read_data
     from src.validation import SchemaEnforcer
 
@@ -202,7 +202,7 @@ def validate_features(**context) -> dict:
 
 
 def detect_drift(**context) -> dict:
-    """Detect data drift in processed street sweeping data."""
+    """Detect data drift in processed BERDO data."""
     from dags.utils import alert_drift_detected, read_data
     from src.validation import DriftDetector
 
@@ -212,7 +212,7 @@ def detect_drift(**context) -> dict:
     try:
         from datetime import datetime, timedelta
 
-        prev_date = datetime.strptime(execution_date, "%Y-%m-%d") - timedelta(days=30)
+        prev_date = datetime.strptime(execution_date, "%Y-%m-%d") - timedelta(days=365)
         reference_df = read_data(DATASET, "processed", prev_date.strftime("%Y-%m-%d"))
     except FileNotFoundError:
         return {
@@ -245,10 +245,10 @@ def detect_drift(**context) -> dict:
 
 def check_fairness(**context) -> dict:
     """
-    Check fairness metrics for street sweeping dataset.
+    Check fairness metrics for BERDO dataset.
 
-    Evaluates whether street sweeping schedules are equitably
-    distributed across different districts.
+    Evaluates whether building emissions reporting is equitable
+    across different property types and neighborhoods.
     """
     from dags.utils import alert_fairness_violation, read_data
     from src.bias.fairness_checker import FairnessChecker, FairnessViolationError
@@ -269,7 +269,7 @@ def check_fairness(**context) -> dict:
         df=df,
         dataset=DATASET,
         outcome_column=None,
-        dimensions=["district"],
+        dimensions=["property_type"],
     )
 
     report = checker.create_fairness_report(result)
@@ -319,57 +319,8 @@ def check_fairness(**context) -> dict:
     }
 
 
-def mitigate_bias(**context) -> dict:
-    """
-    Apply bias mitigation strategies to address fairness violations.
-
-    Uses reweighting to correct representation imbalance across districts.
-    """
-    from dags.utils import read_data, write_data
-    from src.bias.bias_mitigator import BiasMitigator, MitigationStrategy
-    from src.bias.fairness_checker import FairnessChecker
-
-    execution_date = context["ds"]
-    df = read_data(DATASET, "processed", execution_date)
-
-    if df.empty:
-        return {"mitigated": False, "message": "No data to mitigate"}
-
-    # Re-run fairness check to get fairness_result object
-    checker = FairnessChecker()
-    fairness_result = checker.evaluate_fairness(
-        df=df,
-        dataset=DATASET,
-        outcome_column=None,
-        dimensions=["district"],
-    )
-
-    # Apply reweighting mitigation
-    mitigator = BiasMitigator()
-    result = mitigator.mitigate(
-        df=df,
-        fairness_result=fairness_result,
-        dimension="district",
-        strategy=MitigationStrategy.REWEIGHTING,
-    )
-
-    print(result.report())
-
-    # Save mitigated data
-    if result.mitigated_df is not None and len(result.mitigated_df) > 0:
-        write_data(result.mitigated_df, DATASET, "processed", execution_date)
-
-    return {
-        "mitigated": True,
-        "strategy": result.strategy.value,
-        "rows_before": result.rows_before,
-        "rows_after": result.rows_after,
-        "slices_improved": result.total_improved,
-    }
-
-
 def generate_model_card(**context) -> dict:
-    """Generate model card for street sweeping dataset."""
+    """Generate model card for BERDO dataset."""
     from dags.utils import read_data
     from src.bias import ModelCardGenerator
 
@@ -386,7 +337,7 @@ def generate_model_card(**context) -> dict:
         dataset=DATASET,
         df=df,
         version=execution_date.replace("-", ""),
-        description="Boston street sweeping schedules from Public Works Department",
+        description="Boston BERDO building energy and emissions data from Environment Department",
         validation_result=validation_result,
         drift_result=drift_result,
         fairness_result=fairness_result,
@@ -455,11 +406,11 @@ def pipeline_complete(**context) -> dict:
 with DAG(
     dag_id=DAG_ID,
     default_args=default_args,
-    description="Street sweeping schedules data pipeline with validation and fairness checks",
+    description="BERDO building energy and emissions data pipeline with validation and fairness checks",
     schedule_interval=SCHEDULE,
     start_date=START_DATE,
     catchup=False,
-    tags=["boston-pulse", "street-sweeping", "public-works"],
+    tags=["boston-pulse", "berdo", "emissions", "housing"],
     max_active_runs=1,
 ) as dag:
     from dags.utils import on_dag_failure, on_dag_success, on_task_failure
@@ -515,12 +466,6 @@ with DAG(
         on_failure_callback=on_task_failure,
     )
 
-    t_mitigate_bias = PythonOperator(
-        task_id="mitigate_bias",
-        python_callable=mitigate_bias,
-        on_failure_callback=on_task_failure,
-    )
-
     t_generate_model_card = PythonOperator(
         task_id="generate_model_card",
         python_callable=generate_model_card,
@@ -548,7 +493,6 @@ with DAG(
         >> t_build_features
         >> t_validate_features
         >> [t_detect_drift, t_check_fairness]
-        >> t_mitigate_bias
         >> t_generate_model_card
         >> t_update_watermark
         >> t_pipeline_complete

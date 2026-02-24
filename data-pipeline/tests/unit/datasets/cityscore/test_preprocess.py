@@ -7,7 +7,10 @@ Tests the CityScore data preprocessing and validation.
 import pandas as pd
 import pytest
 
-from src.datasets.cityscore.preprocess import CityScorePreprocessor, preprocess_cityscore_data
+from src.datasets.cityscore.preprocess import (
+    CityScorePreprocessor,
+    preprocess_cityscore_data,
+)
 
 
 class TestCityScorePreprocessor:
