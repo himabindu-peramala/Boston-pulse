@@ -3,11 +3,13 @@ Boston Pulse - Fire Data Ingester
 Uses CKAN datastore_search (NOT SQL)
 """
 from __future__ import annotations
+
 import logging
 from datetime import datetime
-from typing import Optional
+
 import pandas as pd
 import requests
+
 from src.datasets.base import BaseIngester
 from src.shared.config import Settings
 
@@ -17,7 +19,7 @@ class FireIngester(BaseIngester):
     BASE_URL = "https://data.boston.gov/api/3/action/datastore_search"
     RESOURCE_ID = "91a38b1f-8439-46df-ba47-a30c48845e06"
 
-    def __init__(self, config: Optional[Settings] = None):
+    def __init__(self, config: Settings | None = None):
         super().__init__(config)
         self.batch_size = 5000
 
@@ -30,7 +32,7 @@ class FireIngester(BaseIngester):
     def get_watermark_field(self) -> str:
         return "alarm_date"
 
-    def fetch_data(self, since: Optional[datetime] = None) -> pd.DataFrame:
+    def fetch_data(self, since: datetime | None = None) -> pd.DataFrame:
         logger.info("Starting ingestion for fire")
         if since is None:
             raise ValueError("FireIngester requires watermark value")

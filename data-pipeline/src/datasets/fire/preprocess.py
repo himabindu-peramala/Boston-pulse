@@ -8,7 +8,6 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from src.datasets.base import BasePreprocessor

@@ -218,8 +218,9 @@ def check_fairness(**context) -> dict:
 
 
 def update_watermark(**context) -> dict:
-    from dags.utils import read_data, set_watermark
     import pandas as pd
+
+    from dags.utils import read_data, set_watermark
 
     execution_date = context["ds"]
     df = read_data(DATASET, "processed", execution_date)
