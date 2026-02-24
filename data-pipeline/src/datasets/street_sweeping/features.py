@@ -96,8 +96,10 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
         week_cols = [c for c in ["week_1", "week_2", "week_3", "week_4"] if c in df.columns]
         if week_cols:
             df["is_every_week"] = (
-                df[week_cols]
-                .apply(lambda row: all(str(v).upper() in ["Y", "YES", "TRUE", "1"] for v in row), axis=1)
+                df[week_cols].apply(
+                    lambda row: all(str(v).upper() in ["Y", "YES", "TRUE", "1"] for v in row),
+                    axis=1,
+                )
             ).astype(int)
 
         return df
