@@ -498,7 +498,6 @@
 #         >> t_pipeline_complete
 #     )
 
-
 """
 Boston Pulse - BERDO Dataset DAG
 
@@ -513,9 +512,11 @@ Pipeline Stages:
     6. Validate Features: Check feature schema and quality
     7. Detect Drift: Check for data distribution changes
     8. Check Fairness: Evaluate fairness metrics
-    9. Generate Model Card: Create dataset documentation
-    10. Update Watermark: Track last successful run
-    11. Pipeline Complete: Send summary alert
+    9. Mitigate Bias: Apply bias mitigation strategies
+    10. Generate Model Card: Create dataset documentation
+    11. Update Watermark: Track last successful run
+    12. Record Lineage: Capture GCS artifact generations
+    13. Pipeline Complete: Send summary alert
 """
 
 from __future__ import annotations
@@ -820,6 +821,52 @@ def check_fairness(**context) -> dict:
     }
 
 
+def mitigate_bias(**context) -> dict:
+    """
+    Apply bias mitigation strategies to address fairness violations.
+
+    Uses reweighting to correct representation imbalance across property types.
+    """
+    from dags.utils import read_data, write_data
+    from src.bias.bias_mitigator import BiasMitigator, MitigationStrategy
+    from src.bias.fairness_checker import FairnessChecker
+
+    execution_date = context["ds"]
+    df = read_data(DATASET, "processed", execution_date)
+
+    if df.empty:
+        return {"mitigated": False, "message": "No data to mitigate"}
+
+    checker = FairnessChecker()
+    fairness_result = checker.evaluate_fairness(
+        df=df,
+        dataset=DATASET,
+        outcome_column=None,
+        dimensions=["property_type"],
+    )
+
+    mitigator = BiasMitigator()
+    result = mitigator.mitigate(
+        df=df,
+        fairness_result=fairness_result,
+        dimension="property_type",
+        strategy=MitigationStrategy.REWEIGHTING,
+    )
+
+    print(result.report())
+
+    if result.mitigated_df is not None and len(result.mitigated_df) > 0:
+        write_data(result.mitigated_df, DATASET, "processed", execution_date)
+
+    return {
+        "mitigated": True,
+        "strategy": result.strategy.value,
+        "rows_before": result.rows_before,
+        "rows_after": result.rows_after,
+        "slices_improved": result.total_improved,
+    }
+
+
 def generate_model_card(**context) -> dict:
     """Generate model card for BERDO dataset."""
     from dags.utils import read_data
@@ -982,6 +1029,12 @@ with DAG(
         on_failure_callback=on_task_failure,
     )
 
+    t_mitigate_bias = PythonOperator(
+        task_id="mitigate_bias",
+        python_callable=mitigate_bias,
+        on_failure_callback=on_task_failure,
+    )
+
     t_generate_model_card = PythonOperator(
         task_id="generate_model_card",
         python_callable=generate_model_card,
@@ -1015,6 +1068,7 @@ with DAG(
         >> t_build_features
         >> t_validate_features
         >> [t_detect_drift, t_check_fairness]
+        >> t_mitigate_bias
         >> t_generate_model_card
         >> t_update_watermark
         >> t_record_lineage
