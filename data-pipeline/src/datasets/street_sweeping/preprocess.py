@@ -25,34 +25,22 @@ class StreetSweepingPreprocessor(BasePreprocessor):
 
     COLUMN_MAPPINGS = {
         "_id": "_id",
-        "sam_street_id": "sam_street_id",
-        "full_street_name": "full_street_name",
-        "from_street": "from_street",
-        "to_street": "to_street",
-        "district": "district",
-        "side_of_street": "side_of_street",
-        "season_start": "season_start",
-        "season_end": "season_end",
-        "week_type": "week_type",
-        "tow_zone": "tow_zone",
-        "lat": "lat",
-        "long": "long",
-    }
-
-    DTYPE_MAPPINGS = {
-        "_id": "int",
-        "sam_street_id": "string",
-        "full_street_name": "string",
-        "from_street": "string",
-        "to_street": "string",
-        "district": "string",
-        "side_of_street": "string",
-        "season_start": "string",
-        "season_end": "string",
-        "week_type": "string",
-        "tow_zone": "string",
-        "lat": "float",
-        "long": "float",
+        "main_id": "sam_street_id",
+        "st_name": "full_street_name",
+        "dist": "district",
+        "dist_name": "district_name",
+        "side": "side_of_street",
+        "from": "from_street",
+        "to": "to_street",
+        "start_time": "start_time",
+        "end_time": "end_time",
+        "week_1": "week_1",
+        "week_2": "week_2",
+        "week_3": "week_3",
+        "week_4": "week_4",
+        "miles": "miles",
+        "one_way": "one_way",
+        "year_round": "year_round",
     }
 
     REQUIRED_COLUMNS = [
@@ -61,8 +49,6 @@ class StreetSweepingPreprocessor(BasePreprocessor):
         "full_street_name",
         "district",
         "side_of_street",
-        "season_start",
-        "season_end",
     ]
 
     def __init__(self, config: Settings | None = None):
@@ -83,7 +69,7 @@ class StreetSweepingPreprocessor(BasePreprocessor):
 
     def get_dtype_mappings(self) -> dict[str, str]:
         """Return data type mappings."""
-        return self.DTYPE_MAPPINGS
+        return {}
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """Apply street sweeping transformations."""
@@ -93,62 +79,27 @@ class StreetSweepingPreprocessor(BasePreprocessor):
                     df[col] = pd.Series(dtype="object")
             return df
 
-        # Standardize string columns
+        # Rename columns to standardized names
+        df = df.rename(columns=self.COLUMN_MAPPINGS)
+
         df = self._standardize_strings(df)
-
-        # Validate coordinates
-        df = self._validate_coordinates(df)
-
-        # Handle missing values
         df = self._handle_missing_values(df)
-
-        # Drop duplicates
         df = self.drop_duplicates(df, subset=["_id"], keep="last")
-
-        # Final column selection
         df = self._select_output_columns(df)
 
         return df
 
     def _standardize_strings(self, df: pd.DataFrame) -> pd.DataFrame:
         """Standardize string fields."""
-        str_cols = [
-            "full_street_name",
-            "from_street",
-            "to_street",
-            "district",
-            "side_of_street",
-            "week_type",
-            "tow_zone",
-        ]
-        for col in str_cols:
+        for col in ["full_street_name", "district", "district_name", "side_of_street"]:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.strip().str.upper()
                 df[col] = df[col].replace("NAN", np.nan)
         return df
 
-    def _validate_coordinates(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Validate lat/long against Boston bounds."""
-        for col in ["lat", "long"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-
-        if "lat" in df.columns and "long" in df.columns:
-            bounds = self.config.validation.geo_bounds
-            out_of_bounds = (
-                (df["lat"] < bounds.min_lat)
-                | (df["lat"] > bounds.max_lat)
-                | (df["long"] < bounds.min_lon)
-                | (df["long"] > bounds.max_lon)
-            )
-            df.loc[out_of_bounds, ["lat", "long"]] = np.nan
-            self.log_transformation("validate_coordinates")
-        return df
-
     def _handle_missing_values(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Handle missing values in categorical columns."""
-        cat_cols = ["district", "side_of_street", "week_type", "tow_zone"]
-        for col in cat_cols:
+        """Handle missing values."""
+        for col in ["district", "side_of_street", "district_name"]:
             if col in df.columns:
                 df[col] = df[col].fillna("Unknown")
         return df
@@ -159,16 +110,20 @@ class StreetSweepingPreprocessor(BasePreprocessor):
             "_id",
             "sam_street_id",
             "full_street_name",
+            "district",
+            "district_name",
+            "side_of_street",
             "from_street",
             "to_street",
-            "district",
-            "side_of_street",
-            "season_start",
-            "season_end",
-            "week_type",
-            "tow_zone",
-            "lat",
-            "long",
+            "start_time",
+            "end_time",
+            "week_1",
+            "week_2",
+            "week_3",
+            "week_4",
+            "miles",
+            "one_way",
+            "year_round",
         ]
         available = [c for c in output_columns if c in df.columns]
         return df[available].copy()

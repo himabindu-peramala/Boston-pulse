@@ -49,34 +49,22 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
                 source_columns=["sam_street_id"],
             ),
             FeatureDefinition(
-                name="tow_enforced",
-                description="Whether tow zone is enforced during sweeping",
+                name="is_year_round",
+                description="Whether street is swept year round",
                 dtype="int",
-                source_columns=["tow_zone"],
+                source_columns=["year_round"],
             ),
             FeatureDefinition(
                 name="is_every_week",
                 description="Whether street is swept every week",
                 dtype="int",
-                source_columns=["week_type"],
+                source_columns=["week_1", "week_2", "week_3", "week_4"],
             ),
             FeatureDefinition(
-                name="season_start_month",
-                description="Numeric month when sweeping season starts",
+                name="sweep_days_count",
+                description="Number of days per week street is swept",
                 dtype="int",
-                source_columns=["season_start"],
-            ),
-            FeatureDefinition(
-                name="season_end_month",
-                description="Numeric month when sweeping season ends",
-                dtype="int",
-                source_columns=["season_end"],
-            ),
-            FeatureDefinition(
-                name="active_months_count",
-                description="Total number of months in sweeping season",
-                dtype="int",
-                source_columns=["season_start", "season_end"],
+                source_columns=["monday", "tuesday", "wednesday", "thursday", "friday"],
             ),
             FeatureDefinition(
                 name="district_code",
@@ -93,43 +81,24 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
 
         df = self._engineer_schedule_features(df)
         df = self._engineer_district_features(df)
-        df = self._engineer_tow_risk_feature(df)
 
         return df
 
     def _engineer_schedule_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Extract schedule-related features."""
-        month_map = {
-            "JAN": 1,
-            "FEB": 2,
-            "MAR": 3,
-            "APR": 4,
-            "MAY": 5,
-            "JUN": 6,
-            "JUL": 7,
-            "AUG": 8,
-            "SEP": 9,
-            "OCT": 10,
-            "NOV": 11,
-            "DEC": 12,
-        }
+        # Year round flag
+        if "year_round" in df.columns:
+            df["is_year_round"] = (
+                df["year_round"].astype(str).str.upper().isin(["Y", "YES", "TRUE", "1"])
+            ).astype(int)
 
-        for col, new_col in [
-            ("season_start", "season_start_month"),
-            ("season_end", "season_end_month"),
-        ]:
-            if col in df.columns:
-                df[new_col] = df[col].str[:3].str.upper().map(month_map)
-
-        if "season_start_month" in df.columns and "season_end_month" in df.columns:
-            df["active_months_count"] = (
-                df["season_end_month"] - df["season_start_month"] + 1
-            ).clip(lower=0)
-
-        if "week_type" in df.columns:
+        # Every week flag — if all 4 weeks are active
+        week_cols = [c for c in ["week_1", "week_2", "week_3", "week_4"] if c in df.columns]
+        if week_cols:
             df["is_every_week"] = (
-                df["week_type"].str.upper().str.contains("EVERY", na=False).astype(int)
-            )
+                df[week_cols]
+                .apply(lambda row: all(str(v).upper() in ["Y", "YES", "TRUE", "1"] for v in row), axis=1)
+            ).astype(int)
 
         return df
 
@@ -137,12 +106,6 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
         """Encode district as a categorical feature."""
         if "district" in df.columns:
             df["district_code"] = df["district"].astype("category").cat.codes
-        return df
-
-    def _engineer_tow_risk_feature(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Flag streets with tow zone enforcement."""
-        if "tow_zone" in df.columns:
-            df["tow_enforced"] = df["tow_zone"].str.upper().ne("NO").astype(int)
         return df
 
 
