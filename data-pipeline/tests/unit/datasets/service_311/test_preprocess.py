@@ -8,7 +8,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.datasets.service_311.preprocess import Service311Preprocessor, preprocess_311_data
+from src.datasets.service_311.preprocess import (
+    Service311Preprocessor,
+    preprocess_311_data,
+)
 
 
 class TestService311Preprocessor:
@@ -25,7 +28,11 @@ class TestService311Preprocessor:
         return pd.DataFrame(
             {
                 "case_id": ["101", "102", "101"],  # Duplicate
-                "open_date": ["2024-01-15T14:30:00", "2024-01-15T16:45:00", "2024-01-15T14:30:00"],
+                "open_date": [
+                    "2024-01-15T14:30:00",
+                    "2024-01-15T16:45:00",
+                    "2024-01-15T14:30:00",
+                ],
                 "close_date": ["2024-01-16T10:00:00", None, "2024-01-16T10:00:00"],
                 "case_topic": ["Sanitation", "Highway", "Sanitation"],
                 "service_name": ["Trash Pickup", "Pothole", "Trash Pickup"],

@@ -200,7 +200,16 @@ if __name__ == "__main__":
         print("\n── Sample Data ──────────────────")
         print(f"Shape: {df.shape}")
         print(f"Columns: {df.columns.tolist()}")
-        print(df[["INCIDENT_NUMBER", "OCCURRED_ON_DATE", "OFFENSE_CODE_GROUP", "DISTRICT"]].head(5))
+        print(
+            df[
+                [
+                    "INCIDENT_NUMBER",
+                    "OCCURRED_ON_DATE",
+                    "OFFENSE_CODE_GROUP",
+                    "DISTRICT",
+                ]
+            ].head(5)
+        )
 
     # ── Simulate running again tomorrow ─────────
     # This shows how watermark prevents re-fetching old data

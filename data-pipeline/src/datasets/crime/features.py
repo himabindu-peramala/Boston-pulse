@@ -177,7 +177,11 @@ class CrimeFeatureBuilder(BaseFeatureBuilder):
                 name="crime_risk_score",
                 description="Normalized crime risk score (0-1)",
                 dtype="float",
-                source_columns=["crime_count_30d", "shooting_count_30d", "violent_crime_ratio"],
+                source_columns=[
+                    "crime_count_30d",
+                    "shooting_count_30d",
+                    "violent_crime_ratio",
+                ],
                 min_value=0.0,
                 max_value=1.0,
             ),

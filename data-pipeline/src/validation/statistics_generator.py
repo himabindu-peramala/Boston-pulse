@@ -305,7 +305,11 @@ class StatisticsGenerator:
 
         logger.info(
             f"Saved statistics for {stats.dataset}/{stats.layer} to {versioned_path}",
-            extra={"dataset": stats.dataset, "layer": stats.layer, "path": versioned_path},
+            extra={
+                "dataset": stats.dataset,
+                "layer": stats.layer,
+                "path": versioned_path,
+            },
         )
 
         return f"gs://{self.bucket_name}/{versioned_path}"

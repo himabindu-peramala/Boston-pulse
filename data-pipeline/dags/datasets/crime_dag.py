@@ -476,7 +476,11 @@ def mitigate_bias_task(**context) -> dict:
     #
     from dataclasses import dataclass
 
-    from src.bias.fairness_checker import FairnessMetric, FairnessSeverity, FairnessViolation
+    from src.bias.fairness_checker import (
+        FairnessMetric,
+        FairnessSeverity,
+        FairnessViolation,
+    )
 
     @dataclass
     class _SlimFairnessResult:
@@ -617,6 +621,24 @@ def update_watermark(**context) -> dict:
     return {"watermark_updated": False, "reason": "No valid dates in data"}
 
 
+def record_lineage(**context) -> dict:
+    """
+    Record data lineage for this pipeline run.
+
+    Captures exact GCS generation numbers for all artifacts,
+    enabling precise point-in-time recovery and debugging.
+
+    This is the key to answering: "What exact data did the model see on date X?"
+    """
+    from dags.utils import record_pipeline_lineage
+
+    return record_pipeline_lineage(
+        dataset=DATASET,
+        dag_id=DAG_ID,
+        context=context,
+    )
+
+
 def pipeline_complete(**context) -> dict:
     """Final task to mark pipeline completion and send summary alert."""
     from dags.utils import alert_pipeline_complete
@@ -628,11 +650,17 @@ def pipeline_complete(**context) -> dict:
     ingest_result = ti.xcom_pull(task_ids="ingest_data")
     preprocess_result = ti.xcom_pull(task_ids="preprocess_data")
     features_result = ti.xcom_pull(task_ids="build_features")
+    lineage_result = ti.xcom_pull(task_ids="record_lineage")
 
     stats = {
         "rows_ingested": ingest_result.get("rows_fetched", 0) if ingest_result else 0,
-        "rows_processed": preprocess_result.get("rows_output", 0) if preprocess_result else 0,
-        "features_generated": features_result.get("features_computed", 0) if features_result else 0,
+        "rows_processed": (preprocess_result.get("rows_output", 0) if preprocess_result else 0),
+        "features_generated": (
+            features_result.get("features_computed", 0) if features_result else 0
+        ),
+        "lineage_recorded": (
+            lineage_result.get("lineage_recorded", False) if lineage_result else False
+        ),
     }
 
     # Calculate total duration
@@ -740,6 +768,12 @@ with DAG(
         on_failure_callback=on_task_failure,
     )
 
+    t_record_lineage = PythonOperator(
+        task_id="record_lineage",
+        python_callable=record_lineage,
+        on_failure_callback=on_task_failure,
+    )
+
     t_pipeline_complete = PythonOperator(
         task_id="pipeline_complete",
         python_callable=pipeline_complete,
@@ -747,6 +781,8 @@ with DAG(
     )
 
     # Define task dependencies
+    # Flow: ingest -> validate -> preprocess -> validate -> features -> validate
+    #       -> [drift, fairness] -> mitigate -> model_card -> watermark -> lineage -> complete
     (
         t_ingest
         >> t_validate_raw
@@ -758,5 +794,6 @@ with DAG(
         >> t_mitigate_bias
         >> t_generate_model_card
         >> t_update_watermark
+        >> t_record_lineage
         >> t_pipeline_complete
     )

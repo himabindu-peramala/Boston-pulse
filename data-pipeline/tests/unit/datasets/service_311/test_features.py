@@ -9,7 +9,10 @@ from datetime import UTC, datetime
 import pandas as pd
 import pytest
 
-from src.datasets.service_311.features import Service311FeatureBuilder, build_311_features
+from src.datasets.service_311.features import (
+    Service311FeatureBuilder,
+    build_311_features,
+)
 
 
 class TestService311FeatureBuilder:
