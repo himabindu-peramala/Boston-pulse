@@ -1,0 +1,93 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Vision Zero Raw Schema",
+    "type": "object",
+    "required": [
+        "_id",
+        "globalid",
+        "CreationDate",
+        "request"
+    ],
+    "properties": {
+        "_id": {
+            "type": "integer"
+        },
+        "globalid": {
+            "type": "string"
+        },
+        "CreationDate": {
+            "type": "string"
+        },
+        "Creator": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "EditDate": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "Editor": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "date_and_time": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "your_mode_of_transportation": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "mode_other": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "request": {
+            "type": "string"
+        },
+        "request_other": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "additional_comments": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "shape_wkt": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "POINT_X": {
+            "type": [
+                "string",
+                "number",
+                "null"
+            ]
+        },
+        "POINT_Y": {
+            "type": [
+                "string",
+                "number",
+                "null"
+            ]
+        }
+    }
+}
