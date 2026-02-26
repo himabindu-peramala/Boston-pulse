@@ -37,7 +37,7 @@ class HospitalPreprocessor(BasePreprocessor):
         "longitude": "float",
     }
 
-    REQUIRED_COLUMNS = ["name", "address", "latitude", "longitude"]
+    REQUIRED_COLUMNS = ["name", "address", "latitude", "longitude", "neighborhood"]
 
     def __init__(self, config: Settings | None = None):
         super().__init__(config)
@@ -76,7 +76,7 @@ class HospitalPreprocessor(BasePreprocessor):
         df["processed_at"] = datetime.now(UTC).isoformat()
 
         # Select and order columns
-        output_cols = ["hospital_id"] + self.REQUIRED_COLUMNS + ["neighborhood", "processed_at"]
+        output_cols = ["hospital_id"] + self.REQUIRED_COLUMNS + ["processed_at"]
         return df[output_cols].copy()
 
 

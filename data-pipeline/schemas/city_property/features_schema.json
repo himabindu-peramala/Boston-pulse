@@ -1,0 +1,50 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "City Property Features Schema",
+    "description": "Schema for city owned property features",
+    "type": "object",
+    "properties": {
+        "property_id": {
+            "type": "string",
+            "description": "Unique identifier for the city property",
+            "primary_key": true
+        },
+        "owner": {
+            "type": "string",
+            "description": "Owning department"
+        },
+        "is_education": {
+            "type": "boolean",
+            "description": "Whether owned by an educational department"
+        },
+        "is_housing": {
+            "type": "boolean",
+            "description": "Whether owned by a housing department"
+        },
+        "ward": {
+            "type": "string"
+        },
+        "latitude": {
+            "type": "number"
+        },
+        "longitude": {
+            "type": "number"
+        },
+        "processed_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    },
+    "required": [
+        "property_id",
+        "owner",
+        "is_education",
+        "is_housing"
+    ],
+    "additionalProperties": true,
+    "metadata": {
+        "dataset": "city_property",
+        "stage": "features",
+        "version": "1.0.0"
+    }
+}

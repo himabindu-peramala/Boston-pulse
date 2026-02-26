@@ -24,6 +24,7 @@ class CityPropertyPreprocessor(BasePreprocessor):
     COLUMN_MAPPINGS = {
         "OWNER": "owner",
         "FULL_ADDRE": "address",
+        "WARD": "ward",
     }
 
     DTYPE_MAPPINGS = {
@@ -33,7 +34,7 @@ class CityPropertyPreprocessor(BasePreprocessor):
         "longitude": "float",
     }
 
-    REQUIRED_COLUMNS = ["owner", "address", "latitude", "longitude"]
+    REQUIRED_COLUMNS = ["owner", "address", "latitude", "longitude", "ward"]
 
     def get_dataset_name(self) -> str:
         return "city_property"

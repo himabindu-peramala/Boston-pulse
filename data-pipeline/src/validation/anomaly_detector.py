@@ -302,10 +302,12 @@ class AnomalyDetector:
 
         bounds = self.config.validation.geo_bounds
 
+        # Coerce to numeric for safe comparison
+        lats = pd.to_numeric(df[lat_col], errors="coerce")
+        lons = pd.to_numeric(df[lon_col], errors="coerce")
+
         # Check latitude bounds
-        invalid_lat = ((df[lat_col] < bounds.min_lat) | (df[lat_col] > bounds.max_lat)) & df[
-            lat_col
-        ].notna()
+        invalid_lat = ((lats < bounds.min_lat) | (lats > bounds.max_lat)) & lats.notna()
 
         if invalid_lat.any():
             count = invalid_lat.sum()
@@ -328,9 +330,7 @@ class AnomalyDetector:
             )
 
         # Check longitude bounds
-        invalid_lon = ((df[lon_col] < bounds.min_lon) | (df[lon_col] > bounds.max_lon)) & df[
-            lon_col
-        ].notna()
+        invalid_lon = ((lons < bounds.min_lon) | (lons > bounds.max_lon)) & lons.notna()
 
         if invalid_lon.any():
             count = invalid_lon.sum()
@@ -353,7 +353,7 @@ class AnomalyDetector:
             )
 
         # Check for impossible coordinates (0, 0)
-        zero_coords = ((df[lat_col] == 0) & (df[lon_col] == 0)).sum()
+        zero_coords = ((lats == 0) & (lons == 0)).sum()
         if zero_coords > 0:
             anomalies.append(
                 Anomaly(

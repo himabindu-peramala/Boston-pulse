@@ -33,7 +33,7 @@ class SnowRoutesPreprocessor(BasePreprocessor):
         "longitude": "float",
     }
 
-    REQUIRED_COLUMNS = ["street_name", "latitude", "longitude"]
+    REQUIRED_COLUMNS = ["street_name", "latitude", "longitude", "responsibility"]
 
     def get_dataset_name(self) -> str:
         return "snow_routes"
@@ -56,10 +56,11 @@ class SnowRoutesPreprocessor(BasePreprocessor):
         if "street_name" in df.columns:
             df["street_name"] = df["street_name"].str.strip().str.title()
 
+        df["route_id"] = range(len(df))
         df["processed_at"] = datetime.now(UTC).isoformat()
 
         # Select and validate
-        df = df[self.REQUIRED_COLUMNS + ["responsibility", "processed_at"]]
+        df = df[["route_id"] + self.REQUIRED_COLUMNS + ["processed_at"]]
         return df
 
     def _extract_wkt_coords(self, df: pd.DataFrame) -> pd.DataFrame:
