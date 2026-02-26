@@ -1,0 +1,52 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Vision Zero Features Schema",
+    "description": "Schema for Vision Zero safety concern features",
+    "type": "object",
+    "properties": {
+        "concern_id": {
+            "type": "string",
+            "description": "Unique identifier for the safety concern",
+            "primary_key": true
+        },
+        "request_type": {
+            "type": "string",
+            "description": "Type of safety concern"
+        },
+        "mode": {
+            "type": "string",
+            "description": "Transportation mode involved"
+        },
+        "is_critical_type": {
+            "type": "boolean",
+            "description": "Whether the concern type is considered critical"
+        },
+        "is_vulnerable_mode": {
+            "type": "boolean",
+            "description": "Whether the mode involves a vulnerable road user"
+        },
+        "latitude": {
+            "type": "number"
+        },
+        "longitude": {
+            "type": "number"
+        },
+        "processed_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    },
+    "required": [
+        "concern_id",
+        "request_type",
+        "mode",
+        "is_critical_type",
+        "is_vulnerable_mode"
+    ],
+    "additionalProperties": true,
+    "metadata": {
+        "dataset": "vision_zero",
+        "stage": "features",
+        "version": "1.0.0"
+    }
+}

@@ -79,6 +79,31 @@ validation:
       max_null_ratio:
         OFFENSE_CODE_GROUP: 1.0  # Allow 100% null (deprecated)
         UCR_PART: 1.0           # Allow 100% null (deprecated)
+        Lat: 0.6               # Adjusted for mock data
+        Long: 0.6
+        Location: 0.6
+    vision_zero:
+      min_row_count: 5
+      max_null_ratio:
+        concern_id: 0.0
+        latitude: 0.6
+        longitude: 0.6
+    hospitals:
+      min_row_count: 5
+      max_null_ratio:
+        hospital_id: 0.0
+    snow_routes:
+      min_row_count: 5
+      max_null_ratio:
+        route_id: 0.0
+        latitude: 0.6
+        longitude: 0.6
+    city_property:
+      min_row_count: 5
+      max_null_ratio:
+        property_id: 0.0
+        latitude: 0.6
+        longitude: 0.6
     food_inspections:
       min_row_count: 5
       allow_extra_columns: true

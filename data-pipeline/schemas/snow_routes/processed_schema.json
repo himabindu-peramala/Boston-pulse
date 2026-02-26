@@ -1,0 +1,35 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Snow Emergency Routes Processed Schema",
+    "type": "object",
+    "required": [
+        "route_id",
+        "street_name",
+        "latitude",
+        "longitude"
+    ],
+    "properties": {
+        "route_id": {
+            "type": "integer"
+        },
+        "street_name": {
+            "type": "string"
+        },
+        "responsibility": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "latitude": {
+            "type": "number"
+        },
+        "longitude": {
+            "type": "number"
+        },
+        "processed_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    }
+}

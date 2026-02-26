@@ -1,0 +1,46 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Vision Zero Processed Schema",
+    "type": "object",
+    "required": [
+        "concern_id",
+        "creation_date",
+        "request_type",
+        "latitude",
+        "longitude"
+    ],
+    "properties": {
+        "concern_id": {
+            "type": "string"
+        },
+        "creation_date": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "request_type": {
+            "type": "string"
+        },
+        "mode": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "comments": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "latitude": {
+            "type": "number"
+        },
+        "longitude": {
+            "type": "number"
+        },
+        "processed_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    }
+}

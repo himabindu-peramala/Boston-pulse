@@ -1,0 +1,20 @@
+# Boston Pulse - Snow Emergency Routes Configuration
+#
+# Dataset: Snow Emergency Routes
+# Source: Analyze Boston (data.boston.gov)
+
+dataset:
+  name: "snow_routes"
+  description: "Snow emergency routes and no parking zones in Boston"
+
+api:
+  resource_id: "a7a4ca31-f0fe-451d-be73-89fcc52ea0d2"
+  base_url: "https://data.boston.gov/api/3/action"
+  endpoint: "datastore_search_sql"
+  batch_size: 1000
+  timeout_seconds: 60
+
+ingestion:
+  watermark_field: null # Static dataset
+  primary_key: "_id"
+  lookback_days: null

@@ -1,0 +1,20 @@
+# Boston Pulse - Vision Zero Safety Concerns Configuration
+#
+# Dataset: Vision Zero Safety Concerns- CURRENT
+# Source: Analyze Boston (data.boston.gov)
+
+dataset:
+  name: "vision_zero"
+  description: "User-submitted safety concerns for Vision Zero"
+
+api:
+  resource_id: "42c33f05-2572-404e-9782-38d755f0f069"
+  base_url: "https://data.boston.gov/api/3/action"
+  endpoint: "datastore_search_sql"
+  batch_size: 1000
+  timeout_seconds: 60
+
+ingestion:
+  watermark_field: "CreationDate"
+  primary_key: "globalid"
+  lookback_days: 30

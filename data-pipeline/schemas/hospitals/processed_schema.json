@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Hospital Locations Processed Schema",
+  "type": "object",
+  "required": [
+    "hospital_id",
+    "name",
+    "address",
+    "latitude",
+    "longitude"
+  ],
+  "properties": {
+    "hospital_id": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "address": {
+      "type": "string"
+    },
+    "neighborhood": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "latitude": {
+      "type": "number"
+    },
+    "longitude": {
+      "type": "number"
+    },
+    "processed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
