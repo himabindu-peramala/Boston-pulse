@@ -14,7 +14,7 @@ RUN mkdir -p /opt/airflow/secrets && chown airflow:root /opt/airflow/secrets
 USER airflow
 
 # Copy pyproject.toml from data-pipeline
-COPY data-pipeline/pyproject.toml /tmp/pyproject.toml
+COPY ../pyproject.toml /tmp/pyproject.toml
 
 # Install everything defined in pyproject.toml
 RUN pip install --no-cache-dir /tmp

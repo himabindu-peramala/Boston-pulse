@@ -31,7 +31,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__LOAD_DEFAULT_CONNECTIONS: 'false'
 
     # Database
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow # pragma: allowlist secret
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB} # pragma: allowlist secret
 
     # Webserver
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
@@ -49,26 +49,26 @@ x-airflow-common: &airflow-common
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
 
     # Boston Pulse — GCP config
-    BP_ENVIRONMENT: dev
+    BP_ENVIRONMENT: ${BP_ENVIRONMENT:-dev}
     PYTHONPATH: /opt/airflow:/opt/airflow/data-pipeline
     GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/secrets/gcp-key.json
-    GCP_PROJECT_ID: bostonpulse
-    GCP_BUCKET_NAME: boston-pulse-data-pipeline
-    GCP_REGION: us-central1
+    GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+    GCP_BUCKET_NAME: ${GCP_BUCKET_NAME}
+    GCP_REGION: ${GCP_REGION}
 
   volumes:
     # Mount DAGs
-    - ../data-pipeline/dags:/opt/airflow/dags:ro
+    - ../dags:/opt/airflow/dags:ro
     # Mount source code for imports
-    - ../data-pipeline/src:/opt/airflow/data-pipeline/src:ro
+    - ../src:/opt/airflow/data-pipeline/src:ro
     # Mount configs
-    - ../data-pipeline/configs:/opt/airflow/data-pipeline/configs:ro
+    - ../configs:/opt/airflow/data-pipeline/configs:ro
     # Mount schemas
-    - ../data-pipeline/schemas:/opt/airflow/data-pipeline/schemas:ro
+    - ../schemas:/opt/airflow/data-pipeline/schemas:ro
     # Mount GCP service account key  ← NEW
     - ../secrets/gcp-key.json:/opt/airflow/secrets/gcp-key.json:ro
     # Installation file
-    - ../data-pipeline/pyproject.toml:/opt/airflow/data-pipeline/pyproject.toml:ro
+    - ../pyproject.toml:/opt/airflow/data-pipeline/pyproject.toml:ro
 
     # Logs
     - airflow-logs:/opt/airflow/logs
@@ -90,9 +90,9 @@ services:
     image: postgres:15
     container_name: boston-pulse-postgres
     environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow # pragma: allowlist secret
-      POSTGRES_DB: airflow
+      POSTGRES_USER: ${POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
+      POSTGRES_DB: ${POSTGRES_DB:-airflow}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
@@ -148,12 +148,12 @@ services:
         # Create admin user
         echo "Creating admin user..."
         airflow users create \
-          --username airflow \
-          --password airflow \
+          --username ${AIRFLOW_USERNAME:-airflow} \
+          --password ${AIRFLOW_PASSWORD:-airflow} \
           --firstname Admin \
           --lastname User \
           --role Admin \
-          --email admin@localhost || true
+          --email ${AIRFLOW_EMAIL:-admin@localhost} || true
 
         echo "Airflow initialization complete!"
     environment:

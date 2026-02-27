@@ -139,37 +139,22 @@ test-fast:  ## Run tests excluding slow ones
 
 airflow-up:  ## Start local Airflow environment
 	@echo "$(BLUE)Starting Airflow...$(NC)"
-	cd ../docker && docker-compose -f docker-compose.airflow.yml up -d
+	cd docker/ && docker compose --env-file ../.env -f docker-compose.airflow.yml up -d
 	@echo "$(GREEN)Airflow is starting at http://localhost:8080$(NC)"
 	@echo "$(YELLOW)Default credentials: airflow/airflow$(NC)"
 
 airflow-down:  ## Stop local Airflow environment
 	@echo "$(BLUE)Stopping Airflow...$(NC)"
-	cd ../docker && docker-compose -f docker-compose.airflow.yml down
+	cd docker/ && docker compose --env-file ../.env -f docker-compose.airflow.yml down
 	@echo "$(GREEN)Airflow stopped.$(NC)"
 
 airflow-logs:  ## View Airflow logs
-	cd ../docker && docker-compose -f docker-compose.airflow.yml logs -f
+	cd docker/ && docker compose --env-file ../.env -f docker-compose.airflow.yml logs -f
 
 airflow-restart:  ## Restart Airflow
 	$(MAKE) airflow-down
 	$(MAKE) airflow-up
 
-validate-dags:  ## Validate all Airflow DAGs
-	@echo "$(BLUE)Validating DAGs...$(NC)"
-	$(PYTHON) -c "\
-import sys; \
-from pathlib import Path; \
-sys.path.insert(0, str(Path.cwd())); \
-from airflow.models import DagBag; \
-dag_bag = DagBag(dag_folder='$(DAGS_DIR)', include_examples=False); \
-errors = dag_bag.import_errors; \
-if errors: \
-    print('DAG Import Errors:'); \
-    [print(f'  {k}: {v}') for k,v in errors.items()]; \
-    sys.exit(1); \
-print(f'Successfully validated {len(dag_bag.dags)} DAGs'); \
-[print(f'  - {d}') for d in sorted(dag_bag.dags.keys())]"
 
 # =============================================================================
 # DOCKER
@@ -197,7 +182,24 @@ create-dataset:  ## Create a new dataset scaffold (usage: make create-dataset NA
 		exit 1; \
 	fi
 	@echo "$(BLUE)Creating dataset scaffold for '$(NAME)'...$(NC)"
-	@bash ../scripts/create_dataset.sh $(NAME)
+	@mkdir -p $(SRC_DIR)/datasets/$(NAME)
+	@touch $(SRC_DIR)/datasets/$(NAME)/__init__.py
+	@echo '"""$(NAME) dataset ingestion."""\n\nfrom src.datasets.base.ingester import BaseIngester\n\n\nclass $(NAME)Ingester(BaseIngester):\n    """Ingester for $(NAME) dataset."""\n\n    def get_primary_key(self):\n        return "id"\n\n    def get_watermark_field(self):\n        return "updated_at"\n\n    def fetch_data(self, since=None):\n        raise NotImplementedError' > $(SRC_DIR)/datasets/$(NAME)/ingest.py
+	@echo '"""$(NAME) dataset preprocessing."""\n\nfrom src.datasets.base.preprocessor import BasePreprocessor\n\n\nclass $(NAME)Preprocessor(BasePreprocessor):\n    """Preprocessor for $(NAME) dataset."""\n\n    def preprocess(self, df):\n        raise NotImplementedError' > $(SRC_DIR)/datasets/$(NAME)/preprocess.py
+	@echo '"""$(NAME) dataset feature engineering."""\n\nfrom src.datasets.base.feature_builder import BaseFeatureBuilder\n\n\nclass $(NAME)FeatureBuilder(BaseFeatureBuilder):\n    """Feature builder for $(NAME) dataset."""\n\n    def build_features(self, df):\n        raise NotImplementedError' > $(SRC_DIR)/datasets/$(NAME)/features.py
+	@mkdir -p $(SCHEMAS_DIR)/$(NAME)
+	@echo '{"name":"$(NAME)_raw","version":"1.0.0","stage":"raw","columns":{},"required_columns":[],"constraints":{}}' > $(SCHEMAS_DIR)/$(NAME)/raw_schema.json
+	@echo '{"name":"$(NAME)_processed","version":"1.0.0","stage":"processed","columns":{},"required_columns":[],"constraints":{}}' > $(SCHEMAS_DIR)/$(NAME)/processed_schema.json
+	@echo '{"name":"$(NAME)_features","version":"1.0.0","stage":"features","columns":{},"required_columns":[],"constraints":{}}' > $(SCHEMAS_DIR)/$(NAME)/features_schema.json
+	@mkdir -p $(CONFIGS_DIR)/datasets
+	@printf 'dataset:\n  name: $(NAME)\n  source: "TODO"\n  schedule: "@daily"\n  priority: P2\n\ningestion:\n  api_endpoint: "TODO"\n  format: json\n\nslices:\n  - attribute: neighborhood\n    slice_type: categorical\n' > $(CONFIGS_DIR)/datasets/$(NAME).yaml
+	@mkdir -p $(DAGS_DIR)/datasets
+	@printf 'from datetime import datetime, timedelta\nfrom airflow import DAG\nfrom airflow.operators.python import PythonOperator\n\nDATASET = "$(NAME)"\n\ndefault_args = {\n    "owner": "data-eng",\n    "depends_on_past": False,\n    "retries": 3,\n    "retry_delay": timedelta(minutes=5),\n}\n\nwith DAG(\n    dag_id="$(NAME)_pipeline",\n    default_args=default_args,\n    description="$(NAME) data pipeline",\n    schedule="@daily",\n    start_date=datetime(2024, 1, 1),\n    catchup=False,\n    tags=["$(NAME)"],\n) as dag:\n    pass  # TODO: add tasks\n' > $(DAGS_DIR)/datasets/$(NAME)_dag.py
+	@mkdir -p $(TESTS_DIR)/unit/datasets/$(NAME)
+	@touch $(TESTS_DIR)/unit/datasets/$(NAME)/__init__.py
+	@echo 'def test_placeholder():\n    assert True' > $(TESTS_DIR)/unit/datasets/$(NAME)/test_ingest.py
+	@echo 'def test_placeholder():\n    assert True' > $(TESTS_DIR)/unit/datasets/$(NAME)/test_preprocess.py
+	@echo 'def test_placeholder():\n    assert True' > $(TESTS_DIR)/unit/datasets/$(NAME)/test_features.py
 	@echo "$(GREEN)Dataset '$(NAME)' scaffold created!$(NC)"
 	@echo "$(YELLOW)Next steps:$(NC)"
 	@echo "  1. Implement $(SRC_DIR)/datasets/$(NAME)/ingest.py"
