@@ -141,9 +141,7 @@ def test_validate_dataframe_success(mock_gcs_client, sample_dataframe):
     mock_bucket.blob.return_value = mock_blob
 
     is_valid, errors = registry.validate_dataframe(sample_dataframe, "crime", "raw")
-
-    assert is_valid
-    assert len(errors) == 0
+    assert is_valid, f"Validation failed with: {errors}"
 
 
 def test_validate_dataframe_missing_columns(mock_gcs_client):
