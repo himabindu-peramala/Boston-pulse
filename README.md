@@ -54,18 +54,22 @@ cd boston-pulse
 ### 2. Pick a component to work on
 
 - **Data Pipeline**
+  
   See [`data-pipeline/README.md`](./data-pipeline/README.md) for:
   - copying `.env.example` → `.env`
   - `make setup-dev`
   - `make airflow-up-dp` to run Airflow locally
 
 - **Backend API**
+  
   See `backend/` for how to run the API service and connect it to the pipeline outputs.
 
 - **Frontend**
+  
   See `frontend/` for the UI setup (Node.js, dev server, etc.).
 
 - **Notebooks**
+  
   Open `notebooks/` in Jupyter or VS Code to explore the data and experiments.
 
 ## Contributing
