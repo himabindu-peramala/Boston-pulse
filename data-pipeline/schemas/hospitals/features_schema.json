@@ -1,0 +1,38 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Hospital Locations Features Schema",
+    "description": "Schema for hospital location features",
+    "type": "object",
+    "properties": {
+        "hospital_id": {
+            "type": "string",
+            "description": "Unique identifier for the hospital",
+            "primary_key": true
+        },
+        "name": {
+            "type": "string"
+        },
+        "neighborhood": {
+            "type": "string"
+        },
+        "latitude": {
+            "type": "number"
+        },
+        "longitude": {
+            "type": "number"
+        },
+        "processed_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    },
+    "required": [
+        "hospital_id"
+    ],
+    "additionalProperties": true,
+    "metadata": {
+        "dataset": "hospitals",
+        "stage": "features",
+        "version": "1.0.0"
+    }
+}

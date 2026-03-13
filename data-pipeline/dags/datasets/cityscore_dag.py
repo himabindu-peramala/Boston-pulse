@@ -36,7 +36,8 @@ def ingest_data(**context) -> dict:
     """Ingest CityScore data."""
     from airflow.exceptions import AirflowSkipException
 
-    from dags.utils import get_effective_watermark, write_data
+    from dags.utils.gcs_io import write_data
+    from dags.utils.watermark import get_effective_watermark
     from src.datasets.cityscore import CityScoreIngester
 
     execution_date = context["ds"]
@@ -58,9 +59,41 @@ def ingest_data(**context) -> dict:
     return result.to_dict()
 
 
+def detect_anomalies(**context) -> dict:
+    """Detect anomalies in raw data after ingestion."""
+    from dags.utils.alerting import alert_anomaly_detected
+    from dags.utils.gcs_io import read_data
+    from src.validation import AnomalyDetector
+
+    execution_date = context["ds"]
+    df = read_data(DATASET, "raw", execution_date)
+
+    detector = AnomalyDetector()
+    result = detector.detect_anomalies(df, DATASET)
+
+    if result.has_critical_anomalies:
+        for anomaly in result.critical_anomalies:
+            alert_anomaly_detected(
+                dataset=DATASET,
+                anomaly_type=anomaly.type.value,
+                details=anomaly.message,
+                severity="critical",
+                execution_date=execution_date,
+                dag_id=DAG_ID,
+            )
+
+    return {
+        "has_anomalies": result.has_anomalies,
+        "anomaly_count": len(result.anomalies),
+        "critical_count": len(result.critical_anomalies),
+        "anomalies_by_type": {k.value: len(v) for k, v in result.anomalies_by_type.items()},
+    }
+
+
 def validate_raw(**context) -> dict:
     """Validate CityScore raw data."""
-    from dags.utils import alert_validation_failure, read_data
+    from dags.utils.alerting import alert_validation_failure
+    from dags.utils.gcs_io import read_data
     from src.validation import SchemaEnforcer
 
     execution_date = context["ds"]
@@ -87,7 +120,7 @@ def validate_raw(**context) -> dict:
 
 def preprocess_data(**context) -> dict:
     """Preprocess CityScore data."""
-    from dags.utils import read_data, write_data
+    from dags.utils.gcs_io import read_data, write_data
     from src.datasets.cityscore import CityScorePreprocessor
 
     execution_date = context["ds"]
@@ -109,7 +142,8 @@ def preprocess_data(**context) -> dict:
 
 def validate_processed(**context) -> dict:
     """Validate CityScore processed data."""
-    from dags.utils import alert_validation_failure, read_data
+    from dags.utils.alerting import alert_validation_failure
+    from dags.utils.gcs_io import read_data
     from src.validation import SchemaEnforcer
 
     execution_date = context["ds"]
@@ -136,7 +170,7 @@ def validate_processed(**context) -> dict:
 
 def build_features(**context) -> dict:
     """Build CityScore features."""
-    from dags.utils import read_data, write_data
+    from dags.utils.gcs_io import read_data, write_data
     from src.datasets.cityscore import CityScoreFeatureBuilder
 
     execution_date = context["ds"]
@@ -163,7 +197,8 @@ def detect_drift(**context) -> dict:
     Compares today's processed data against the previous day's as reference.
     Skips gracefully if no reference data is available (e.g. first run).
     """
-    from dags.utils import alert_drift_detected, read_data
+    from dags.utils.alerting import alert_drift_detected
+    from dags.utils.gcs_io import read_data
     from src.validation import DriftDetector
 
     execution_date = context["ds"]
@@ -211,7 +246,8 @@ def check_fairness(**context) -> dict:
     Evaluates whether city services are scored equitably across score categories.
     ALERTS on violations but does NOT fail the pipeline.
     """
-    from dags.utils import alert_fairness_violation, read_data
+    from dags.utils.alerting import alert_fairness_violation
+    from dags.utils.gcs_io import read_data
     from src.bias.fairness_checker import FairnessChecker, FairnessViolationError
 
     execution_date = context["ds"]
@@ -296,7 +332,7 @@ def mitigate_bias_task(**context) -> dict:
     """
     from dataclasses import dataclass
 
-    from dags.utils import read_data, write_data
+    from dags.utils.gcs_io import read_data, write_data
     from src.bias.bias_mitigator import BiasMitigator, MitigationStrategy
     from src.bias.fairness_checker import (
         FairnessMetric,
@@ -388,7 +424,8 @@ def mitigate_bias_task(**context) -> dict:
 
 def validate_features(**context) -> dict:
     """Validate CityScore features."""
-    from dags.utils import alert_validation_failure, read_data
+    from dags.utils.alerting import alert_validation_failure
+    from dags.utils.gcs_io import read_data
     from src.validation import SchemaEnforcer
 
     execution_date = context["ds"]
@@ -415,7 +452,8 @@ def validate_features(**context) -> dict:
 
 def update_watermark(**context) -> dict:
     """Update watermark for CityScore."""
-    from dags.utils import read_data, set_watermark
+    from dags.utils.gcs_io import read_data
+    from dags.utils.watermark import set_watermark
 
     execution_date = context["ds"]
     df = read_data(DATASET, "processed", execution_date)
@@ -437,7 +475,7 @@ def record_lineage(**context) -> dict:
     Captures exact GCS generation numbers for all artifacts,
     enabling precise point-in-time recovery and debugging.
     """
-    from dags.utils import record_pipeline_lineage
+    from dags.utils.lineage_utils import record_pipeline_lineage
 
     return record_pipeline_lineage(
         dataset=DATASET,
@@ -446,25 +484,78 @@ def record_lineage(**context) -> dict:
     )
 
 
+def generate_model_card(**context) -> dict:
+    """Generate model card for the dataset."""
+    from dags.utils.gcs_io import read_data
+    from src.bias import ModelCardGenerator
+
+    execution_date = context["ds"]
+    df = read_data(DATASET, "processed", execution_date)
+
+    ti = context["ti"]
+    validation_result = ti.xcom_pull(task_ids="validate_processed")
+    drift_result = ti.xcom_pull(task_ids="detect_drift")
+    fairness_result = ti.xcom_pull(task_ids="check_fairness")
+    mitigation_result = ti.xcom_pull(task_ids="mitigate_bias")
+
+    generator = ModelCardGenerator()
+    card = generator.generate_model_card(
+        dataset=DATASET,
+        df=df,
+        version=execution_date.replace("-", ""),
+        description="Boston CityScore service performance scores",
+        validation_result=validation_result,
+        drift_result=drift_result,
+        fairness_result=fairness_result,
+        mitigation_result=mitigation_result,
+    )
+
+    output_path = generator.save_model_card(card, format="both")
+
+    return {
+        "model_card_generated": True,
+        "output_path": output_path,
+        "version": card.version,
+    }
+
+
 def pipeline_complete(**context) -> dict:
-    """Pipeline complete alert."""
-    from dags.utils import alert_pipeline_complete
+    """Final task to mark pipeline completion and send summary alert."""
+    from dags.utils.alerting import alert_pipeline_complete
 
     execution_date = context["ds"]
     ti = context["ti"]
+
+    ingest_result = ti.xcom_pull(task_ids="ingest_data")
+    preprocess_result = ti.xcom_pull(task_ids="preprocess_data")
+    features_result = ti.xcom_pull(task_ids="build_features")
     lineage_result = ti.xcom_pull(task_ids="record_lineage")
+
     stats = {
+        "rows_ingested": ingest_result.get("rows_fetched", 0) if ingest_result else 0,
+        "rows_processed": (preprocess_result.get("rows_output", 0) if preprocess_result else 0),
+        "features_generated": (
+            features_result.get("features_computed", 0) if features_result else 0
+        ),
         "lineage_recorded": (
             lineage_result.get("lineage_recorded", False) if lineage_result else False
         ),
     }
+
+    duration = (
+        (ingest_result.get("duration_seconds", 0) if ingest_result else 0)
+        + (preprocess_result.get("duration_seconds", 0) if preprocess_result else 0)
+        + (features_result.get("duration_seconds", 0) if features_result else 0)
+    )
+
     alert_pipeline_complete(
         dataset=DATASET,
         execution_date=execution_date,
-        duration_seconds=0,
+        duration_seconds=duration,
         stats=stats,
         dag_id=DAG_ID,
     )
+
     return {"status": "complete", "stats": stats}
 
 
@@ -481,7 +572,7 @@ with DAG(
     catchup=False,
     tags=["cityscore", "dataset"],
 ) as dag:
-    from dags.utils import on_dag_failure, on_dag_success, on_task_failure
+    from dags.utils.callbacks import on_dag_failure, on_dag_success, on_task_failure
 
     dag.on_failure_callback = on_dag_failure
     dag.on_success_callback = on_dag_success
@@ -517,6 +608,11 @@ with DAG(
         on_failure_callback=on_task_failure,
     )
 
+    t_detect_anomalies = PythonOperator(
+        task_id="detect_anomalies",
+        python_callable=detect_anomalies,
+        on_failure_callback=on_task_failure,
+    )
     t_check_fairness = PythonOperator(
         task_id="check_fairness",
         python_callable=check_fairness,
@@ -526,6 +622,11 @@ with DAG(
     t_mitigate_bias = PythonOperator(
         task_id="mitigate_bias",
         python_callable=mitigate_bias_task,
+        on_failure_callback=on_task_failure,
+    )
+    t_generate_model_card = PythonOperator(
+        task_id="generate_model_card",
+        python_callable=generate_model_card,
         on_failure_callback=on_task_failure,
     )
     t_validate_features = PythonOperator(
@@ -549,15 +650,18 @@ with DAG(
         trigger_rule="all_success",
     )
 
+    # Flow: ingest -> [anomalies, validate] -> preprocess -> validate -> features -> validate
+    #       -> [drift, fairness] -> mitigate -> model_card -> watermark -> lineage -> complete
     (
         t_ingest
-        >> t_validate_raw
+        >> [t_detect_anomalies, t_validate_raw]
         >> t_preprocess
         >> t_validate_processed
         >> t_build_features
         >> t_validate_features
         >> [t_detect_drift, t_check_fairness]
         >> t_mitigate_bias
+        >> t_generate_model_card
         >> t_update_watermark
         >> t_record_lineage
         >> t_pipeline_complete

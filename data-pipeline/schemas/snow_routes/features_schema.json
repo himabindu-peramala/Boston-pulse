@@ -1,0 +1,44 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Snow Emergency Routes Features Schema",
+    "description": "Schema for snow emergency route features",
+    "type": "object",
+    "properties": {
+        "route_id": {
+            "type": "string",
+            "description": "Unique identifier for the snow route",
+            "primary_key": true
+        },
+        "street_name": {
+            "type": "string"
+        },
+        "latitude": {
+            "type": "number"
+        },
+        "longitude": {
+            "type": "number"
+        },
+        "responsibility": {
+            "type": "string"
+        },
+        "is_city_maintained": {
+            "type": "boolean"
+        },
+        "processed_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    },
+    "required": [
+        "route_id",
+        "street_name",
+        "responsibility",
+        "is_city_maintained"
+    ],
+    "additionalProperties": true,
+    "metadata": {
+        "dataset": "snow_routes",
+        "stage": "features",
+        "version": "1.0.0"
+    }
+}

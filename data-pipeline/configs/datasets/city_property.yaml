@@ -1,0 +1,20 @@
+# Boston Pulse - City Owned Property Configuration
+#
+# Dataset: City of Boston Owned Property
+# Source: Analyze Boston (data.boston.gov)
+
+dataset:
+  name: "city_property"
+  description: "Buildings and parcels owned by the City of Boston"
+
+api:
+  resource_id: "28ca9f8d-f6ad-4855-bf14-90d2d0bc85ca"
+  base_url: "https://data.boston.gov/api/3/action"
+  endpoint: "datastore_search_sql"
+  batch_size: 1000
+  timeout_seconds: 60
+
+ingestion:
+  watermark_field: null # Snapshot dataset
+  primary_key: "_id"
+  lookback_days: null

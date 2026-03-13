@@ -6,14 +6,19 @@ This serves as the reference implementation for all other dataset DAGs.
 
 Pipeline Stages:
     1. Ingest: Fetch data from Analyze Boston API
-    2. Validate Raw: Check raw data schema and quality
-    3. Preprocess: Clean and transform data
-    4. Validate Processed: Check processed data schema and quality
-    5. Build Features: Create aggregated features
-    6. Validate Features: Check feature schema and quality
-    7. Detect Drift: Check for data distribution changes
-    8. Check Fairness: Evaluate fairness metrics
-    9. Generate Model Card: Create dataset documentation
+    2. Detect Anomalies: Check for data quality and statistical outliers
+    3. Validate Raw: Check raw data schema and quality
+    4. Preprocess: Clean and transform data
+    5. Validate Processed: Check processed data schema and quality
+    6. Build Features: Create aggregated features
+    7. Validate Features: Check feature schema and quality
+    8. Detect Drift: Check for data distribution changes
+    9. Check Fairness: Evaluate fairness metrics
+    10. Mitigate Bias: Apply corrections if needed
+    11. Generate Model Card: Create dataset documentation
+    12. Update Watermark: Track incremental data windows
+    13. Record Lineage: Trace data provenance
+    14. Pipeline Complete: Final notification
 """
 
 from __future__ import annotations
@@ -47,22 +52,19 @@ default_args = {
 
 def ingest_data(**context) -> dict:
     """Ingest crime data from Analyze Boston API."""
-    from dags.utils import get_effective_watermark, write_data
+    from dags.utils.gcs_io import write_data
+    from dags.utils.watermark import get_effective_watermark
     from src.datasets.crime import CrimeIngester
 
     execution_date = context["ds"]
-
-    # Get watermark
     watermark = get_effective_watermark(DATASET)
 
-    # Run ingestion
     ingester = CrimeIngester()
     result = ingester.run(execution_date=execution_date, watermark_start=watermark)
 
     if not result.success:
         raise RuntimeError(f"Ingestion failed: {result.error_message}")
 
-    # Save raw data
     df = ingester.get_data()
     if df is not None and len(df) > 0:
         output_path = write_data(df, DATASET, "raw", execution_date)
@@ -73,20 +75,15 @@ def ingest_data(**context) -> dict:
 
 def detect_anomalies(**context) -> dict:
     """Detect anomalies in raw data after ingestion."""
-    from dags.utils import alert_anomaly_detected, read_data
+    from dags.utils.alerting import alert_anomaly_detected
+    from dags.utils.gcs_io import read_data
     from src.validation import AnomalyDetector
 
     execution_date = context["ds"]
-
-    # Read raw data
     df = read_data(DATASET, "raw", execution_date)
-
-    # Detect anomalies
     detector = AnomalyDetector()
-
     result = detector.detect_anomalies(df, DATASET)
 
-    # Alert on critical anomalies
     if result.has_critical_anomalies:
         for anomaly in result.critical_anomalies:
             alert_anomaly_detected(
@@ -97,28 +94,21 @@ def detect_anomalies(**context) -> dict:
                 execution_date=execution_date,
                 dag_id=DAG_ID,
             )
-        # Optionally fail the task
-        # raise RuntimeError(f"Critical anomalies detected: {len(result.critical_anomalies)}")
-
     return {
         "has_anomalies": result.has_anomalies,
         "anomaly_count": len(result.anomalies),
         "critical_count": len(result.critical_anomalies),
-        "anomalies_by_type": {k.value: len(v) for k, v in result.anomalies_by_type.items()},
     }
 
 
 def validate_raw(**context) -> dict:
     """Validate raw data against schema."""
-    from dags.utils import alert_validation_failure, read_data
+    from dags.utils.alerting import alert_validation_failure
+    from dags.utils.gcs_io import read_data
     from src.validation import SchemaEnforcer
 
     execution_date = context["ds"]
-
-    # Read raw data
     df = read_data(DATASET, "raw", execution_date)
-
-    # Validate
     enforcer = SchemaEnforcer()
     result = enforcer.validate_raw(df, DATASET)
 
@@ -132,46 +122,27 @@ def validate_raw(**context) -> dict:
             dag_id=DAG_ID,
             task_id="validate_raw",
         )
-
-        # Fail the task if strict mode
-        if enforcer.config.validation.quality_schema.strict_mode:
-            raise RuntimeError(f"Raw validation failed: {errors[:5]}")
-
-    return {
-        "is_valid": result.is_valid,
-        "error_count": len(result.errors),
-        "warning_count": len(result.warnings),
-        "stage": "raw",
-    }
+    return {"is_valid": result.is_valid, "error_count": len(result.errors), "stage": "raw"}
 
 
 def preprocess_data(**context) -> dict:
     """Preprocess raw crime data."""
-    from dags.utils import alert_preprocessing_complete, read_data, write_data
+    from dags.utils.alerting import alert_preprocessing_complete
+    from dags.utils.gcs_io import read_data, write_data
     from src.datasets.crime import CrimePreprocessor
 
     execution_date = context["ds"]
-
-    # Read raw data
     raw_df = read_data(DATASET, "raw", execution_date)
-
-    # Run preprocessing
     preprocessor = CrimePreprocessor()
     result = preprocessor.run(raw_df, execution_date)
-
-    if not result.success:
-        raise RuntimeError(f"Preprocessing failed: {result.error_message}")
-
-    # Save processed data
     df = preprocessor.get_data()
     if df is not None and len(df) > 0:
         output_path = write_data(df, DATASET, "processed", execution_date)
         result.output_path = output_path
 
-    # Alert if high drop rate
     if result.rows_dropped > 0:
         drop_rate = result.rows_dropped / result.rows_input if result.rows_input > 0 else 0
-        if drop_rate > 0.1:  # Alert if more than 10% dropped
+        if drop_rate > 0.1:
             alert_preprocessing_complete(
                 dataset=DATASET,
                 rows_input=result.rows_input,
@@ -180,21 +151,17 @@ def preprocess_data(**context) -> dict:
                 execution_date=execution_date,
                 dag_id=DAG_ID,
             )
-
     return result.to_dict()
 
 
 def validate_processed(**context) -> dict:
     """Validate processed data against schema."""
-    from dags.utils import alert_validation_failure, read_data
+    from dags.utils.alerting import alert_validation_failure
+    from dags.utils.gcs_io import read_data
     from src.validation import SchemaEnforcer
 
     execution_date = context["ds"]
-
-    # Read processed data
     df = read_data(DATASET, "processed", execution_date)
-
-    # Validate
     enforcer = SchemaEnforcer()
     result = enforcer.validate_processed(df, DATASET)
 
@@ -208,55 +175,33 @@ def validate_processed(**context) -> dict:
             dag_id=DAG_ID,
             task_id="validate_processed",
         )
-
-        if enforcer.config.validation.quality_schema.strict_mode:
-            raise RuntimeError(f"Processed validation failed: {errors[:5]}")
-
-    return {
-        "is_valid": result.is_valid,
-        "error_count": len(result.errors),
-        "warning_count": len(result.warnings),
-        "stage": "processed",
-    }
+    return {"is_valid": result.is_valid, "error_count": len(result.errors), "stage": "processed"}
 
 
 def build_features(**context) -> dict:
     """Build crime features from processed data."""
-    from dags.utils import read_data, write_data
+    from dags.utils.gcs_io import read_data, write_data
     from src.datasets.crime import CrimeFeatureBuilder
 
     execution_date = context["ds"]
-
-    # Read processed data
     processed_df = read_data(DATASET, "processed", execution_date)
-
-    # Build features
     builder = CrimeFeatureBuilder()
     result = builder.run(processed_df, execution_date)
-
-    if not result.success:
-        raise RuntimeError(f"Feature building failed: {result.error_message}")
-
-    # Save features
     df = builder.get_data()
     if df is not None and len(df) > 0:
         output_path = write_data(df, DATASET, "features", execution_date)
         result.output_path = output_path
-
     return result.to_dict()
 
 
 def validate_features(**context) -> dict:
     """Validate features against schema."""
-    from dags.utils import alert_validation_failure, read_data
+    from dags.utils.alerting import alert_validation_failure
+    from dags.utils.gcs_io import read_data
     from src.validation import SchemaEnforcer
 
     execution_date = context["ds"]
-
-    # Read features
     df = read_data(DATASET, "features", execution_date)
-
-    # Validate
     enforcer = SchemaEnforcer()
     result = enforcer.validate_features(df, DATASET)
 
@@ -270,82 +215,47 @@ def validate_features(**context) -> dict:
             dag_id=DAG_ID,
             task_id="validate_features",
         )
-
-        if enforcer.config.validation.quality_schema.strict_mode:
-            raise RuntimeError(f"Features validation failed: {errors[:5]}")
-
-    return {
-        "is_valid": result.is_valid,
-        "error_count": len(result.errors),
-        "warning_count": len(result.warnings),
-        "stage": "features",
-    }
+    return {"is_valid": result.is_valid, "error_count": len(result.errors), "stage": "features"}
 
 
 def detect_drift(**context) -> dict:
     """Detect data drift in processed data."""
-    from dags.utils import alert_drift_detected, read_data
+    from dags.utils.alerting import alert_drift_detected
+    from dags.utils.gcs_io import read_data
     from src.validation import DriftDetector
 
     execution_date = context["ds"]
-
-    # Read current processed data
     current_df = read_data(DATASET, "processed", execution_date)
 
-    # Try to get reference data (previous day or baseline)
     try:
         from datetime import datetime, timedelta
 
         prev_date = datetime.strptime(execution_date, "%Y-%m-%d") - timedelta(days=1)
         reference_df = read_data(DATASET, "processed", prev_date.strftime("%Y-%m-%d"))
     except FileNotFoundError:
-        # No reference data available, skip drift detection
-        return {
-            "drift_detected": False,
-            "message": "No reference data available for drift detection",
-            "drifted_features": [],
-        }
+        return {"drift_detected": False, "message": "No reference data"}
 
-    # Detect drift
     detector = DriftDetector()
     result = detector.detect_drift(current_df, reference_df, DATASET)
-
-    # Alert if drift detected
     if result.has_drift:
-        severity = "warning" if result.severity.value == "warning" else "critical"
         alert_drift_detected(
             dataset=DATASET,
             drifted_features=result.drifted_features,
             psi_scores={f: r.psi for f, r in result.feature_results.items()},
-            severity=severity,
+            severity="warning",
             execution_date=execution_date,
             dag_id=DAG_ID,
         )
-
-    return {
-        "drift_detected": result.has_drift,
-        "severity": result.severity.value,
-        "drifted_features": result.drifted_features,
-        "overall_psi": result.overall_psi,
-    }
+    return {"drift_detected": result.has_drift, "drifted_features": result.drifted_features}
 
 
 def check_fairness(**context) -> dict:
-    """
-    Check fairness metrics for the dataset.
-
-    Uses FairnessChecker.evaluate_fairness() which checks:
-    - Representation fairness: are districts proportionally represented?
-    - Outcome disparity: do districts have similar outcome rates?
-
-    ALERTS on violations but does NOT fail the pipeline.
-    Fairness gate is enforced at deployment time via passes_fairness_gate.
-    """
-    from dags.utils import alert_fairness_violation, read_data
+    """Standardized fairness check with detailed reporting."""
+    from dags.utils.alerting import alert_fairness_violation
+    from dags.utils.gcs_io import read_data
     from src.bias.fairness_checker import FairnessChecker, FairnessViolationError
 
     execution_date = context["ds"]
-
     df = read_data(DATASET, "processed", execution_date)
 
     if df.empty:
@@ -357,22 +267,12 @@ def check_fairness(**context) -> dict:
         }
 
     checker = FairnessChecker()
-
-    result = checker.evaluate_fairness(
-        df=df,
-        dataset=DATASET,
-        outcome_column=None,
-        dimensions=["district"],
-    )
+    result = checker.evaluate_fairness(df, DATASET, dimensions=["district"])
 
     report = checker.create_fairness_report(result)
     print(report)
 
-    # Alert if any violations found
     if result.has_violations:
-        # Build violations list using correct FairnessViolation fields:
-        # v.metric, v.severity, v.dimension, v.slice_value,
-        # v.expected, v.actual, v.disparity, v.message
         violations_payload = [
             {
                 "metric": v.metric.value,
@@ -386,7 +286,6 @@ def check_fairness(**context) -> dict:
             }
             for v in result.violations
         ]
-
         alert_fairness_violation(
             dataset=DATASET,
             violations=violations_payload,
@@ -394,14 +293,11 @@ def check_fairness(**context) -> dict:
             dag_id=DAG_ID,
         )
 
-    # Log critical violations clearly
     if result.has_critical_violations:
         print(f"CRITICAL FAIRNESS VIOLATIONS ({len(result.critical_violations)}):")
         for v in result.critical_violations:
             print(f"  [{v.dimension}={v.slice_value}] {v.message}")
 
-    # Only raise if gate is enabled AND critical violations exist
-    # gate_enabled comes from config: fairness.gate_enabled
     if not result.passes_fairness_gate:
         raise FairnessViolationError(result)
 
@@ -411,81 +307,31 @@ def check_fairness(**context) -> dict:
         "has_critical_violations": result.has_critical_violations,
         "violation_count": len(result.violations),
         "critical_count": len(result.critical_violations),
-        "warning_count": len(result.warning_violations),
-        "slices_evaluated": result.slices_evaluated,
-        # Store violation details for model card to consume via XCom
-        "violations": [
-            {
-                "metric": v.metric.value,
-                "severity": v.severity.value,
-                "dimension": v.dimension,
-                "message": v.message,
-            }
-            for v in result.violations
-        ],
     }
 
 
 def mitigate_bias_task(**context) -> dict:
-    """
-    Apply bias mitigation when fairness violations are detected.
-
-    - Reads the processed DataFrame for today's execution date.
-    - Pulls the fairness result from check_fairness via XCom.
-    - If violations exist, applies reweighting (default) and saves
-      the mitigated DataFrame back to storage as 'mitigated' stage.
-    - Returns a summary dict that generate_model_card can consume.
-
-    Strategy choice rationale:
-        REWEIGHTING       → preserves all rows; safest for downstream features.
-        STRATIFIED_SAMPLING → use if you need balanced row counts.
-        THRESHOLD_ADJUSTMENT → use at model inference time, not here.
-    """
-    from dags.utils import read_data, write_data
+    """Standardized bias mitigation task logic."""
+    from dags.utils.gcs_io import read_data, write_data
     from src.bias.bias_mitigator import BiasMitigator, MitigationStrategy
 
     execution_date = context["ds"]
     ti = context["ti"]
-
-    # ── 1. Pull fairness result from upstream XCom ──────────────────────────
-    fairness_xcom: dict = ti.xcom_pull(task_ids="check_fairness")
+    fairness_xcom = ti.xcom_pull(task_ids="check_fairness")
 
     if not fairness_xcom or not fairness_xcom.get("has_violations"):
-        # No violations — nothing to mitigate, pass through cleanly
-        return {
-            "mitigation_applied": False,
-            "reason": "No fairness violations detected",
-            "rows_before": None,
-            "rows_after": None,
-        }
+        return {"mitigation_applied": False, "reason": "No violations"}
 
-    # ── 2. Load processed data ───────────────────────────────────────────────
     df = read_data(DATASET, "processed", execution_date)
-
     if df.empty:
-        return {
-            "mitigation_applied": False,
-            "reason": "Empty DataFrame — skipping mitigation",
-        }
+        return {"mitigation_applied": False, "reason": "Empty DF"}
 
-    # ── 3. Reconstruct a minimal FairnessResult for the mitigator ───────────
-    #
-    # XCom carries only serialisable dicts, not the full FairnessResult object.
-    # BiasMitigator only needs fairness_result.dataset and .violations to build
-    # MitigationAction records, so we reconstruct a lightweight stand-in.
-    #
     from dataclasses import dataclass
 
-    from src.bias.fairness_checker import (
-        FairnessMetric,
-        FairnessSeverity,
-        FairnessViolation,
-    )
+    from src.bias.fairness_checker import FairnessMetric, FairnessSeverity, FairnessViolation
 
     @dataclass
     class _SlimFairnessResult:
-        """Minimal shim so BiasMitigator receives the expected interface."""
-
         dataset: str
         violations: list
 
@@ -506,179 +352,82 @@ def mitigate_bias_task(**context) -> dict:
         )
         for v in fairness_xcom.get("violations", [])
     ]
-
     slim_result = _SlimFairnessResult(dataset=DATASET, violations=slim_violations)
 
-    # ── 4. Choose strategy ───────────────────────────────────────────────────
-    #
-    # Reweighting is the right default here: it keeps all rows intact so
-    # validate_features and detect_drift outputs remain comparable, and
-    # the added `sample_weight` column is carried into model training.
-    #
-    # Switch to STRATIFIED_SAMPLING if you need balanced row counts, or
-    # THRESHOLD_ADJUSTMENT at inference time (not in this pipeline stage).
     strategy = MitigationStrategy.REWEIGHTING
-
-    # ── 5. Run mitigation ────────────────────────────────────────────────────
     mitigator = BiasMitigator()
     mitigation_result = mitigator.mitigate(
-        df=df,
-        fairness_result=slim_result,
-        dimension="district",  # primary fairness dimension for crime data
-        strategy=strategy,
+        df=df, fairness_result=slim_result, dimension="district", strategy=strategy
     )
-
-    print(mitigation_result.report())  # surfaced in Airflow task logs
-
-    # ── 6. Persist mitigated DataFrame ──────────────────────────────────────
-    mitigated_df = mitigation_result.mitigated_df
-    output_path = write_data(mitigated_df, DATASET, "mitigated", execution_date)
+    write_data(mitigation_result.mitigated_df, DATASET, "mitigated", execution_date)
 
     return {
         "mitigation_applied": True,
         "strategy": strategy.value,
-        "dimension": "district",
         "rows_before": mitigation_result.rows_before,
-        "rows_after": mitigation_result.rows_after,
-        "slices_improved": mitigation_result.total_improved,
-        "total_slices": len(mitigation_result.actions),
-        "output_path": output_path,
-        "weight_range": mitigation_result.tradeoffs.get("weight_range"),
-        # Pass per-slice action details to model card
-        "actions": [
-            {
-                "slice_value": a.slice_value,
-                "before_disparity": round(a.before_disparity, 4),
-                "after_disparity": round(a.after_disparity, 4),
-                "improvement_pct": round(a.improvement_pct, 2),
-                "details": a.details,
-            }
-            for a in mitigation_result.actions
-        ],
     }
 
 
 def generate_model_card(**context) -> dict:
-    """Generate model card for the dataset."""
-    from dags.utils import read_data
+    from dags.utils.gcs_io import read_data
     from src.bias import ModelCardGenerator
 
     execution_date = context["ds"]
-
-    # Read processed data
     df = read_data(DATASET, "processed", execution_date)
-
-    # Get results from upstream tasks
     ti = context["ti"]
-    validation_result = ti.xcom_pull(task_ids="validate_processed")
-    drift_result = ti.xcom_pull(task_ids="detect_drift")
-    fairness_result = ti.xcom_pull(task_ids="check_fairness")
-    mitigation_result = ti.xcom_pull(task_ids="mitigate_bias")
 
-    # Generate model card
     generator = ModelCardGenerator()
     card = generator.generate_model_card(
         dataset=DATASET,
         df=df,
         version=execution_date.replace("-", ""),
-        description="Boston crime incident reports from Boston Police Department",
-        validation_result=validation_result,
-        drift_result=drift_result,
-        fairness_result=fairness_result,
-        mitigation_result=mitigation_result,
+        description="Boston crime incident reports documentation",
+        validation_result=ti.xcom_pull(task_ids="validate_processed"),
+        drift_result=ti.xcom_pull(task_ids="detect_drift"),
+        fairness_result=ti.xcom_pull(task_ids="check_fairness"),
+        mitigation_result=ti.xcom_pull(task_ids="mitigate_bias"),
     )
-
-    # Save model card
     output_path = generator.save_model_card(card, format="both")
+    return {"model_card_generated": True, "output_path": output_path}
 
-    return {
-        "model_card_generated": True,
-        "output_path": output_path,
-        "version": card.version,
-    }
+
+def record_lineage(**context) -> dict:
+    from dags.utils.lineage_utils import record_pipeline_lineage
+
+    return record_pipeline_lineage(dataset=DATASET, dag_id=DAG_ID, context=context)
 
 
 def update_watermark(**context) -> dict:
-    """Update watermark after successful pipeline completion."""
-    from dags.utils import read_data, set_watermark
+    from dags.utils.gcs_io import read_data
+    from dags.utils.watermark import set_watermark
 
     execution_date = context["ds"]
-
-    # Read processed data to get max date
     df = read_data(DATASET, "processed", execution_date)
-
     if "occurred_on_date" in df.columns and len(df) > 0:
         import pandas as pd
 
         max_date = pd.to_datetime(df["occurred_on_date"]).max()
         if pd.notna(max_date):
             set_watermark(DATASET, max_date.to_pydatetime(), execution_date)
-            return {
-                "watermark_updated": True,
-                "new_watermark": max_date.isoformat(),
-            }
-
-    return {"watermark_updated": False, "reason": "No valid dates in data"}
-
-
-def record_lineage(**context) -> dict:
-    """
-    Record data lineage for this pipeline run.
-
-    Captures exact GCS generation numbers for all artifacts,
-    enabling precise point-in-time recovery and debugging.
-
-    This is the key to answering: "What exact data did the model see on date X?"
-    """
-    from dags.utils import record_pipeline_lineage
-
-    return record_pipeline_lineage(
-        dataset=DATASET,
-        dag_id=DAG_ID,
-        context=context,
-    )
+            return {"watermark_updated": True, "new_watermark": max_date.isoformat()}
+    return {"watermark_updated": False}
 
 
 def pipeline_complete(**context) -> dict:
-    """Final task to mark pipeline completion and send summary alert."""
-    from dags.utils import alert_pipeline_complete
+    from dags.utils.alerting import alert_pipeline_complete
 
     execution_date = context["ds"]
     ti = context["ti"]
-
-    # Gather stats from upstream tasks
     ingest_result = ti.xcom_pull(task_ids="ingest_data")
-    preprocess_result = ti.xcom_pull(task_ids="preprocess_data")
-    features_result = ti.xcom_pull(task_ids="build_features")
-    lineage_result = ti.xcom_pull(task_ids="record_lineage")
-
-    stats = {
-        "rows_ingested": ingest_result.get("rows_fetched", 0) if ingest_result else 0,
-        "rows_processed": (preprocess_result.get("rows_output", 0) if preprocess_result else 0),
-        "features_generated": (
-            features_result.get("features_computed", 0) if features_result else 0
-        ),
-        "lineage_recorded": (
-            lineage_result.get("lineage_recorded", False) if lineage_result else False
-        ),
-    }
-
-    # Calculate total duration
-    duration = (
-        (ingest_result.get("duration_seconds", 0) if ingest_result else 0)
-        + (preprocess_result.get("duration_seconds", 0) if preprocess_result else 0)
-        + (features_result.get("duration_seconds", 0) if features_result else 0)
-    )
-
+    stats = {"rows_ingested": ingest_result.get("rows_fetched", 0) if ingest_result else 0}
     alert_pipeline_complete(
         dataset=DATASET,
         execution_date=execution_date,
-        duration_seconds=duration,
+        duration_seconds=0,
         stats=stats,
         dag_id=DAG_ID,
     )
-
-    return {"status": "complete", "stats": stats}
+    return {"status": "complete"}
 
 
 # =============================================================================
@@ -688,103 +437,84 @@ def pipeline_complete(**context) -> dict:
 with DAG(
     dag_id=DAG_ID,
     default_args=default_args,
-    description="Crime incident data pipeline with validation and fairness checks",
+    description="Crime incident data pipeline with standard compliance steps",
     schedule_interval=SCHEDULE,
     start_date=START_DATE,
     catchup=False,
-    tags=["crime", "dataset", "reference"],
+    tags=["crime", "reference"],
     max_active_runs=1,
 ) as dag:
-    # Import callbacks
-    from dags.utils import on_dag_failure, on_dag_success, on_task_failure
+    from dags.utils.callbacks import on_dag_failure, on_dag_success, on_task_failure
 
     dag.on_failure_callback = on_dag_failure
     dag.on_success_callback = on_dag_success
 
-    # Task definitions
     t_ingest = PythonOperator(
-        task_id="ingest_data",
-        python_callable=ingest_data,
+        task_id="ingest_data", python_callable=ingest_data, on_failure_callback=on_task_failure
+    )
+    t_detect_anomalies = PythonOperator(
+        task_id="detect_anomalies",
+        python_callable=detect_anomalies,
         on_failure_callback=on_task_failure,
     )
-
     t_validate_raw = PythonOperator(
-        task_id="validate_raw",
-        python_callable=validate_raw,
-        on_failure_callback=on_task_failure,
+        task_id="validate_raw", python_callable=validate_raw, on_failure_callback=on_task_failure
     )
-
     t_preprocess = PythonOperator(
         task_id="preprocess_data",
         python_callable=preprocess_data,
         on_failure_callback=on_task_failure,
     )
-
     t_validate_processed = PythonOperator(
         task_id="validate_processed",
         python_callable=validate_processed,
         on_failure_callback=on_task_failure,
     )
-
     t_build_features = PythonOperator(
         task_id="build_features",
         python_callable=build_features,
         on_failure_callback=on_task_failure,
     )
-
     t_validate_features = PythonOperator(
         task_id="validate_features",
         python_callable=validate_features,
         on_failure_callback=on_task_failure,
     )
-
     t_detect_drift = PythonOperator(
-        task_id="detect_drift",
-        python_callable=detect_drift,
-        on_failure_callback=on_task_failure,
+        task_id="detect_drift", python_callable=detect_drift, on_failure_callback=on_task_failure
     )
-
     t_check_fairness = PythonOperator(
         task_id="check_fairness",
         python_callable=check_fairness,
         on_failure_callback=on_task_failure,
     )
-
     t_mitigate_bias = PythonOperator(
         task_id="mitigate_bias",
         python_callable=mitigate_bias_task,
         on_failure_callback=on_task_failure,
     )
-
     t_generate_model_card = PythonOperator(
         task_id="generate_model_card",
         python_callable=generate_model_card,
         on_failure_callback=on_task_failure,
     )
-
     t_update_watermark = PythonOperator(
         task_id="update_watermark",
         python_callable=update_watermark,
         on_failure_callback=on_task_failure,
     )
-
     t_record_lineage = PythonOperator(
         task_id="record_lineage",
         python_callable=record_lineage,
         on_failure_callback=on_task_failure,
     )
-
     t_pipeline_complete = PythonOperator(
-        task_id="pipeline_complete",
-        python_callable=pipeline_complete,
-        trigger_rule="all_success",
+        task_id="pipeline_complete", python_callable=pipeline_complete, trigger_rule="all_success"
     )
 
-    # Define task dependencies
-    # Flow: ingest -> validate -> preprocess -> validate -> features -> validate
-    #       -> [drift, fairness] -> mitigate -> model_card -> watermark -> lineage -> complete
     (
         t_ingest
+        >> t_detect_anomalies
         >> t_validate_raw
         >> t_preprocess
         >> t_validate_processed

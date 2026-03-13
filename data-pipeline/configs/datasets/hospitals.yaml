@@ -1,0 +1,20 @@
+# Boston Pulse - Hospital Locations Configuration
+#
+# Dataset: Hospital Locations
+# Source: Analyze Boston (data.boston.gov)
+
+dataset:
+  name: "hospitals"
+  description: "Locations of hospitals in Boston"
+
+api:
+  resource_id: "6222085d-ee88-45c6-ae40-0c7464620d64"
+  base_url: "https://data.boston.gov/api/3/action"
+  endpoint: "datastore_search_sql"
+  batch_size: 1000
+  timeout_seconds: 60
+
+ingestion:
+  watermark_field: null # Snapshot dataset
+  primary_key: "_id"
+  lookback_days: null

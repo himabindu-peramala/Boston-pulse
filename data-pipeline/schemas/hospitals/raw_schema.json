@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Hospital Locations Raw Schema",
+  "type": "object",
+  "required": [
+    "_id",
+    "NAME",
+    "AD"
+  ],
+  "properties": {
+    "_id": {
+      "type": "integer"
+    },
+    "NAME": {
+      "type": "string"
+    },
+    "AD": {
+      "type": "string"
+    },
+    "ZIPCODE": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "NEIGH": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "XCOORD": {
+      "type": [
+        "string",
+        "number",
+        "null"
+      ]
+    },
+    "YCOORD": {
+      "type": [
+        "string",
+        "number",
+        "null"
+      ]
+    },
+    "Location": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

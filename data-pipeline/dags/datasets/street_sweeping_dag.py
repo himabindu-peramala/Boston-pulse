@@ -67,9 +67,41 @@ def ingest_data(**context) -> dict:
     return result.to_dict()
 
 
+def detect_anomalies(**context) -> dict:
+    """Detect anomalies in raw data after ingestion."""
+    from dags.utils.alerting import alert_anomaly_detected
+    from dags.utils.gcs_io import read_data
+    from src.validation import AnomalyDetector
+
+    execution_date = context["ds"]
+    df = read_data(DATASET, "raw", execution_date)
+
+    detector = AnomalyDetector()
+    result = detector.detect_anomalies(df, DATASET)
+
+    if result.has_critical_anomalies:
+        for anomaly in result.critical_anomalies:
+            alert_anomaly_detected(
+                dataset=DATASET,
+                anomaly_type=anomaly.type.value,
+                details=anomaly.message,
+                severity="critical",
+                execution_date=execution_date,
+                dag_id=DAG_ID,
+            )
+
+    return {
+        "has_anomalies": result.has_anomalies,
+        "anomaly_count": len(result.anomalies),
+        "critical_count": len(result.critical_anomalies),
+        "anomalies_by_type": {k.value: len(v) for k, v in result.anomalies_by_type.items()},
+    }
+
+
 def validate_raw(**context) -> dict:
     """Validate raw street sweeping data against schema."""
-    from dags.utils import alert_validation_failure, read_data
+    from dags.utils.alerting import alert_validation_failure
+    from dags.utils.gcs_io import read_data
     from src.validation import SchemaEnforcer
 
     execution_date = context["ds"]
@@ -99,7 +131,7 @@ def validate_raw(**context) -> dict:
 
 def preprocess_data(**context) -> dict:
     """Preprocess raw street sweeping data."""
-    from dags.utils import read_data, write_data
+    from dags.utils.gcs_io import read_data, write_data
     from src.datasets.street_sweeping.preprocess import StreetSweepingPreprocessor
 
     execution_date = context["ds"]
@@ -121,7 +153,8 @@ def preprocess_data(**context) -> dict:
 
 def validate_processed(**context) -> dict:
     """Validate processed street sweeping data against schema."""
-    from dags.utils import alert_validation_failure, read_data
+    from dags.utils.alerting import alert_validation_failure
+    from dags.utils.gcs_io import read_data
     from src.validation import SchemaEnforcer
 
     execution_date = context["ds"]
@@ -151,7 +184,7 @@ def validate_processed(**context) -> dict:
 
 def build_features(**context) -> dict:
     """Build street sweeping features from processed data."""
-    from dags.utils import read_data, write_data
+    from dags.utils.gcs_io import read_data, write_data
     from src.datasets.street_sweeping.features import StreetSweepingFeatureBuilder
 
     execution_date = context["ds"]
@@ -173,7 +206,8 @@ def build_features(**context) -> dict:
 
 def validate_features(**context) -> dict:
     """Validate street sweeping features against schema."""
-    from dags.utils import alert_validation_failure, read_data
+    from dags.utils.alerting import alert_validation_failure
+    from dags.utils.gcs_io import read_data
     from src.validation import SchemaEnforcer
 
     execution_date = context["ds"]
@@ -203,7 +237,8 @@ def validate_features(**context) -> dict:
 
 def detect_drift(**context) -> dict:
     """Detect data drift in processed street sweeping data."""
-    from dags.utils import alert_drift_detected, read_data
+    from dags.utils.alerting import alert_drift_detected
+    from dags.utils.gcs_io import read_data
     from src.validation import DriftDetector
 
     execution_date = context["ds"]
@@ -250,7 +285,8 @@ def check_fairness(**context) -> dict:
     Evaluates whether street sweeping schedules are equitably
     distributed across different districts.
     """
-    from dags.utils import alert_fairness_violation, read_data
+    from dags.utils.alerting import alert_fairness_violation
+    from dags.utils.gcs_io import read_data
     from src.bias.fairness_checker import FairnessChecker, FairnessViolationError
 
     execution_date = context["ds"]
@@ -319,58 +355,108 @@ def check_fairness(**context) -> dict:
     }
 
 
-def mitigate_bias(**context) -> dict:
+def mitigate_bias_task(**context) -> dict:
     """
-    Apply bias mitigation strategies to address fairness violations.
+    Apply bias mitigation when fairness violations are detected.
 
-    Uses reweighting to correct representation imbalance across districts.
+    Reads processed data, reconstructs violations from XCom, applies
+    reweighting, and saves the mitigated DataFrame as the 'mitigated' stage.
     """
-    from dags.utils import read_data, write_data
+    from dataclasses import dataclass
+
+    from dags.utils.gcs_io import read_data, write_data
     from src.bias.bias_mitigator import BiasMitigator, MitigationStrategy
-    from src.bias.fairness_checker import FairnessChecker
+    from src.bias.fairness_checker import (
+        FairnessMetric,
+        FairnessSeverity,
+        FairnessViolation,
+    )
 
     execution_date = context["ds"]
+    ti = context["ti"]
+
+    fairness_xcom: dict = ti.xcom_pull(task_ids="check_fairness")
+
+    if not fairness_xcom or not fairness_xcom.get("has_violations"):
+        return {
+            "mitigation_applied": False,
+            "reason": "No fairness violations detected",
+            "rows_before": None,
+            "rows_after": None,
+        }
+
     df = read_data(DATASET, "processed", execution_date)
 
     if df.empty:
-        return {"mitigated": False, "message": "No data to mitigate"}
+        return {
+            "mitigation_applied": False,
+            "reason": "Empty DataFrame — skipping mitigation",
+        }
 
-    # Re-run fairness check to get fairness_result object
-    checker = FairnessChecker()
-    fairness_result = checker.evaluate_fairness(
-        df=df,
-        dataset=DATASET,
-        outcome_column=None,
-        dimensions=["district"],
-    )
+    @dataclass
+    class _SlimFairnessResult:
+        dataset: str
+        violations: list
 
-    # Apply reweighting mitigation
+        @property
+        def has_violations(self):
+            return bool(self.violations)
+
+    slim_violations = [
+        FairnessViolation(
+            metric=FairnessMetric(v["metric"]),
+            severity=FairnessSeverity(v["severity"]),
+            dimension=v["dimension"],
+            slice_value=v.get("slice_value", ""),
+            expected=v.get("expected", 0.0),
+            actual=v.get("actual", 0.0),
+            disparity=v.get("disparity", 0.0),
+            message=v.get("message", ""),
+        )
+        for v in fairness_xcom.get("violations", [])
+    ]
+
+    slim_result = _SlimFairnessResult(dataset=DATASET, violations=slim_violations)
+    strategy = MitigationStrategy.REWEIGHTING
+
     mitigator = BiasMitigator()
-    result = mitigator.mitigate(
+    mitigation_result = mitigator.mitigate(
         df=df,
-        fairness_result=fairness_result,
+        fairness_result=slim_result,
         dimension="district",
-        strategy=MitigationStrategy.REWEIGHTING,
+        strategy=strategy,
     )
 
-    print(result.report())
+    print(mitigation_result.report())
 
-    # Save mitigated data
-    if result.mitigated_df is not None and len(result.mitigated_df) > 0:
-        write_data(result.mitigated_df, DATASET, "processed", execution_date)
+    output_path = write_data(mitigation_result.mitigated_df, DATASET, "mitigated", execution_date)
 
     return {
-        "mitigated": True,
-        "strategy": result.strategy.value,
-        "rows_before": result.rows_before,
-        "rows_after": result.rows_after,
-        "slices_improved": result.total_improved,
+        "mitigation_applied": True,
+        "strategy": strategy.value,
+        "dimension": "district",
+        "rows_before": mitigation_result.rows_before,
+        "rows_after": mitigation_result.rows_after,
+        "slices_improved": mitigation_result.total_improved,
+        "total_slices": len(mitigation_result.actions),
+        "output_path": output_path,
+        "weight_range": mitigation_result.tradeoffs.get("weight_range"),
+        "actions": [
+            {
+                "slice_value": a.slice_value,
+                "before_disparity": round(a.before_disparity, 4),
+                "after_disparity": round(a.after_disparity, 4),
+                "improvement_pct": round(a.improvement_pct, 2),
+                "details": a.details,
+            }
+            for a in mitigation_result.actions
+        ],
     }
 
 
 def generate_model_card(**context) -> dict:
     """Generate model card for street sweeping dataset."""
-    from dags.utils import read_data
+    from dags.utils.gcs_io import read_data
     from src.bias import ModelCardGenerator
 
     execution_date = context["ds"]
@@ -380,6 +466,7 @@ def generate_model_card(**context) -> dict:
     validation_result = ti.xcom_pull(task_ids="validate_processed")
     drift_result = ti.xcom_pull(task_ids="detect_drift")
     fairness_result = ti.xcom_pull(task_ids="check_fairness")
+    mitigation_result = ti.xcom_pull(task_ids="mitigate_bias")
 
     generator = ModelCardGenerator()
     card = generator.generate_model_card(
@@ -390,6 +477,7 @@ def generate_model_card(**context) -> dict:
         validation_result=validation_result,
         drift_result=drift_result,
         fairness_result=fairness_result,
+        mitigation_result=mitigation_result,
     )
 
     output_path = generator.save_model_card(card, format="both")
@@ -420,7 +508,7 @@ def record_lineage(**context) -> dict:
     Captures exact GCS generation numbers for all artifacts,
     enabling precise point-in-time recovery and debugging.
     """
-    from dags.utils import record_pipeline_lineage
+    from dags.utils.lineage_utils import record_pipeline_lineage
 
     return record_pipeline_lineage(
         dataset=DATASET,
@@ -431,7 +519,7 @@ def record_lineage(**context) -> dict:
 
 def pipeline_complete(**context) -> dict:
     """Final task to mark pipeline completion and send summary alert."""
-    from dags.utils import alert_pipeline_complete
+    from dags.utils.alerting import alert_pipeline_complete
 
     execution_date = context["ds"]
     ti = context["ti"]
@@ -477,11 +565,16 @@ with DAG(
     tags=["boston-pulse", "street-sweeping", "public-works"],
     max_active_runs=1,
 ) as dag:
-    from dags.utils import on_dag_failure, on_dag_success, on_task_failure
+    from dags.utils.callbacks import on_dag_failure, on_dag_success, on_task_failure
 
     dag.on_failure_callback = on_dag_failure
     dag.on_success_callback = on_dag_success
 
+    t_detect_anomalies = PythonOperator(
+        task_id="detect_anomalies",
+        python_callable=detect_anomalies,
+        on_failure_callback=on_task_failure,
+    )
     t_ingest = PythonOperator(
         task_id="ingest_data",
         python_callable=ingest_data,
@@ -532,7 +625,7 @@ with DAG(
 
     t_mitigate_bias = PythonOperator(
         task_id="mitigate_bias",
-        python_callable=mitigate_bias,
+        python_callable=mitigate_bias_task,
         on_failure_callback=on_task_failure,
     )
 
@@ -561,9 +654,11 @@ with DAG(
     )
 
     # Define task dependencies
+    # Define task dependencies: ingest -> [anomalies, validate] -> preprocess -> validate -> features -> validate
+    #                          -> [drift, fairness] -> mitigate -> model_card -> watermark -> lineage -> complete
     (
         t_ingest
-        >> t_validate_raw
+        >> [t_detect_anomalies, t_validate_raw]
         >> t_preprocess
         >> t_validate_processed
         >> t_build_features

@@ -30,7 +30,7 @@ storage:
 # Validation - STRICT MODE
 # -----------------------------------------------------------------------------
 validation:
-  schema:
+  quality_schema:
     strict_mode: true  # ALWAYS strict in production
     allow_extra_columns: false
 

@@ -1,106 +1,60 @@
 """
 Boston Pulse - DAG Utilities
 
-Common utilities for Airflow DAGs including:
-- GCS I/O operations
-- Watermark management
-- Task callbacks
-- DAG alerting
-- Lineage tracking
+This package root uses lazy loading to prevent heavy submodule loads
+(like google-cloud-storage and pandas) during Airflow DAG parsing.
 
-Usage:
-    from dags.utils import (
-        read_data, write_data, get_latest_data,
-        get_watermark, set_watermark,
-        on_task_failure, on_dag_failure,
-        alert_validation_failure, alert_drift_detected,
-        record_pipeline_lineage, get_lineage_for_date,
-    )
+All utilities can still be imported from this root for backward compatibility:
+    from dags.utils import write_data, on_dag_failure, ...
+
+For new code, direct submodule imports are preferred for clarity:
+    from dags.utils.gcs_io import write_data
 """
 
-from dags.utils.alerting import (
-    DAGAlertManager,
-    alert_anomaly_detected,
-    alert_drift_detected,
-    alert_fairness_violation,
-    alert_ingestion_complete,
-    alert_pipeline_complete,
-    alert_preprocessing_complete,
-    alert_validation_failure,
-)
-from dags.utils.callbacks import (
-    create_failure_callback,
-    on_dag_failure,
-    on_dag_success,
-    on_drift_detected,
-    on_task_failure,
-    on_task_retry,
-    on_task_success,
-    on_validation_failure,
-)
-from dags.utils.gcs_io import (
-    GCSDataIO,
-    get_latest_data,
-    read_data,
-    write_data,
-)
-from dags.utils.lineage_utils import (
-    compare_runs,
-    create_record_lineage_task,
-    find_runs_with_schema,
-    get_dataset_lineage_history,
-    get_lineage_for_date,
-    get_restore_commands,
-    print_lineage_diff,
-    print_lineage_summary,
-    print_restore_commands,
-    record_pipeline_lineage,
-)
-from dags.utils.watermark import (
-    WatermarkManager,
-    get_effective_watermark,
-    get_watermark,
-    set_watermark,
-)
+from __future__ import annotations
 
-__all__ = [
+import importlib
+from typing import Any
+
+# Mapping of attribute names to their submodules
+_LAZY_IMPORTS = {
     # GCS I/O
-    "GCSDataIO",
-    "read_data",
-    "write_data",
-    "get_latest_data",
+    "read_data": "dags.utils.gcs_io",
+    "write_data": "dags.utils.gcs_io",
     # Watermark
-    "WatermarkManager",
-    "get_watermark",
-    "set_watermark",
-    "get_effective_watermark",
+    "get_watermark": "dags.utils.watermark",
+    "set_watermark": "dags.utils.watermark",
+    "get_effective_watermark": "dags.utils.watermark",
     # Callbacks
-    "on_task_failure",
-    "on_task_success",
-    "on_task_retry",
-    "on_dag_failure",
-    "on_dag_success",
-    "on_validation_failure",
-    "on_drift_detected",
-    "create_failure_callback",
+    "on_dag_failure": "dags.utils.callbacks",
+    "on_dag_success": "dags.utils.callbacks",
+    "on_task_failure": "dags.utils.callbacks",
+    "on_task_success": "dags.utils.callbacks",
     # Alerting
-    "DAGAlertManager",
-    "alert_ingestion_complete",
-    "alert_preprocessing_complete",
-    "alert_validation_failure",
-    "alert_drift_detected",
-    "alert_anomaly_detected",
-    "alert_fairness_violation",
-    "alert_pipeline_complete",
+    "alert_ingestion_complete": "dags.utils.alerting",
+    "alert_preprocessing_complete": "dags.utils.alerting",
+    "alert_validation_failure": "dags.utils.alerting",
+    "alert_drift_detected": "dags.utils.alerting",
+    "alert_fairness_violation": "dags.utils.alerting",
+    "alert_anomaly_detected": "dags.utils.alerting",
+    "alert_pipeline_complete": "dags.utils.alerting",
     # Lineage
-    "record_pipeline_lineage",
-    "create_record_lineage_task",
-    "get_lineage_for_date",
-    "get_dataset_lineage_history",
-    "compare_runs",
-    "find_runs_with_schema",
-    "get_restore_commands",
-    "print_restore_commands",
-    "print_lineage_summary",
-    "print_lineage_diff",
-]
+    "record_pipeline_lineage": "dags.utils.lineage_utils",
+}
+
+
+def __getattr__(name: str) -> Any:
+    """Lazy loader for module attributes."""
+    if name in _LAZY_IMPORTS:
+        module_path = _LAZY_IMPORTS[name]
+        module = importlib.import_module(module_path)
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__} has no attribute {name}")
+
+
+def __dir__() -> list[str]:
+    """Ensure dir() shows the lazy attributes for better IDE support."""
+    return sorted(list(globals().keys()) + list(_LAZY_IMPORTS.keys()))
+
+
+__all__ = list(_LAZY_IMPORTS.keys())

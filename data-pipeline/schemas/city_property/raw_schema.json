@@ -1,0 +1,45 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "City Owned Property Raw Schema",
+    "type": "object",
+    "required": [
+        "_id",
+        "OWNER",
+        "FULL_ADDRE"
+    ],
+    "properties": {
+        "_id": {
+            "type": "integer"
+        },
+        "OWNER": {
+            "type": "string"
+        },
+        "ST_NUM": {
+            "type": "string"
+        },
+        "ST_NAME": {
+            "type": "string"
+        },
+        "ST_NAM_SUF": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "ZIPCODE": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "FULL_ADDRE": {
+            "type": "string"
+        },
+        "the_geom": {
+            "type": [
+                "string",
+                "null"
+            ]
+        }
+    }
+}
