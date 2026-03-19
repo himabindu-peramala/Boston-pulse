@@ -9,7 +9,6 @@ Rows with null h3_index are kept in processed (excluded later in feature build).
 from __future__ import annotations
 
 import logging
-from datetime import UTC
 from typing import Any
 
 import pandas as pd
@@ -58,7 +57,9 @@ def preprocess_crime_navigate(raw_df: pd.DataFrame, execution_date: str) -> pd.D
     if "lat" in df.columns:
         df.loc[(df["lat"].notna()) & ((df["lat"] < min_lat) | (df["lat"] > max_lat)), "lat"] = pd.NA
     if "long" in df.columns:
-        df.loc[(df["long"].notna()) & ((df["long"] < min_lon) | (df["long"] > max_lon)), "long"] = pd.NA
+        df.loc[(df["long"].notna()) & ((df["long"] < min_lon) | (df["long"] > max_lon)), "long"] = (
+            pd.NA
+        )
 
     # 5. Shooting boolean: str(x).strip() == "1"
     if "shooting_raw" in df.columns:
@@ -72,6 +73,7 @@ def preprocess_crime_navigate(raw_df: pd.DataFrame, execution_date: str) -> pd.D
     mult = cfg.get("shooting_multiplier", 2.0)
     desc_col = "offense_description" if "offense_description" in df.columns else None
     if desc_col:
+
         def assign_weight(row: pd.Series) -> float:
             val = default
             raw = row.get(desc_col)
@@ -101,6 +103,7 @@ def preprocess_crime_navigate(raw_df: pd.DataFrame, execution_date: str) -> pd.D
     # 8. h3_index
     res = cfg.get("h3", {}).get("resolution", 9)
     if h3 is not None and "lat" in df.columns and "long" in df.columns:
+
         def to_h3(r: pd.Series) -> str | None:
             try:
                 lat, lon = r["lat"], r["long"]

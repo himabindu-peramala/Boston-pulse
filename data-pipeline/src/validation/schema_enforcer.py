@@ -483,6 +483,7 @@ class SchemaEnforcer:
 
         # Load and register
         import json
+
         schema_data = json.loads(schema_file.read_text())
         local_version = schema_data.get("metadata", {}).get("version", "v1.0.0")
 

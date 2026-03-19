@@ -7,6 +7,7 @@ Subsequent runs: pull from watermark date forward. Drops _id and _full_text.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from datetime import UTC, datetime
@@ -104,9 +105,7 @@ class CrimeNavigateIngester(BaseIngester):
                     timeout=TIMEOUT,
                 )
                 if response.status_code != 200:
-                    raise RuntimeError(
-                        f"HTTP {response.status_code}: {response.text[:200]}"
-                    )
+                    raise RuntimeError(f"HTTP {response.status_code}: {response.text[:200]}")
                 data = response.json()
                 if not data.get("success"):
                     logger.warning("API error for %s-%02d: %s", year, month, data.get("error"))
@@ -190,9 +189,9 @@ class CrimeNavigateIngester(BaseIngester):
         return df
 
     def run(
-    self,
-    execution_date: str,
-    watermark_start: datetime | None = None,
+        self,
+        execution_date: str,
+        watermark_start: datetime | None = None,
     ) -> IngestionResult:
         """
         Override BaseIngester.run to use dataset-specific first_run_start
@@ -202,6 +201,7 @@ class CrimeNavigateIngester(BaseIngester):
         - watermark_start set (subsequent runs): fetch from that date forward
         """
         import time
+
         start_time = time.time()
 
         logger.info(
@@ -221,10 +221,8 @@ class CrimeNavigateIngester(BaseIngester):
 
             watermark_end = None
             if WATERMARK_FIELD in df.columns and len(df) > 0:
-                try:
+                with contextlib.suppress(Exception):
                     watermark_end = pd.to_datetime(df[WATERMARK_FIELD]).max()
-                except Exception:
-                    pass
 
             duration = time.time() - start_time
             self._data = df
@@ -268,7 +266,6 @@ class CrimeNavigateIngester(BaseIngester):
                 success=False,
                 error_message=str(e),
             )
-
 
 
 def ingest_crime_navigate(

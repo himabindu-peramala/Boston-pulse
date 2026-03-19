@@ -32,6 +32,7 @@ default_args = {
 def _read_features(execution_date: str):
     """Read features parquet (filename=features.parquet)."""
     from dags.utils.gcs_io import GCSDataIO
+
     gcs = GCSDataIO()
     return gcs.read_parquet(DATASET, "features", execution_date, filename="features.parquet")
 
@@ -39,6 +40,7 @@ def _read_features(execution_date: str):
 def _write_features(df, execution_date: str):
     """Write features parquet (filename=features.parquet)."""
     from dags.utils.gcs_io import GCSDataIO
+
     gcs = GCSDataIO()
     return gcs.write_parquet(df, DATASET, "features", execution_date, filename="features.parquet")
 
@@ -116,8 +118,9 @@ def validate_processed(**context) -> dict:
 
 
 def build_features(**context) -> dict:
-    import pandas as pd
     from datetime import timedelta
+
+    import pandas as pd
 
     from dags.utils import read_data
     from dags.utils.gcs_io import GCSDataIO
@@ -184,6 +187,7 @@ def validate_features(**context) -> dict:
         df = _read_features(execution_date)
     except Exception:
         from dags.utils import read_data
+
         df = read_data(DATASET, "features", execution_date)
     enforcer = NavigateSchemaEnforcer()
     result = enforcer.validate_navigate_features(df)
@@ -202,6 +206,7 @@ def validate_features(**context) -> dict:
 
 def detect_drift(**context) -> dict:
     from datetime import timedelta
+
     from dags.utils import alert_drift_detected
     from src.datasets.crime_navigate.validators import NavigateDriftDetector
 
@@ -215,6 +220,7 @@ def detect_drift(**context) -> dict:
     except Exception:
         try:
             from dags.utils import read_data
+
             current_df = read_data(DATASET, "features", execution_date)
         except Exception:
             current_df = None
@@ -225,6 +231,7 @@ def detect_drift(**context) -> dict:
     except Exception:
         try:
             from dags.utils import read_data
+
             reference_df = read_data(DATASET, "features", ref_date)
         except Exception:
             reference_df = None  # ← now actually reaches the None guard below
@@ -265,6 +272,7 @@ def check_fairness(**context) -> dict:
         df = _read_features(execution_date)
     except Exception:
         from dags.utils import read_data
+
         df = read_data(DATASET, "features", execution_date)
     if df is None or df.empty:
         return {"passes_gate": True, "violations": 0, "slices_evaluated": 0}
@@ -309,10 +317,10 @@ def generate_model_card(**context) -> dict:
     from src.bias import ModelCardGenerator
 
     execution_date = context["ds"]
-    ti = context.get("ti")
     df = read_data(DATASET, "processed", execution_date)
     if df is None:
         import pandas as pd
+
         df = pd.DataFrame()
     # XCom returns dicts; ModelCardGenerator expects result objects — pass None for optional summaries
     generator = ModelCardGenerator()
@@ -337,6 +345,7 @@ def update_watermark(**context) -> dict:
     df = read_data(DATASET, "processed", execution_date)
     if df is not None and "occurred_on_date" in df.columns and len(df) > 0:
         import pandas as pd
+
         max_date = pd.to_datetime(df["occurred_on_date"]).max()
         if pd.notna(max_date):
             set_watermark(DATASET, max_date.to_pydatetime(), execution_date)

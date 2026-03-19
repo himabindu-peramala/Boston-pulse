@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 import pandas as pd
 
 from src.bias.fairness_checker import FairnessChecker, FairnessResult
