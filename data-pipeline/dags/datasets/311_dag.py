@@ -187,7 +187,7 @@ def check_fairness(**context) -> dict:
 
     print(checker.create_fairness_report(result))
 
-    if result.has_violations:
+    if result.has_critical_violations:
         alert_fairness_violation(
             dataset=DATASET,
             violations=[

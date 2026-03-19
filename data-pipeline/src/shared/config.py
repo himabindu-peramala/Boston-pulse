@@ -190,6 +190,7 @@ class FairnessConfig(BaseModel):
         default_factory=lambda: ["neighborhood", "hour_of_day", "day_of_week"]
     )
     thresholds: FairnessThresholdsConfig = Field(default_factory=FairnessThresholdsConfig)
+    reference_distributions: dict[str, dict[str, float]] = Field(default_factory=dict)
     gate_enabled: bool = False
 
 

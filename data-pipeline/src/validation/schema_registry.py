@@ -355,7 +355,13 @@ class SchemaRegistry:
 
             # Check type compatibility (basic check)
             actual_dtype = str(df[col].dtype)
-            if not self._is_type_compatible(actual_dtype, expected_type):
+            is_compatible = self._is_type_compatible(actual_dtype, expected_type)
+
+            if not is_compatible:
+                logger.error(
+                    f"TYPE MISMATCH for {dataset}/{layer} column '{col}': "
+                    f"actual={actual_dtype}, expected={expected_type}"
+                )
                 errors.append(
                     f"Column '{col}' has dtype '{actual_dtype}' but schema expects '{expected_type}'"
                 )

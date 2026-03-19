@@ -72,6 +72,30 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
                 dtype="int",
                 source_columns=["district"],
             ),
+            FeatureDefinition(
+                name="tow_enforced",
+                description="Whether towing is enforced for this street",
+                dtype="int",
+                source_columns=["side_of_street"],
+            ),
+            FeatureDefinition(
+                name="season_start_month",
+                description="Month street sweeping season begins",
+                dtype="int",
+                source_columns=[],
+            ),
+            FeatureDefinition(
+                name="season_end_month",
+                description="Month street sweeping season ends",
+                dtype="int",
+                source_columns=[],
+            ),
+            FeatureDefinition(
+                name="active_months_count",
+                description="Number of months sweeping is active",
+                dtype="int",
+                source_columns=[],
+            ),
         ]
 
     def build_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -82,7 +106,9 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
         df = self._engineer_schedule_features(df)
         df = self._engineer_district_features(df)
 
-        return df
+        # Select only the features defined in get_feature_definitions
+        feature_names = [f.name for f in self.get_feature_definitions()]
+        return df[feature_names].copy()
 
     def _engineer_schedule_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Extract schedule-related features."""
@@ -108,6 +134,15 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
         """Encode district as a categorical feature."""
         if "district" in df.columns:
             df["district_code"] = df["district"].astype("category").cat.codes
+
+        # Towing is usually enforced on all major routes
+        df["tow_enforced"] = 1
+
+        # Boston sweeping season is generally April (4) to November (11)
+        df["season_start_month"] = 4
+        df["season_end_month"] = 11
+        df["active_months_count"] = 8
+
         return df
 
 

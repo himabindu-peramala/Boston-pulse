@@ -26,26 +26,30 @@ class BerdoPreprocessor(BasePreprocessor):
     COLUMN_MAPPINGS = {
         "_id": "_id",
         "berdo_id": "berdo_id",
+        "reporting_year": "reporting_year",
+        "property_name": "property_name",
         "property_owner_name": "property_owner_name",
-        "building_address": "building_address",
+        "address": "address",
         "building_address_city": "building_address_city",
-        "building_address_zip__code": "zip",
-        "largest_property_type": "property_type",
-        "reported_gross_floor_area_(sq_ft)": "gross_floor_area",
-        "total_site_energy_usage_(kbtu)": "site_energy_use_kbtu",
-        "estimated_total_ghg_emissions_(kgco2e)": "total_ghg_emissions",
+        "zip": "zip",
+        "property_type": "property_type",
+        "gross_floor_area": "gross_floor_area",
+        "site_energy_use_kbtu": "site_energy_use_kbtu",
+        "total_ghg_emissions": "total_ghg_emissions",
         "energy_star_score": "energy_star_score",
-        "electricity_usage_(kwh)": "electricity_usage_kwh",
-        "natural_gas_usage_(kbtu)": "natural_gas_use",
+        "electricity_use_grid_purchase": "electricity_use_grid_purchase",
+        "natural_gas_use": "natural_gas_use",
         "compliance_status": "compliance_status",
-        "site_eui_(energy_use_intensity_kbtu/ft2)": "site_eui",
+        "site_eui": "site_eui",
+        "lat": "lat",
+        "long": "long",
     }
 
     REQUIRED_COLUMNS = [
         "_id",
-        "berdo_id",
-        "property_owner_name",
-        "building_address",
+        "reporting_year",
+        "property_name",
+        "address",
         "property_type",
         "total_ghg_emissions",
     ]
@@ -110,14 +114,20 @@ class BerdoPreprocessor(BasePreprocessor):
             "site_energy_use_kbtu",
             "total_ghg_emissions",
             "energy_star_score",
-            "electricity_usage_kwh",
+            "electricity_use_grid_purchase",
             "natural_gas_use",
             "site_eui",
+            "lat",
+            "long",
         ]
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
                 df.loc[df[col] < 0, col] = np.nan
+
+        # Unit conversion: kWh to kBtu (1 kWh = 3.412 kBtu)
+        if "electricity_use_grid_purchase" in df.columns:
+            df["electricity_use_grid_purchase"] = df["electricity_use_grid_purchase"] * 3.41214
         return df
 
     def _handle_missing_values(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -131,23 +141,30 @@ class BerdoPreprocessor(BasePreprocessor):
         """Select and order output columns."""
         output_columns = [
             "_id",
-            "berdo_id",
-            "property_owner_name",
-            "building_address",
-            "building_address_city",
+            "reporting_year",
+            "property_name",
+            "address",
             "zip",
             "property_type",
             "gross_floor_area",
             "site_energy_use_kbtu",
-            "site_eui",
             "total_ghg_emissions",
             "energy_star_score",
-            "electricity_usage_kwh",
+            "electricity_use_grid_purchase",
             "natural_gas_use",
-            "compliance_status",
+            "lat",
+            "long",
         ]
         available = [c for c in output_columns if c in df.columns]
-        return df[available].copy()
+        df = df[available].copy()
+
+        # Ensure string columns are strictly strings (prevents float64 issues due to NaNs)
+        string_cols = ["property_name", "address", "zip", "property_type"]
+        for col in string_cols:
+            if col in df.columns:
+                df[col] = df[col].astype(str).replace("nan", np.nan).replace("None", np.nan)
+
+        return df
 
 
 def preprocess_berdo_data(

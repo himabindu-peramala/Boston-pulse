@@ -256,12 +256,38 @@ class FairnessChecker:
         if len(slices) == 0:
             return violations
 
-        # Calculate expected representation (uniform distribution)
-        expected_percentage = 100.0 / len(slices)
+        # Get reference distribution for this dimension if it exists
+        reference_dist = self.config.fairness.reference_distributions.get(dimension, {})
+        # Case-insensitive and whitespace-insensitive normalization
+        norm_ref_dist = {str(k).strip().lower(): v for k, v in reference_dist.items()}
+
+        # Calculate expected representation (uniform distribution unless reference is provided)
+        default_expected = 100.0 / len(slices)
 
         for slice_obj in slices:
+            # Look up in normalized reference dist
+            slice_key = str(slice_obj.value).strip().lower()
+            if slice_key in norm_ref_dist:
+                expected_val = norm_ref_dist[slice_key]
+                # If config uses fractions (0.015) instead of percentages (1.5), scale it
+                if 0 < expected_val < 1.0:
+                    expected_percentage = expected_val * 100.0
+                else:
+                    expected_percentage = expected_val
+            else:
+                expected_percentage = default_expected
+
+            # Use re-based percentage (percentage of non-null records) if available, else standard
+            actual_percentage = (
+                getattr(slice_obj, "percentage_of_valid", slice_obj.percentage)
+                or slice_obj.percentage
+            )
+
             # Calculate disparity (deviation from expected)
-            disparity = abs(slice_obj.percentage - expected_percentage) / expected_percentage
+            if expected_percentage > 0:
+                disparity = abs(actual_percentage - expected_percentage) / expected_percentage
+            else:
+                disparity = actual_percentage / 100.0
 
             # Check against thresholds
             if disparity >= self.representation_critical:
@@ -278,12 +304,12 @@ class FairnessChecker:
                     dimension=dimension,
                     slice_value=slice_obj.value,
                     message=(
-                        f"{dimension}={slice_obj.value} has {slice_obj.percentage:.1f}% "
+                        f"{dimension}={slice_obj.value} has {actual_percentage:.1f}% "
                         f"representation (expected {expected_percentage:.1f}%, "
                         f"disparity: {disparity:.1%})"
                     ),
                     expected=expected_percentage,
-                    actual=slice_obj.percentage,
+                    actual=actual_percentage,
                     disparity=disparity,
                     details={
                         "slice_size": slice_obj.size,
