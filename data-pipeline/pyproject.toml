@@ -29,6 +29,7 @@ dependencies = [
     "pyarrow",
     "scipy",
     "openpyxl",
+    "h3",
 
 
     # Configuration & Validation

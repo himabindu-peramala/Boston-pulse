@@ -410,6 +410,9 @@ class SchemaRegistry:
         if isinstance(expected, list):
             return any(self._is_type_compatible(actual, t) for t in expected)
 
+        if actual.startswith("datetime64"):
+            return expected in ("datetime", "object")
+
         # Map pandas dtypes to schema types
         type_mappings = {
             # Standard integer types (covers int8/16/32/64 produced by pandas .dt.year etc.)
