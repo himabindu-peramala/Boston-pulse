@@ -72,7 +72,7 @@ make setup
 ### 4) Start Airflow
 
 ```bash
-make airflow-up-dp
+make airflow-up
 ```
 
 Then open:

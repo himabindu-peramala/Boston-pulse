@@ -162,15 +162,15 @@ airflow-restart:  ## Restart Airflow
 
 docker-build:  ## Build the data pipeline Docker image
 	@echo "$(BLUE)Building Docker image...$(NC)"
-	docker build -t boston-pulse-pipeline:latest -f ../docker/Dockerfile.pipeline .
+	docker build --no-cache -t boston-pulse-data-pipeline:latest -f docker/airflow.Dockerfile .
 
 docker-push:  ## Push Docker image to registry (requires GCR_PROJECT env var)
 	@if [ -z "$(GCR_PROJECT)" ]; then \
 		echo "$(RED)Error: GCR_PROJECT environment variable not set$(NC)"; \
 		exit 1; \
 	fi
-	docker tag boston-pulse-pipeline:latest gcr.io/$(GCR_PROJECT)/boston-pulse-pipeline:latest
-	docker push gcr.io/$(GCR_PROJECT)/boston-pulse-pipeline:latest
+	docker tag boston-pulse-data-pipeline:latest gcr.io/$(GCR_PROJECT)/boston-pulse-data-pipeline:latest
+	docker push gcr.io/$(GCR_PROJECT)/boston-pulse-data-pipeline:latest
 
 # =============================================================================
 # DATASET SCAFFOLDING

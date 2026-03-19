@@ -1,0 +1,198 @@
+# =============================================================================
+# Navigate Crime Scoring Pipeline — Master Configuration
+# =============================================================================
+# Data pipeline only (ingest, preprocess, features, validation, drift, fairness).
+
+dataset:
+  name: crime_navigate
+  description: "Crime incidents processed for Navigate route safety scoring"
+
+api:
+  resource_id: "b973d8cb-eeb2-4e7e-99da-c92938efc9c0"
+  base_url: "https://data.boston.gov/api/3/action"
+  endpoint: "datastore_search_sql"
+  watermark_field: "OCCURRED_ON_DATE"
+  primary_key: "INCIDENT_NUMBER"
+  batch_size: 10000
+  timeout_seconds: 60
+  rate_limit_sleep_seconds: 0.5
+
+watermark:
+  gcs_path: "gs://boston-pulse/watermarks/crime_navigate.json"
+  first_run_start: "2023-01-01"
+
+gcs:
+  bucket: "boston-pulse"
+  raw_path: "raw/crime_navigate/dt={date}/data.parquet"
+  processed_path: "processed/crime_navigate/dt={date}/data.parquet"
+  features_path: "features/crime_navigate/dt={date}/features.parquet"
+  features_latest: "features/crime_navigate/latest/features.parquet"
+  risk_scores_dated: "risk_scores/dt={date}/risk_scores.parquet"
+  risk_scores_latest: "risk_scores/latest/risk_scores.parquet"
+  watermark_path: "watermarks/crime_navigate.json"
+  drift_path: "drift/crime_navigate/dt={date}/drift.json"
+  model_card_path: "model_cards/crime_navigate/dt={date}/"
+  lineage_path: "lineage/crime_navigate/dt={date}/lineage.json"
+
+raw_columns:
+  used:
+    - INCIDENT_NUMBER
+    - OFFENSE_DESCRIPTION
+    - OCCURRED_ON_DATE
+    - SHOOTING
+    - Lat
+    - Long
+    - HOUR
+    - DAY_OF_WEEK
+  dropped:
+    - _id
+    - _full_text
+    - OFFENSE_CODE
+    - OFFENSE_CODE_GROUP
+    - REPORTING_AREA
+    - UCR_PART
+    - YEAR
+    - MONTH
+    - STREET
+    - Location
+  fairness_only:
+    - DISTRICT
+
+column_mappings:
+  INCIDENT_NUMBER: incident_number
+  OFFENSE_DESCRIPTION: offense_description
+  OCCURRED_ON_DATE: occurred_on_date
+  SHOOTING: shooting_raw
+  Lat: lat
+  Long: long
+  HOUR: hour
+  DAY_OF_WEEK: day_of_week
+  DISTRICT: district
+
+geo_bounds:
+  min_lat: 42.2
+  max_lat: 42.4
+  min_lon: -71.2
+  max_lon: -70.9
+
+h3:
+  resolution: 9
+  neighbor_rings:
+    0: 1.00
+    1: 0.50
+    2: 0.20
+
+hour_buckets:
+  0: [0, 3, "late_night"]
+  1: [4, 7, "early_morning"]
+  2: [8, 11, "morning"]
+  3: [12, 15, "afternoon"]
+  4: [16, 19, "evening"]
+  5: [20, 23, "night"]
+
+severity_weights:
+  "MURDER": 3.0
+  "MANSLAUGHTER": 3.0
+  "BALLISTICS EVIDENCE": 3.0
+  "ASSAULT - AGGRAVATED": 3.0
+  "ROBBERY": 3.0
+  "RAPE": 3.0
+  "SEXUAL ASSAULT": 3.0
+  "KIDNAPPING": 3.0
+  "WEAPON VIOLATION": 3.0
+  "FIREARM": 3.0
+  "ASSAULT - SIMPLE": 3.0
+  "THREATS TO DO BODILY HARM": 3.0
+  "INTIMIDATING WITNESS": 3.0
+  "EXTORTION": 3.0
+  "CARJACKING": 3.0
+  "BURGLARY": 3.0
+  "BREAKING AND ENTERING": 3.0
+  "AUTO THEFT": 3.0
+  "DRUGS": 2.0
+  "ARSON": 2.0
+  "HOME INVASION": 2.0
+  "INVESTIGATE PERSON": 0.5
+  "INVESTIGATE PROPERTY": 0.5
+  "SERVICE TO OTHER": 0.1
+  "SICK ASSIST": 0.1
+  "MISSING PERSON": 0.5
+  default_weight: 1.0
+
+shooting_multiplier: 2.0
+
+feature_windows:
+  short_days: 3
+  medium_days: 10
+  baseline_days: 30
+  long_days: 90
+
+trend_caps:
+  trend_3v10: 3.4
+  trend_10v30: 3.1
+  trend_30v90: 3.1
+
+trend_default_when_denominator_zero: 1.0
+
+risk_score:
+  clip_min: 0
+  clip_max: 100
+  tiers:
+    LOW: [0, 33]
+    MEDIUM: [34, 66]
+    HIGH: [67, 100]
+
+feature_computation:
+  trend_level: "cell"
+  volume_level: "bucket"
+  temporal_ratio_level: "cell"
+
+validation:
+  raw:
+    min_row_count: 1
+    max_null_ratio_lat: 0.15
+    max_null_ratio_lon: 0.15
+    required_columns:
+      - INCIDENT_NUMBER
+      - OFFENSE_DESCRIPTION
+      - OCCURRED_ON_DATE
+      - SHOOTING
+      - Lat
+      - Long
+      - HOUR
+      - DAY_OF_WEEK
+    strict_mode: true
+  processed:
+    max_null_ratio_coords: 0.15
+    strict_mode: true
+  features:
+    min_h3_cells: 1
+    max_null_ratio: 0.0
+    score_bounds:
+      min: 0.0
+      max: 100.0
+    required_buckets_per_cell: 6
+
+drift:
+  psi_warning_threshold: 0.15
+  psi_critical_threshold: 0.25
+  columns_to_monitor:
+    - weighted_score_30d
+    - violent_score_30d
+    - trend_3v10
+    - neighbor_weighted_score_30d
+  fail_pipeline_on_risk_score_drift: false
+
+fairness:
+  gate_enabled: true
+  protected_dimensions:
+    - district
+  max_representation_diff: 0.60
+  min_slice_size: 50
+  score_crime_correlation_min: 0.70
+
+alerting:
+  slack_on_failure: true
+  slack_on_drift: true
+  slack_on_fairness_violation: true
+  slack_on_success: false

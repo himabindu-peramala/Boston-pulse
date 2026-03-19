@@ -467,12 +467,6 @@ class SchemaEnforcer:
         This handles first-time setup automatically — no separate
         script needed when running the pipeline for the first time.
         """
-        # Already exists — nothing to do
-        if self.registry.schema_exists(dataset, stage):
-            return
-
-        logger.info(f"Schema not found in GCS for {dataset}/{stage} — registering from local file")
-
         # Find the local schema file
         schema_file = (
             Path(__file__).parent.parent.parent  # data-pipeline/
@@ -489,10 +483,24 @@ class SchemaEnforcer:
 
         # Load and register
         import json
-
         schema_data = json.loads(schema_file.read_text())
+        local_version = schema_data.get("metadata", {}).get("version", "v1.0.0")
 
-        version = schema_data.get("metadata", {}).get("version", "v1.0.0")
+        # Check if GCS version matches local version
+        if self.registry.schema_exists(dataset, stage):
+            try:
+                gcs_schema = self.registry.get_schema(dataset, stage)
+                gcs_version = gcs_schema.get("metadata", {}).get("version")
+                if gcs_version == local_version:
+                    return  # Already up to date
+                logger.info(
+                    f"Schema version mismatch for {dataset}/{stage}: "
+                    f"GCS={gcs_version}, local={local_version} — re-registering"
+                )
+            except Exception:
+                pass  # Fall through to re-register
+
+        logger.info(f"Registering schema for {dataset}/{stage} version {local_version}")
 
         schema_properties = schema_data.get("properties", schema_data)
 
@@ -500,13 +508,11 @@ class SchemaEnforcer:
             dataset=dataset,
             layer=stage,
             schema=schema_properties,
-            version=version,
+            version=local_version,
             description=schema_data.get("description", f"{dataset} {stage} schema"),
             created_by="auto-registered",
             primary_key=self._extract_primary_key(schema_data),
         )
-
-        logger.info(f"Auto-registered schema for {dataset}/{stage} as {version}")
 
     def _extract_primary_key(self, schema_data: dict) -> str | None:
         """Pull primary key from schema properties."""
