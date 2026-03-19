@@ -10,8 +10,6 @@ Checks:
 
 from __future__ import annotations
 
-from datetime import datetime
-
 import pandas as pd
 import pytest
 
@@ -65,4 +63,3 @@ class TestCrimeNavigatePreprocess:
         assert df["h3_index"].notna().any()
         assert "hour_bucket" in df.columns
         assert df["hour_bucket"].between(0, 5).all()
-

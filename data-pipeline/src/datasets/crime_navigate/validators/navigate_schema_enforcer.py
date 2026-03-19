@@ -42,10 +42,12 @@ class NavigateSchemaEnforcer(SchemaEnforcer):
     # Columns that are always null in the raw API response by design.
     # Documented in configs/datasets/crime_navigate.yaml data_quality_notes.
     # Never check null ratios for these at the raw stage.
-    _ALWAYS_NULL_RAW = frozenset({
-        "OFFENSE_CODE_GROUP",
-        "UCR_PART",
-    })
+    _ALWAYS_NULL_RAW = frozenset(
+        {
+            "OFFENSE_CODE_GROUP",
+            "UCR_PART",
+        }
+    )
 
     # -------------------------------------------------------------------------
     # Raw validation — full override, does NOT call super()
@@ -55,7 +57,7 @@ class NavigateSchemaEnforcer(SchemaEnforcer):
         self,
         df: pd.DataFrame,
         dataset: str,
-        version: str | None = None,
+        _version: str | None = None,
     ) -> ValidationResult:
         """
         Override base validate_raw entirely for Navigate raw data.
@@ -89,12 +91,14 @@ class NavigateSchemaEnforcer(SchemaEnforcer):
         )
         missing = [c for c in required if c not in df.columns]
         if missing:
-            result.issues.append(ValidationIssue(
-                level=ValidationLevel.CRITICAL,
-                stage=ValidationStage.RAW,
-                check="required_columns",
-                message=f"Missing required columns: {missing}",
-            ))
+            result.issues.append(
+                ValidationIssue(
+                    level=ValidationLevel.CRITICAL,
+                    stage=ValidationStage.RAW,
+                    check="required_columns",
+                    message=f"Missing required columns: {missing}",
+                )
+            )
             result.is_valid = False
 
         # ── 2. Minimum row count ──────────────────────────────────────────────
@@ -102,13 +106,15 @@ class NavigateSchemaEnforcer(SchemaEnforcer):
         # Incremental 3-day runs can legitimately return very few rows.
         min_rows = raw_cfg.get("min_row_count", 1)
         if len(df) < min_rows:
-            result.issues.append(ValidationIssue(
-                level=ValidationLevel.ERROR,
-                stage=ValidationStage.RAW,
-                check="min_row_count",
-                message=f"Row count {len(df)} below minimum {min_rows}",
-                count=len(df),
-            ))
+            result.issues.append(
+                ValidationIssue(
+                    level=ValidationLevel.ERROR,
+                    stage=ValidationStage.RAW,
+                    check="min_row_count",
+                    message=f"Row count {len(df)} below minimum {min_rows}",
+                    count=len(df),
+                )
+            )
             result.is_valid = False
 
         # ── 3. Null ratio — only for columns that should not be null ──────────
@@ -117,30 +123,27 @@ class NavigateSchemaEnforcer(SchemaEnforcer):
         null_thresholds = raw_cfg.get("max_null_ratio", {})
         default_null_threshold = raw_cfg.get("default_max_null_ratio", 0.20)
 
-        columns_to_check = [
-            c for c in df.columns
-            if c not in self._ALWAYS_NULL_RAW
-        ]
+        columns_to_check = [c for c in df.columns if c not in self._ALWAYS_NULL_RAW]
         for col in columns_to_check:
             threshold = null_thresholds.get(col, default_null_threshold)
             null_ratio = df[col].isna().mean()
             # Also count empty strings as null for string columns
             if df[col].dtype == object:
-                null_ratio = (
-                    df[col].isna() | (df[col].astype(str).str.strip() == "")
-                ).mean()
+                null_ratio = (df[col].isna() | (df[col].astype(str).str.strip() == "")).mean()
             if null_ratio > threshold:
-                result.issues.append(ValidationIssue(
-                    level=ValidationLevel.WARNING,
-                    stage=ValidationStage.RAW,
-                    check="null_ratio",
-                    message=(
-                        f"Column '{col}' null ratio {null_ratio:.1%} "
-                        f"exceeds threshold {threshold:.1%}"
-                    ),
-                    column=col,
-                    percentage=null_ratio,
-                ))
+                result.issues.append(
+                    ValidationIssue(
+                        level=ValidationLevel.WARNING,
+                        stage=ValidationStage.RAW,
+                        check="null_ratio",
+                        message=(
+                            f"Column '{col}' null ratio {null_ratio:.1%} "
+                            f"exceeds threshold {threshold:.1%}"
+                        ),
+                        column=col,
+                        percentage=null_ratio,
+                    )
+                )
                 # Null ratio at raw stage is WARNING only — not a pipeline failure.
                 # The preprocessor handles nulls. Only missing required columns
                 # or zero rows should fail the pipeline at this stage.
@@ -151,16 +154,18 @@ class NavigateSchemaEnforcer(SchemaEnforcer):
         if "INCIDENT_NUMBER" in df.columns:
             dup_count = df["INCIDENT_NUMBER"].duplicated().sum()
             if dup_count > 0:
-                result.issues.append(ValidationIssue(
-                    level=ValidationLevel.WARNING,
-                    stage=ValidationStage.RAW,
-                    check="duplicate_incidents",
-                    message=(
-                        f"{dup_count} duplicate INCIDENT_NUMBER values "
-                        f"— will be deduplicated in preprocessing"
-                    ),
-                    count=dup_count,
-                ))
+                result.issues.append(
+                    ValidationIssue(
+                        level=ValidationLevel.WARNING,
+                        stage=ValidationStage.RAW,
+                        check="duplicate_incidents",
+                        message=(
+                            f"{dup_count} duplicate INCIDENT_NUMBER values "
+                            f"— will be deduplicated in preprocessing"
+                        ),
+                        count=dup_count,
+                    )
+                )
 
         logger.info(
             f"Raw validation for {dataset}: "
@@ -183,34 +188,40 @@ class NavigateSchemaEnforcer(SchemaEnforcer):
         result = self.validate_processed(df, self.DATASET)
 
         if "h3_index" in df.columns and df["h3_index"].isna().all():
-            result.issues.append(ValidationIssue(
-                level=ValidationLevel.WARNING,
-                stage=ValidationStage.PROCESSED,
-                check="h3_index_all_null",
-                message="All h3_index values are null — no valid coordinates in input",
-            ))
+            result.issues.append(
+                ValidationIssue(
+                    level=ValidationLevel.WARNING,
+                    stage=ValidationStage.PROCESSED,
+                    check="h3_index_all_null",
+                    message="All h3_index values are null — no valid coordinates in input",
+                )
+            )
 
         if "hour_bucket" in df.columns:
             invalid = ~df["hour_bucket"].between(0, 5)
             if invalid.any():
-                result.issues.append(ValidationIssue(
-                    level=ValidationLevel.ERROR,
-                    stage=ValidationStage.PROCESSED,
-                    check="hour_bucket_range",
-                    message=(
-                        f"hour_bucket must be 0-5, "
-                        f"found invalid values: {df.loc[invalid, 'hour_bucket'].tolist()[:5]}"
-                    ),
-                ))
+                result.issues.append(
+                    ValidationIssue(
+                        level=ValidationLevel.ERROR,
+                        stage=ValidationStage.PROCESSED,
+                        check="hour_bucket_range",
+                        message=(
+                            f"hour_bucket must be 0-5, "
+                            f"found invalid values: {df.loc[invalid, 'hour_bucket'].tolist()[:5]}"
+                        ),
+                    )
+                )
                 result.is_valid = False
 
         if "severity_weight" in df.columns and (df["severity_weight"] <= 0).any():
-            result.issues.append(ValidationIssue(
-                level=ValidationLevel.WARNING,
-                stage=ValidationStage.PROCESSED,
-                check="severity_weight_nonpositive",
-                message="Some severity_weight values are <= 0",
-            ))
+            result.issues.append(
+                ValidationIssue(
+                    level=ValidationLevel.WARNING,
+                    stage=ValidationStage.PROCESSED,
+                    check="severity_weight_nonpositive",
+                    message="Some severity_weight values are <= 0",
+                )
+            )
 
         return result
 
@@ -227,12 +238,14 @@ class NavigateSchemaEnforcer(SchemaEnforcer):
             min_cells = features_cfg.get("min_h3_cells", 800)
             n_cells = df["h3_index"].nunique()
             if n_cells < min_cells:
-                result.issues.append(ValidationIssue(
-                    level=ValidationLevel.ERROR,
-                    stage=ValidationStage.FEATURES,
-                    check="min_h3_cells",
-                    message=f"H3 cell count {n_cells} below minimum {min_cells}",
-                ))
+                result.issues.append(
+                    ValidationIssue(
+                        level=ValidationLevel.ERROR,
+                        stage=ValidationStage.FEATURES,
+                        check="min_h3_cells",
+                        message=f"H3 cell count {n_cells} below minimum {min_cells}",
+                    )
+                )
                 result.is_valid = False
 
         if "risk_score" in df.columns:
@@ -240,12 +253,14 @@ class NavigateSchemaEnforcer(SchemaEnforcer):
             lo = bounds.get("min", 0)
             hi = bounds.get("max", 100)
             if (df["risk_score"] < lo).any() or (df["risk_score"] > hi).any():
-                result.issues.append(ValidationIssue(
-                    level=ValidationLevel.ERROR,
-                    stage=ValidationStage.FEATURES,
-                    check="risk_score_bounds",
-                    message=f"risk_score values outside [{lo}, {hi}]",
-                ))
+                result.issues.append(
+                    ValidationIssue(
+                        level=ValidationLevel.ERROR,
+                        stage=ValidationStage.FEATURES,
+                        check="risk_score_bounds",
+                        message=f"risk_score values outside [{lo}, {hi}]",
+                    )
+                )
                 result.is_valid = False
 
         return result

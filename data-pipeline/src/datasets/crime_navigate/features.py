@@ -8,14 +8,14 @@ neighbor features via h3.grid_disk; lag features 0.0 if not provided. Placeholde
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
-import h3
 
+import h3
 import pandas as pd
 
 from src.datasets.base import BaseFeatureBuilder, FeatureBuildResult, FeatureDefinition
-from src.shared.config import Settings, get_config, get_dataset_config
+from src.shared.config import Settings, get_dataset_config
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,11 @@ def build_navigate_features(
     fc = cfg.get("feature_computation", {})
     trend_level = fc.get("trend_level", "cell")
 
-    df["_dt"] = pd.to_datetime(df["occurred_on_date"]).dt.tz_localize(None) if hasattr(df["occurred_on_date"].dtype, "tz") else pd.to_datetime(df["occurred_on_date"])
+    df["_dt"] = (
+        pd.to_datetime(df["occurred_on_date"]).dt.tz_localize(None)
+        if hasattr(df["occurred_on_date"].dtype, "tz")
+        else pd.to_datetime(df["occurred_on_date"])
+    )
     if df["_dt"].dt.tz is not None:
         df["_dt"] = df["_dt"].dt.tz_localize(None)
 
@@ -75,13 +79,13 @@ def build_navigate_features(
             continue
 
         # Bucket-level window sums (severity_weight) and counts
-        def sum_in_days_bucket(days: int) -> float:
+        def sum_in_days_bucket(days: int, g_=g) -> float:
             cut = ref_ts - pd.Timedelta(days=days)
-            return g[g["_dt"] >= cut]["severity_weight"].sum()
+            return g_[g_["_dt"] >= cut]["severity_weight"].sum()
 
-        def count_in_days_bucket(days: int) -> int:
+        def count_in_days_bucket(days: int, g_=g) -> int:
             cut = ref_ts - pd.Timedelta(days=days)
-            return len(g[g["_dt"] >= cut])
+            return len(g_[g_["_dt"] >= cut])
 
         ws_3 = sum_in_days_bucket(short_d)
         ws_10 = sum_in_days_bucket(medium_d)
@@ -93,9 +97,10 @@ def build_navigate_features(
         cell = df[(df["h3_index"] == h3_index) & (df["_dt"] >= base)]
 
         if trend_level == "cell":
-            def sum_in_days_cell(days: int) -> float:
+
+            def sum_in_days_cell(days: int, cell_=cell) -> float:
                 cut = ref_ts - pd.Timedelta(days=days)
-                return cell[cell["_dt"] >= cut]["severity_weight"].sum()
+                return cell_[cell_["_dt"] >= cut]["severity_weight"].sum()
 
             c_ws_3 = sum_in_days_cell(short_d)
             c_ws_10 = sum_in_days_cell(medium_d)
@@ -125,17 +130,37 @@ def build_navigate_features(
         # Violent (severity >= 5) and gun
         violent_30 = g[g["_dt"] >= (ref_ts - pd.Timedelta(days=baseline_d))]
         violent_30 = violent_30[violent_30["severity_weight"] >= 5.0]["severity_weight"].sum()
-        gun_30 = int(g[g["_dt"] >= (ref_ts - pd.Timedelta(days=baseline_d))]["shooting"].sum()) if "shooting" in g.columns else 0
+        gun_30 = (
+            int(g[g["_dt"] >= (ref_ts - pd.Timedelta(days=baseline_d))]["shooting"].sum())
+            if "shooting" in g.columns
+            else 0
+        )
         high_severity_ratio = (violent_30 / ws_30) if ws_30 else 0.0
         high_severity_ratio = min(high_severity_ratio, 1.0)
 
         # Temporal ratios: use full 30d for this h3_index (all hours)
-        cell_30 = df[(df["h3_index"] == h3_index) & (df["_dt"] >= (ref_ts - pd.Timedelta(days=baseline_d)))]
+        cell_30 = df[
+            (df["h3_index"] == h3_index) & (df["_dt"] >= (ref_ts - pd.Timedelta(days=baseline_d)))
+        ]
         ws_30_full = cell_30["severity_weight"].sum()
         night_buckets = {0, 5}
-        night_score = cell_30[cell_30["hour_bucket"].isin(night_buckets)]["severity_weight"].sum() if "hour_bucket" in cell_30.columns else 0
-        evening_score = cell_30[cell_30["hour_bucket"] == 4]["severity_weight"].sum() if "hour_bucket" in cell_30.columns else 0
-        weekend = cell_30[cell_30["day_of_week"].str.strip().str.lower().isin(["saturday", "sunday"])]["severity_weight"].sum() if "day_of_week" in cell_30.columns else 0
+        night_score = (
+            cell_30[cell_30["hour_bucket"].isin(night_buckets)]["severity_weight"].sum()
+            if "hour_bucket" in cell_30.columns
+            else 0
+        )
+        evening_score = (
+            cell_30[cell_30["hour_bucket"] == 4]["severity_weight"].sum()
+            if "hour_bucket" in cell_30.columns
+            else 0
+        )
+        weekend = (
+            cell_30[cell_30["day_of_week"].str.strip().str.lower().isin(["saturday", "sunday"])][
+                "severity_weight"
+            ].sum()
+            if "day_of_week" in cell_30.columns
+            else 0
+        )
         night_ratio = (night_score / ws_30_full) if ws_30_full else 0.0
         evening_ratio = (evening_score / ws_30_full) if ws_30_full else 0.0
         weekend_ratio = (weekend / ws_30_full) if ws_30_full else 0.0
@@ -209,17 +234,40 @@ def build_navigate_features(
             except Exception:
                 return 0.0
 
-        out["neighbor_weighted_score_30d"] = out.apply(lambda r: neighbor_agg(r["h3_index"], r["hour_bucket"], "weighted_score_30d"), axis=1)
-        out["neighbor_trend_3v10"] = out.apply(lambda r: neighbor_agg(r["h3_index"], r["hour_bucket"], "trend_3v10"), axis=1)
-        out["neighbor_gun_count_30d"] = out.apply(lambda r: neighbor_agg(r["h3_index"], r["hour_bucket"], "gun_incident_count_30d"), axis=1)
+        out["neighbor_weighted_score_30d"] = out.apply(
+            lambda r: neighbor_agg(r["h3_index"], r["hour_bucket"], "weighted_score_30d"), axis=1
+        )
+        out["neighbor_trend_3v10"] = out.apply(
+            lambda r: neighbor_agg(r["h3_index"], r["hour_bucket"], "trend_3v10"), axis=1
+        )
+        out["neighbor_gun_count_30d"] = out.apply(
+            lambda r: neighbor_agg(r["h3_index"], r["hour_bucket"], "gun_incident_count_30d"),
+            axis=1,
+        )
 
     # Lag placeholders from optional inputs
-    if yesterday_features is not None and not yesterday_features.empty and "weighted_score_30d" in yesterday_features.columns:
+    if (
+        yesterday_features is not None
+        and not yesterday_features.empty
+        and "weighted_score_30d" in yesterday_features.columns
+    ):
         yest = yesterday_features.set_index(["h3_index", "hour_bucket"])["weighted_score_30d"]
-        out["cell_score_yesterday"] = out.set_index(["h3_index", "hour_bucket"]).index.map(lambda ix: yest.get(ix, 0.0)).values
-    if features_7d_ago is not None and not features_7d_ago.empty and "weighted_score_30d" in features_7d_ago.columns:
+        out["cell_score_yesterday"] = (
+            out.set_index(["h3_index", "hour_bucket"])
+            .index.map(lambda ix: yest.get(ix, 0.0))
+            .values
+        )
+    if (
+        features_7d_ago is not None
+        and not features_7d_ago.empty
+        and "weighted_score_30d" in features_7d_ago.columns
+    ):
         past = features_7d_ago.set_index(["h3_index", "hour_bucket"])["weighted_score_30d"]
-        out["cell_score_7d_ago"] = out.set_index(["h3_index", "hour_bucket"]).index.map(lambda ix: past.get(ix, 0.0)).values
+        out["cell_score_7d_ago"] = (
+            out.set_index(["h3_index", "hour_bucket"])
+            .index.map(lambda ix: past.get(ix, 0.0))
+            .values
+        )
 
     # Fill empty buckets: every h3_index gets 6 rows
     all_h3 = out["h3_index"].unique().tolist()
@@ -228,18 +276,35 @@ def build_navigate_features(
         for b in bucket_ids:
             if ((out["h3_index"] == h3_idx) & (out["hour_bucket"] == b)).any():
                 continue
-            extra_rows.append({
-                "h3_index": h3_idx,
-                "hour_bucket": b,
-                "computed_date": execution_date,
-                "weighted_score_3d": 0.0, "weighted_score_10d": 0.0, "weighted_score_30d": 0.0, "weighted_score_90d": 0.0,
-                "incident_count_30d": 0, "trend_3v10": default_trend, "trend_10v30": default_trend, "trend_30v90": default_trend,
-                "violent_score_30d": 0.0, "gun_incident_count_30d": 0, "high_severity_ratio_30d": 0.0,
-                "night_score_ratio": 0.0, "evening_score_ratio": 0.0, "weekend_score_ratio": 0.0,
-                "neighbor_weighted_score_30d": 0.0, "neighbor_trend_3v10": 0.0, "neighbor_gun_count_30d": 0.0,
-                "cell_score_yesterday": 0.0, "cell_score_7d_ago": 0.0, "neighbor_score_yesterday": 0.0,
-                "risk_score": 0.0, "risk_tier": "LOW",
-            })
+            extra_rows.append(
+                {
+                    "h3_index": h3_idx,
+                    "hour_bucket": b,
+                    "computed_date": execution_date,
+                    "weighted_score_3d": 0.0,
+                    "weighted_score_10d": 0.0,
+                    "weighted_score_30d": 0.0,
+                    "weighted_score_90d": 0.0,
+                    "incident_count_30d": 0,
+                    "trend_3v10": default_trend,
+                    "trend_10v30": default_trend,
+                    "trend_30v90": default_trend,
+                    "violent_score_30d": 0.0,
+                    "gun_incident_count_30d": 0,
+                    "high_severity_ratio_30d": 0.0,
+                    "night_score_ratio": 0.0,
+                    "evening_score_ratio": 0.0,
+                    "weekend_score_ratio": 0.0,
+                    "neighbor_weighted_score_30d": 0.0,
+                    "neighbor_trend_3v10": 0.0,
+                    "neighbor_gun_count_30d": 0.0,
+                    "cell_score_yesterday": 0.0,
+                    "cell_score_7d_ago": 0.0,
+                    "neighbor_score_yesterday": 0.0,
+                    "risk_score": 0.0,
+                    "risk_tier": "LOW",
+                }
+            )
     if extra_rows:
         out = pd.concat([out, pd.DataFrame(extra_rows)], ignore_index=True)
 
@@ -296,7 +361,11 @@ class CrimeNavigateFeatureBuilder(BaseFeatureBuilder):
         ]
 
     def build_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        execution_date = str(pd.to_datetime(df["occurred_on_date"]).max().date()) if "occurred_on_date" in df.columns and len(df) else ""
+        execution_date = (
+            str(pd.to_datetime(df["occurred_on_date"]).max().date())
+            if "occurred_on_date" in df.columns and len(df)
+            else ""
+        )
         if not execution_date:
             execution_date = datetime.now().strftime("%Y-%m-%d")
         result = build_navigate_features(processed_df=df, execution_date=execution_date)

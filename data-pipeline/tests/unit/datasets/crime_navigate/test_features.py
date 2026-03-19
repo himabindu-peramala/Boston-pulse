@@ -56,7 +56,15 @@ class TestCrimeNavigateFeatureBuilder:
                     "long": -71.06,
                     "h3_index": h3_index,
                     "hour": hour,
-                    "hour_bucket": 0 if hour < 4 else (1 if hour < 8 else (2 if hour < 12 else (3 if hour < 16 else (4 if hour < 20 else 5)))),
+                    "hour_bucket": (
+                        0
+                        if hour < 4
+                        else (
+                            1
+                            if hour < 8
+                            else (2 if hour < 12 else (3 if hour < 16 else (4 if hour < 20 else 5)))
+                        )
+                    ),
                     "day_of_week": "Monday",
                     "district": "A1",
                 }
@@ -82,7 +90,7 @@ class TestCrimeNavigateFeatureBuilder:
         assert df["trend_30v90"].max() <= 3.1 + 1e-6
 
         # trend_level=cell: all buckets for a cell should share the same trends
-        for cell, g in df.groupby("h3_index"):
+        for _cell, g in df.groupby("h3_index"):
             assert g["trend_3v10"].nunique() <= 1
             assert g["trend_10v30"].nunique() <= 1
             assert g["trend_30v90"].nunique() <= 1
@@ -92,4 +100,3 @@ class TestCrimeNavigateFeatureBuilder:
         for col in ["night_score_ratio", "evening_score_ratio", "weekend_score_ratio"]:
             assert col in df.columns
             assert df[col].between(0.0, 1.0).all()
-

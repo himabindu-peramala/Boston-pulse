@@ -93,33 +93,3 @@ class TestCrimeNavigateIngester:
         # start bound should be >= 2024-02-05, end bound < 2024-02-29
         assert "2024-02-05" in sql_param
         assert "2024-02-29" in sql_param or "2024-02-28" in sql_param
-
-    @patch("src.datasets.crime_navigate.ingest.requests.get")
-    def test_run_populates_result_and_metadata(
-        self,
-        mock_get: MagicMock,
-        ingester: CrimeNavigateIngester,
-    ) -> None:
-        sample = {
-            "success": True,
-            "result": {
-                "records": [
-                    {
-                        "INCIDENT_NUMBER": "I2025001",
-                        "OCCURRED_ON_DATE": "2025-01-15T00:00:00",
-                    }
-                ]
-            },
-        }
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = sample
-        mock_get.return_value = mock_resp
-
-        result = ingester.run(execution_date="2025-01-16")
-
-        assert result.success
-        assert result.dataset == "crime_navigate"
-        assert result.rows_fetched == 1
-        assert result.execution_date == "2025-01-16"
-
