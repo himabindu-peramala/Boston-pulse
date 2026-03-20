@@ -112,7 +112,8 @@
         "string",
         "null"
       ],
-      "description": "Latitude coordinate"
+      "description": "Latitude coordinate",
+      "null_ratio_threshold": 0.30
     },
     "Long": {
       "type": [
@@ -120,14 +121,16 @@
         "string",
         "null"
       ],
-      "description": "Longitude coordinate"
+      "description": "Longitude coordinate",
+      "null_ratio_threshold": 0.30
     },
     "Location": {
       "type": [
         "string",
         "null"
       ],
-      "description": "Combined location string"
+      "description": "Combined location string",
+      "null_ratio_threshold": 0.30
     }
   },
   "required": [

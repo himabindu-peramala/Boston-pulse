@@ -58,6 +58,14 @@
       ],
       "description": "Latitude coordinate"
     },
+    "sla_target_dt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Target date for SLA",
+      "null_ratio_threshold": 0.20
+    },
     "longitude": {
       "type": [
         "number",

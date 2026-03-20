@@ -10,6 +10,30 @@
         "businessname": {
             "type": "string"
         },
+        "dbaname": {
+            "type": ["string", "null"]
+        },
+        "licensecat": {
+            "type": ["string", "null"]
+        },
+        "violation": {
+            "type": ["string", "null"]
+        },
+        "violdesc": {
+            "type": ["string", "null"]
+        },
+        "viol_level": {
+            "type": ["string", "null"]
+        },
+        "comments": {
+            "type": ["string", "null"]
+        },
+        "descript": {
+            "type": ["string", "null"]
+        },
+        "zip": {
+            "type": ["string", "null"]
+        },
         "licenseno": {
             "type": [
                 "string",

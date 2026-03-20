@@ -1,0 +1,23 @@
+# =============================================================================
+# BOSTON PULSE - LOCAL CONFIGURATION (DOCKER)
+# =============================================================================
+# Local environment used specifically for Airflow inside Docker Compose.
+# Inherits from dev.yaml.
+# =============================================================================
+
+_inherit: dev
+
+storage:
+  emulator:
+    enabled: true
+    host: "http://fake-gcs:4443"
+
+validation:
+  quality_schema:
+    strict_mode: false
+    allow_extra_columns: true
+  quality:
+    max_null_ratio: 1.0
+  overrides:
+    crime:
+      min_row_count: 1

@@ -68,7 +68,7 @@ validation:
 
   # Data quality thresholds
   quality:
-    max_null_ratio: 0.05  # Max 5% null values per column
+    max_null_ratio: 0.25  # Max 25% null values per column (increased from 5% for realistic urban data)
     max_duplicate_ratio: 0.01  # Max 1% duplicate rows
     min_row_count: 100  # Minimum rows expected
 
