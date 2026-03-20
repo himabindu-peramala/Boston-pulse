@@ -12,6 +12,11 @@ This directory contains the **Boston Pulse Data Pipeline**: an Airflow‑orchest
 
 ---
 
+## Data Pipeline Flow Diagram
+<img width="1507" height="1692" alt="DataPipeline_FlowDiagram" src="https://github.com/user-attachments/assets/f1ef29bf-6f09-4d72-8260-02e1c73026d0" />
+
+---
+
 ## Quickstart (run locally)
 ### 0) Navigate to `Boston-pulse/data-pipeline/`
 ```bash
@@ -67,7 +72,7 @@ make setup
 ### 4) Start Airflow
 
 ```bash
-make airflow-up-dp
+make airflow-up
 ```
 
 Then open:

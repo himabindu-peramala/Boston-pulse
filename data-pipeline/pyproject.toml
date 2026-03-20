@@ -24,7 +24,7 @@ classifiers = [
 # -----------------------------------------------------------------------------
 dependencies = [
     # Data Processing
-    "pandas",
+    "pandas>=2.0.0,<3.0.0",
     "numpy",
     "pyarrow",
     "scipy",
