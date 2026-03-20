@@ -106,9 +106,15 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
         df = self._engineer_schedule_features(df)
         df = self._engineer_district_features(df)
 
-        # Select only the features defined in get_feature_definitions
-        feature_names = [f.name for f in self.get_feature_definitions()]
-        return df[feature_names].copy()
+        # Ensure strictly required schema columns exist
+        for req in ["_id", "district", "is_every_week", "tow_enforced"]:
+            if req not in df.columns:
+                df[req] = pd.NA
+
+        # Select only the features defined in get_feature_definitions + standard IDs
+        feature_names = [f.name for f in self.get_feature_definitions()] + ["_id", "district"]
+        available = [c for c in feature_names if c in df.columns]
+        return df[available].copy()
 
     def _engineer_schedule_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Extract schedule-related features."""
@@ -127,6 +133,22 @@ class StreetSweepingFeatureBuilder(BaseFeatureBuilder):
                     axis=1,
                 )
             ).astype(int)
+
+        # Count of sweep days
+        day_cols = [
+            c for c in ["monday", "tuesday", "wednesday", "thursday", "friday"] if c in df.columns
+        ]
+        if day_cols:
+            df["sweep_days_count"] = (
+                df[day_cols].apply(
+                    lambda row: sum(
+                        str(v).upper() in ["Y", "YES", "TRUE", "1", 1, "1.0"] for v in row
+                    ),
+                    axis=1,
+                )
+            ).astype(int)
+        else:
+            df["sweep_days_count"] = 0
 
         return df
 

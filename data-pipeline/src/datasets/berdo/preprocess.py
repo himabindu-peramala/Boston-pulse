@@ -104,7 +104,7 @@ class BerdoPreprocessor(BasePreprocessor):
         ]:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.strip().str.upper()
-                df[col] = df[col].replace("NAN", np.nan)
+                df[col] = df[col].replace(["NAN", "NONE", "<NA>", "NULL"], np.nan)
         return df
 
     def _process_numeric_fields(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -162,7 +162,7 @@ class BerdoPreprocessor(BasePreprocessor):
         string_cols = ["property_name", "address", "zip", "property_type"]
         for col in string_cols:
             if col in df.columns:
-                df[col] = df[col].astype(str).replace("nan", np.nan).replace("None", np.nan)
+                df[col] = df[col].astype("string")
 
         return df
 

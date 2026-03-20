@@ -201,7 +201,7 @@ class AnomalyDetector:
     # Private Detection Methods
     # =========================================================================
 
-    def _detect_missing_patterns(self, df: pd.DataFrame) -> list[Anomaly]:
+    def _detect_missing_patterns(self, df: pd.DataFrame, _dataset: str = None) -> list[Anomaly]:
         """Detect unusual missing value patterns."""
         anomalies = []
 
