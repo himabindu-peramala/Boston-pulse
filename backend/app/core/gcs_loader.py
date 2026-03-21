@@ -1,7 +1,6 @@
 """
-Boston Pulse — GCS Data Loader
+Boston Pulse Backend — GCS Data Loader
 Wraps the pipeline's GCSDataIO to load processed Parquet files.
-Uses read_latest_parquet() to always get the most recent pipeline run.
 """
 import logging
 import sys
@@ -12,12 +11,14 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# Add data-pipeline to path so we can reuse GCSDataIO directly
+# Correct path to data-pipeline
 _PIPELINE_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../../../data-pipeline")
+    os.path.join(os.path.dirname(__file__), "../../../data-pipeline")
 )
 if _PIPELINE_PATH not in sys.path:
     sys.path.insert(0, _PIPELINE_PATH)
+
+logger.info(f"Pipeline path: {_PIPELINE_PATH}")
 
 
 def _get_gcs_io():
@@ -102,7 +103,6 @@ def load_street_sweeping() -> pd.DataFrame:
 
 
 def clear_cache():
-    """Force reload from GCS on next call."""
     load_crime.cache_clear()
     load_service_311.cache_clear()
     load_food_inspections.cache_clear()
