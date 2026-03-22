@@ -35,9 +35,7 @@ x-airflow-common: &airflow-common
     PYTHONPATH: /opt/airflow/dags:/opt/boston-pulse/data-pipeline:/opt/boston-pulse/ml
   volumes:
     - /opt/airflow/dags:/opt/airflow/dags
-    - /opt/boston-pulse/data-pipeline/src:/opt/boston-pulse/data-pipeline/src
-    - /opt/boston-pulse/data-pipeline/configs:/opt/boston-pulse/data-pipeline/configs
-    - /opt/boston-pulse/data-pipeline/schemas:/opt/boston-pulse/data-pipeline/schemas
+    - /opt/boston-pulse/data-pipeline:/opt/boston-pulse/data-pipeline
     - /opt/boston-pulse/ml:/opt/boston-pulse/ml
     - /opt/airflow/logs:/opt/airflow/logs
     - /opt/airflow/mlflow:/opt/airflow/mlflow
