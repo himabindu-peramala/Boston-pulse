@@ -29,6 +29,7 @@ dependencies = [
     "pyarrow",
     "scipy",
     "openpyxl",
+    "h3",
 
 
     # Configuration & Validation
@@ -75,7 +76,7 @@ dev = [
     "faker",
 
     # Linting & Formatting
-    "ruff",
+    "ruff==0.1.9",
     "black==26.1.0",
     "mypy",
 

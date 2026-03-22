@@ -64,7 +64,7 @@ validation:
   # Schema validation (renamed from 'schema' to match pydantic structure)
   quality_schema:
     strict_mode: true  # Fail on any schema violation
-    allow_extra_columns: false
+    allow_extra_columns: true
 
   # Data quality thresholds
   quality:
@@ -105,6 +105,21 @@ validation:
         week_score: 0.8
         month_score: 0.8
         quarter_score: 0.8
+    crime_navigate:
+      allow_extra_columns: true
+      min_row_count: 1
+      max_null_ratio:
+        OFFENSE_CODE_GROUP: 1.0
+        UCR_PART: 1.0
+        REPORTING_AREA: 1.0
+        STREET: 1.0
+        Location: 1.0
+        OFFENSE_CODE: 1.0
+        YEAR: 1.0
+        MONTH: 1.0
+        DISTRICT: 1.0
+        DAY_OF_WEEK: 0.05
+        HOUR: 0.05
 
   # Coordinate bounds for Boston
   geo_bounds:

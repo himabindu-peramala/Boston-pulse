@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Navigate Crime Raw Schema",
+  "description": "Raw data from Analyze Boston API. Validates structure and presence only.",
+  "type": "object",
+  "properties": {
+    "INCIDENT_NUMBER": {"type": ["string"], "description": "Primary key. Always present, no nulls."},
+    "OFFENSE_DESCRIPTION": {"type": ["string", "null"], "description": "Free text. 119 unique values."},
+    "OCCURRED_ON_DATE": {"type": ["string", "null"], "description": "Datetime string. Watermark field."},
+    "SHOOTING": {"type": ["string", "integer", "null"], "description": "String '0' or '1'. NOT boolean."},
+    "Lat": {"type": ["string", "number", "null"], "description": "Latitude as string. ~15% null."},
+    "Long": {"type": ["string", "number", "null"], "description": "Longitude as string. ~15% null."},
+    "HOUR": {"type": ["string", "integer", "null"], "description": "Hour 0-23 as string."},
+    "DAY_OF_WEEK": {"type": ["string", "null"], "description": "Day name with possible trailing spaces."},
+    "DISTRICT": {"type": ["string", "null"], "description": "Police district. Kept for fairness only."}
+  },
+  "required": ["INCIDENT_NUMBER", "OCCURRED_ON_DATE"],
+  "additionalProperties": true,
+  "metadata": {
+    "dataset": "crime_navigate",
+    "stage": "raw",
+    "version": "1.0.0"
+  }
+}
