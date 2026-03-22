@@ -125,7 +125,7 @@ def preprocess_crime_navigate(raw_df: pd.DataFrame, execution_date: str) -> pd.D
     def get_bucket(h: int) -> int | None:
         for b in bucket_list:
             rng = buckets[b]
-            if isinstance(rng, (list, tuple)) and len(rng) >= 2:
+            if isinstance(rng, list | tuple) and len(rng) >= 2:
                 lo, hi = int(rng[0]), int(rng[1])
                 if lo <= h <= hi:
                     return b
