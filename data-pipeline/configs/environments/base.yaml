@@ -21,7 +21,7 @@ project:
 storage:
   # Bucket names (override in env-specific configs)
   buckets:
-    main: "boston-pulse-data"
+    main: "boston-pulse-data-prod"
     dvc: "boston-pulse-dvc"
     temp: "boston-pulse-temp"
 
