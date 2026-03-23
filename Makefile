@@ -10,8 +10,16 @@ COMPOSE_CMD   = docker compose -f $(PROD_COMPOSE) --env-file $(ENV_FILE)
 
 help:
 	@echo ""
-	@echo "LOCAL DEV (Mac):    make airflow-dev-up / airflow-dev-down"
-	@echo "PRODUCTION (VM):"
+	@echo "Boston Pulse — Root Commands"
+	@echo ""
+	@echo "LOCAL DEV (Mac):"
+	@echo "  make airflow-dev-up      Local Airflow (data-pipeline only, fake GCS)"
+	@echo "  make airflow-dev-down    Stop local Airflow"
+	@echo "  make ml-test             Run ML unit tests"
+	@echo "  make ml-lint             Run ML linter"
+	@echo "  make data-test           Run data-pipeline tests"
+	@echo ""
+	@echo "PRODUCTION (GCE VM only):"
 	@echo "  make airflow-build      Build image (after Dockerfile changes)"
 	@echo "  make airflow-init       First-time DB setup (run once)"
 	@echo "  make airflow-up         Start all containers"
@@ -24,28 +32,29 @@ help:
 	@echo "  make trigger-training   Trigger ML training DAG now"
 	@echo ""
 
-# ── Local dev ─────────────────────────────────────────────────────────────────
+# ── Local dev (Mac) ───────────────────────────────────────────────────────────
 airflow-dev-up:
 	cd data-pipeline && make airflow-up-dp
 
 airflow-dev-down:
 	cd data-pipeline && make airflow-down-dp
 
-# ── Production ────────────────────────────────────────────────────────────────
+# ── Production (GCE VM only) ──────────────────────────────────────────────────
 
-# Build the custom image — run after any Dockerfile change
+# Build the custom image — run after any Dockerfile or pyproject.toml change
 airflow-build:
 	$(COMPOSE_CMD) build --no-cache
 
-# First time only — sets up DB and admin user
+# First time only — migrates DB and creates admin user
 airflow-init:
 	$(COMPOSE_CMD) up airflow-init
 
 airflow-up:
 	$(COMPOSE_CMD) up -d --remove-orphans
 
+# Uses --env-file so no "variable not set" warnings
 airflow-down:
-	docker compose -f $(PROD_COMPOSE) down
+	$(COMPOSE_CMD) down
 
 airflow-restart:
 	$(COMPOSE_CMD) up -d --remove-orphans
@@ -61,9 +70,13 @@ dag-check:
 	  airflow dags list-import-errors
 
 sync-dags:
-	@echo "Syncing DAGs..."
-	cp -r data-pipeline/dags/* /opt/airflow/dags/ 2>/dev/null || true
-	cp -r ml/dags/* /opt/airflow/dags/ 2>/dev/null || true
+	@echo "Syncing DAGs from both pipelines..."
+	@if [ ! -w /opt/airflow/dags ]; then \
+		echo "Fixing /opt/airflow/dags permissions..."; \
+		sudo chown -R $$(id -u):$$(id -g) /opt/airflow/dags; \
+	fi
+	rsync -av --exclude='__pycache__' --exclude='*.pyc' data-pipeline/dags/ /opt/airflow/dags/
+	rsync -av --exclude='__pycache__' --exclude='*.pyc' ml/dags/ /opt/airflow/dags/
 	@echo "Synced. Scheduler picks up changes in ~30s."
 
 trigger-training:

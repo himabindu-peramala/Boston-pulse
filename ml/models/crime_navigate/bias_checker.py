@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 
 class BiasGateError(Exception):
     """Raised when bias gate fails."""
-
     pass
 
 
@@ -107,7 +106,8 @@ def check_bias(
                 "is_small_slice": is_small,
             }
 
-            if dev > worst_dev:
+            # Headline "worst" deviation: non-small slices only (small slices are noisy)
+            if not is_small and dev > worst_dev:
                 worst_dev, worst_slice = dev, f"{dim}={sv}"
 
             if fail:
@@ -150,10 +150,12 @@ def check_bias(
         )
 
     if gate_failed:
-        raise BiasGateError(
-            f"Bias gate FAILED: worst={worst_slice} deviation={worst_dev:.1%}. "
-            f"Report: {report_path}"
+        worst_msg = (
+            f"among non-small slices, worst={worst_slice} deviation={worst_dev:.1%}"
+            if worst_slice is not None
+            else "one or more non-small slices exceeded thresholds"
         )
+        raise BiasGateError(f"Bias gate FAILED: {worst_msg}. Report: {report_path}")
 
     logger.info(
         f"Bias check PASSED: overall_rmse={overall_rmse:.4f}, " f"worst_deviation={worst_dev:.1%}"

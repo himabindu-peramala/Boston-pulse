@@ -274,6 +274,53 @@ class TestCheckBias:
 
         assert result.worst_deviation_pct >= 0
 
+    def test_worst_slice_excludes_small_slices(
+        self, sample_cfg: dict[str, Any], mock_mlflow: Any, mocker: Any
+    ) -> None:
+        """Headline worst_slice is max deviation among non-small slices only."""
+        from models.crime_navigate.bias_checker import BiasGateError, check_bias
+
+        mock_loader = MagicMock()
+        mock_loader.write_json.return_value = "gs://test-bucket/bias_reports/report.json"
+        mocker.patch("models.crime_navigate.bias_checker.GCSLoader", return_value=mock_loader)
+
+        # 95 rows A1, 5 rows External — External has huge error but is small
+        val_df = pd.DataFrame(
+            {
+                "h3_index": [f"h3_{i:03d}" for i in range(100)],
+                "hour_bucket": [i % 6 for i in range(100)],
+                "weighted_score_3d": np.random.uniform(0, 10, 100),
+                "weighted_score_30d": np.random.uniform(0, 20, 100),
+                "weighted_score_90d": np.random.uniform(0, 50, 100),
+                "incident_count_30d": np.random.randint(0, 30, 100),
+                "trend_3v10": np.random.uniform(-1, 1, 100),
+                "trend_10v30": np.random.uniform(-1, 1, 100),
+                "trend_30v90": np.random.uniform(-1, 1, 100),
+                "gun_incident_count_30d": np.random.randint(0, 5, 100),
+                "high_severity_ratio_30d": np.random.uniform(0, 1, 100),
+                "night_score_ratio": np.random.uniform(0, 1, 100),
+                "evening_score_ratio": np.random.uniform(0, 1, 100),
+                "weekend_score_ratio": np.random.uniform(0, 1, 100),
+                "neighbor_weighted_score_30d": np.random.uniform(0, 15, 100),
+                "neighbor_trend_3v10": np.random.uniform(-1, 1, 100),
+                "neighbor_gun_count_30d": np.random.randint(0, 10, 100),
+                "danger_rate": np.concatenate([np.ones(95) * 1.0, np.ones(5) * 50.0]),
+                "district": ["A1"] * 95 + ["External"] * 5,
+            }
+        )
+
+        mock_model = MagicMock()
+        mock_model.predict.return_value = np.ones(100) * 1.0
+
+        sample_cfg["bias"]["slice_dimensions"] = ["district"]
+        sample_cfg["bias"]["min_slice_size"] = 10
+
+        with pytest.raises(BiasGateError, match="among non-small slices"):
+            check_bias(mock_model, val_df, "2024-01-15", sample_cfg, "test-bucket", "test-run-id")
+
+        report = mock_loader.write_json.call_args[0][0]
+        assert report["worst_slice"] == "district=A1"
+
 
 class TestGetSliceSummary:
     """Tests for get_slice_summary function."""

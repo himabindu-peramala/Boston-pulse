@@ -7,7 +7,7 @@ version: '3.8'
 
 x-airflow-common: &airflow-common
   build:
-    context: /opt/boston-pulse
+    context: ..
     dockerfile: docker/airflow.prod.Dockerfile
   image: boston-pulse-prod:latest
   environment:
@@ -23,7 +23,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 30
     AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 30
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
-    BP_ENVIRONMENT: prod
+    BP_ENVIRONMENT: dev
     GCP_PROJECT_ID: bostonpulse
     GCP_BUCKET_NAME: boston-pulse-data-pipeline
     GCP_REGION: us-east1

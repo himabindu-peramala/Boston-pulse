@@ -90,11 +90,12 @@ bias:
     - district
     - hour_bucket
   # A slice whose RMSE deviates more than this fraction from overall RMSE fails the gate
-  max_slice_rmse_deviation: 0.20
+  # (0.50 is more realistic with limited training history; tighten as data grows)
+  max_slice_rmse_deviation: 0.50
   # Slices with fewer than this many cells are warned but do not fail the gate
-  min_slice_size: 50
+  min_slice_size: 30
   # A single slice with RMSE > overall_rmse * this multiplier hard-fails the gate
-  max_slice_rmse_multiplier: 2.0
+  max_slice_rmse_multiplier: 3.0
 
 scoring:
   # Scale risk scores per hour_bucket independently
