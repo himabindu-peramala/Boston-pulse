@@ -160,7 +160,7 @@ class AnomalyDetector:
         )
 
         # 1. Missing value patterns
-        result.anomalies.extend(self._detect_missing_patterns(df, dataset=dataset))
+        result.anomalies.extend(self._detect_missing_patterns(df, _dataset=dataset))
 
         # 2. Outliers (if enabled)
         if check_outliers:
