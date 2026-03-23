@@ -69,6 +69,7 @@ def run_training_container(**context: Any) -> dict[str, Any]:
     (same as the Airflow containers on the VM).
     """
     import json
+
     import docker
 
     execution_date = context["ds"]
@@ -95,10 +96,16 @@ def run_training_container(**context: Any) -> dict[str, Any]:
 
     # Command to run inside the container
     command = [
-        "python", "-m", "models.crime_navigate.cli", "train",
-        "--execution-date", execution_date,
-        "--stage", "staging",
-        "--output-json", "/tmp/results.json",
+        "python",
+        "-m",
+        "models.crime_navigate.cli",
+        "train",
+        "--execution-date",
+        execution_date,
+        "--stage",
+        "staging",
+        "--output-json",
+        "/tmp/results.json",
     ]
 
     client = docker.from_env()
@@ -153,7 +160,7 @@ def run_training_container(**context: Any) -> dict[str, Any]:
         print(f"Stderr: {e.stderr}")
         raise RuntimeError(f"Training container failed: {e.stderr}") from e
     except docker.errors.ImageNotFound:
-        raise RuntimeError(f"ML training image not found: {ml_image}")
+        raise RuntimeError(f"ML training image not found: {ml_image}") from None
     except docker.errors.APIError as e:
         raise RuntimeError(f"Docker API error: {e}") from e
 

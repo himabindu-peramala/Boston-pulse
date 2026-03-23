@@ -12,7 +12,6 @@ import pytest
 
 from shared.artifact_registry import (
     ArtifactRegistryClient,
-    ArtifactRegistryError,
     ensure_repository_exists,
 )
 
@@ -188,6 +187,7 @@ class TestArtifactRegistryClient:
 
         def mock_download_impl(version: str, local_dir: str):
             import shutil
+
             shutil.copy(tar_path, Path(local_dir) / "test-model.tar.gz")
 
         mock_download.side_effect = mock_download_impl

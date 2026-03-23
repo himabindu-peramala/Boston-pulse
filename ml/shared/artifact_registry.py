@@ -101,8 +101,7 @@ class ArtifactRegistryClient:
 
         # Fully qualified AR resource names for SDK calls
         self._parent = (
-            f"projects/{self.project}/locations/{self.location}"
-            f"/repositories/{self.repository}"
+            f"projects/{self.project}/locations/{self.location}" f"/repositories/{self.repository}"
         )
         self._package_parent = f"{self._parent}/packages/{self.package}"
 
@@ -172,7 +171,7 @@ class ArtifactRegistryClient:
 
         # AR generic upload endpoint (v1beta2 for generic artifacts)
         # URL-encode the package name (slashes become %2F)
-        encoded_package = self.package.replace("/", "%2F")
+        _encoded_package = self.package.replace("/", "%2F")
         upload_url = (
             f"https://{self.location}-artifactregistry.googleapis.com/v1beta2"
             f"/projects/{self.project}/locations/{self.location}"
@@ -205,9 +204,7 @@ class ArtifactRegistryClient:
         )
 
         if response.status_code not in (200, 201):
-            raise ArtifactRegistryError(
-                f"AR upload failed: {response.status_code} {response.text}"
-            )
+            raise ArtifactRegistryError(f"AR upload failed: {response.status_code} {response.text}")
 
         logger.debug(f"AR upload response: {response.status_code}")
 
@@ -385,7 +382,7 @@ class ArtifactRegistryClient:
         version_name = f"{self._package_parent}/versions/{version}"
 
         try:
-            version_obj = self.ar_client.get_version(name=version_name)
+            _version_obj = self.ar_client.get_version(name=version_name)
         except Exception as e:
             raise ArtifactRegistryError(f"Version '{version}' not found: {e}") from e
 
