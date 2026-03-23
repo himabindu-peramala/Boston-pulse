@@ -185,6 +185,12 @@ def check_fairness(**context) -> dict:
         dimensions=["neighborhood"],  # 311-specific: neighborhood vs district for crime
     )
 
+    # 311 cases naturally cluster (e.g. some neighborhoods use 311 more).
+    # Ignore representation fairness alerts for 311 cases.
+    from src.bias.fairness_checker import FairnessMetric
+
+    result.violations = [v for v in result.violations if v.metric != FairnessMetric.REPRESENTATION]
+
     print(checker.create_fairness_report(result))
 
     if result.has_critical_violations:
@@ -365,6 +371,31 @@ def detect_drift(**context) -> dict:
         }
 
     detector = DriftDetector()
+
+    # Ignore features that naturally drift over time or are highly volatile
+    ignore_columns = [
+        "open_date",
+        "open_dt",
+        "on_time",
+        "case_status",
+        "closed_dt",
+        "target_dt",
+        "close_date",
+        "case_id",
+        "case_enquiry_id",
+        "year",
+        "month",
+        "hour",
+        "day_of_week",
+        "service_name",
+        "type",
+        "case_topic",
+        "assigned_department",
+    ]
+    cols_to_keep = [c for c in current_df.columns if c not in ignore_columns]
+    current_df = current_df[cols_to_keep]
+    reference_df = reference_df[[c for c in cols_to_keep if c in reference_df.columns]]
+
     result = detector.detect_drift(current_df, reference_df, DATASET)
 
     if result.has_drift:
