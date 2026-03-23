@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 class BiasGateError(Exception):
     """Raised when bias gate fails."""
+
     pass
 
 

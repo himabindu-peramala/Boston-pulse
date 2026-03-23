@@ -102,6 +102,7 @@ def sample_cfg() -> dict[str, Any]:
             "location": "us-east1",
             "project": "test-project",
             "repository": "ml-models",
+            "package": "navigate/crime-risk",
             "artifact_bucket": "test-artifacts",
         },
         "mlflow": {

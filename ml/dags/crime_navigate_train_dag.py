@@ -7,29 +7,32 @@ Schedule: every Sunday at 2 AM UTC (independent of data pipeline DAG)
 Trigger also: on push to ml/ via GitHub Actions ml.yml
 
 Task chain:
-  load_features           → features_df written to GCS, path in XCom
-    → build_targets       → training_df written to GCS, path in XCom
+  load_features           → features_df written to GCS (run artifact)
+    → build_targets       → training_df written to GCS (run artifact)
       → tune_hyperparams  → Optuna 20 trials, each a child MLflow run
-        → train_lgbm      → model.lgb written to GCS, path in XCom
+        → train_lgbm      → model.lgb written to GCS (run artifact)
           → validate_model    → RMSE gate + SHAP — HALTS if fails
             → check_bias      → Fairlearn by district — HALTS if fails
-              → push_to_registry  → dated always; latest/ only if both gates pass
+              → push_to_registry  → AR (primary) + GCS (backup), stage promotion
                 → score_cells     → inference on features_df (re-read from GCS)
                   → publish_scores    → Firestore upsert
                     → pipeline_complete → Slack summary
 
-Inter-task artifact passing pattern:
-  - DataFrames and model files → GCS
+Artifact storage pattern:
+  - Run artifacts (intermediate DataFrames, temp model) → GCS
     Written to ml/run_artifacts/{run_id}/{name}.parquet or .lgb
-    Read back by downstream tasks via GCS path from XCom
+    Auto-deleted after 30 days via GCS lifecycle rule
+  - Deployable model artifacts → Artifact Registry (primary) + GCS (backup)
+    Versioned with dated tags (e.g., "20260322")
+    Stage tags: "staging" → "production" promotion flow
+    Production service pulls "production" tag at startup
   - Small values (metrics, params, flags) → XCom directly
-    Strings, dicts, numbers — never large objects
 
-Gate philosophy (inherited from data-pipeline):
+Gate philosophy:
   Gates FAIL the pipeline. They do not warn and continue.
   If validate_model or check_bias fails:
-    - Dated model version is still written to registry (for forensics)
-    - latest/ pointer is NOT updated
+    - Pipeline halts before push_to_registry
+    - No model is pushed to AR or GCS
     - Production model is unchanged
     - Slack critical alert is sent
 """
@@ -80,6 +83,7 @@ def _write_df_to_gcs(df: Any, name: str, run_id: str) -> str:
     Uses run_id in the path so multiple concurrent runs never collide.
     """
     from io import BytesIO
+
     from google.cloud import storage
 
     path = f"{_artifact_prefix(run_id)}/{name}.parquet"
@@ -99,6 +103,7 @@ def _write_df_to_gcs(df: Any, name: str, run_id: str) -> str:
 def _read_df_from_gcs(gcs_path: str) -> Any:
     """Read a DataFrame from a GCS parquet path."""
     import pandas as pd
+
     return pd.read_parquet(gcs_path)
 
 
@@ -109,8 +114,8 @@ def _write_model_to_gcs(model: Any, run_id: str) -> str:
     LightGBM models have a native save_model() that produces a text file.
     This is more reliable than pickle and readable by any LightGBM version.
     """
-    import tempfile
     from pathlib import Path
+
     from google.cloud import storage
 
     path = f"{_artifact_prefix(run_id)}/model.lgb"
@@ -138,13 +143,13 @@ def _read_model_from_gcs(gcs_path: str) -> Any:
 
     Downloads to a temp file, loads with lgb.Booster, then cleans up.
     """
-    import tempfile
     from pathlib import Path
+
     import lightgbm as lgb
     from google.cloud import storage
 
     # Parse bucket and blob path from gs:// URI
-    without_prefix = gcs_path[len("gs://"):]
+    without_prefix = gcs_path[len("gs://") :]
     bucket_name, blob_path = without_prefix.split("/", 1)
 
     client = storage.Client()
@@ -166,6 +171,7 @@ def _read_model_from_gcs(gcs_path: str) -> Any:
 def _cfg() -> dict[str, Any]:
     """Load training configuration."""
     from shared.config_loader import load_training_config
+
     return load_training_config("crime_navigate_train")
 
 
@@ -206,9 +212,7 @@ def task_build_targets(**context: Any) -> dict[str, Any]:
     run_id = context["run_id"]
 
     # Read features DataFrame from GCS — deterministic path from XCom
-    features_gcs_path = context["ti"].xcom_pull(
-        task_ids="load_features", key="features_gcs_path"
-    )
+    features_gcs_path = context["ti"].xcom_pull(task_ids="load_features", key="features_gcs_path")
     features_df = _read_df_from_gcs(features_gcs_path)
 
     df, result = build_targets(features_df, execution_date, cfg, BUCKET)
@@ -232,9 +236,7 @@ def task_tune_hyperparams(**context: Any) -> dict[str, Any]:
     execution_date = context["ds"]
     run_id = context["run_id"]
 
-    training_gcs_path = context["ti"].xcom_pull(
-        task_ids="build_targets", key="training_gcs_path"
-    )
+    training_gcs_path = context["ti"].xcom_pull(task_ids="build_targets", key="training_gcs_path")
     df = _read_df_from_gcs(training_gcs_path)
 
     # Random 80/20 split — cross-sectional model, NOT temporal
@@ -261,7 +263,7 @@ def task_train_lgbm(**context: Any) -> dict[str, Any]:
     from models.crime_navigate.trainer import train_model
 
     cfg = _cfg()
-    execution_date = context["ds"]
+    _execution_date = context["ds"]
     run_id = context["run_id"]
 
     train_df = _read_df_from_gcs(
@@ -341,34 +343,48 @@ def task_check_bias(**context: Any) -> dict[str, Any]:
 
 
 def task_push_to_registry(**context: Any) -> dict[str, Any]:
-    """Push validated model to registry."""
+    """
+    Push validated model to Artifact Registry (primary) and GCS (backup).
+
+    Stage promotion flow:
+      1. Push with "staging" tag initially
+      2. Both gates passed → promote to "production" tag
+      3. Production service pulls "production" tag at startup
+
+    Artifact Registry provides:
+      - Proper versioning with immutable dated versions
+      - Stage tags (staging/production) for deployment control
+      - Audit trail of who pushed what when
+
+    GCS backup provides:
+      - Fallback if AR is unavailable
+      - SHAP plots accessible via MLflow UI
+    """
     from shared.alerting import alert_model_pushed
     from shared.registry import ModelRegistry
 
     cfg = _cfg()
     execution_date = context["ds"]
 
-    # Use the local model path written by train_lgbm in the same process run
-    # If that is gone (retry), re-download from GCS
     model_local_path = context["ti"].xcom_pull(task_ids="train_lgbm", key="model_local_path")
     model_gcs_path = context["ti"].xcom_pull(task_ids="train_lgbm", key="model_gcs_path")
 
     import os
+
     if not model_local_path or not os.path.exists(model_local_path):
-        # Local path gone — download from GCS to a fresh temp file
         import tempfile
-        from pathlib import Path
+
         from google.cloud import storage
 
-        without_prefix = model_gcs_path[len("gs://"):]
+        without_prefix = model_gcs_path[len("gs://") :]
         bucket_name, blob_path = without_prefix.split("/", 1)
         client = storage.Client()
         blob = client.bucket(bucket_name).blob(blob_path)
 
-        tmp = tempfile.NamedTemporaryFile(suffix=".lgb", delete=False)
-        tmp.close()
-        blob.download_to_filename(tmp.name)
-        model_local_path = tmp.name
+        with tempfile.NamedTemporaryFile(suffix=".lgb", delete=False) as tmp:
+            tmp_path = tmp.name
+        blob.download_to_filename(tmp_path)
+        model_local_path = tmp_path
 
     mlflow_run_id = context["ti"].xcom_pull(task_ids="train_lgbm", key="mlflow_run_id")
     val_result = context["ti"].xcom_pull(task_ids="validate_model")
@@ -391,11 +407,26 @@ def task_push_to_registry(**context: Any) -> dict[str, Any]:
     }
 
     shap_path = val_result.get("shap_artifact_path")
-    uri = registry.push(model_local_path, version, metadata, update_latest=True, shap_path=shap_path)
+
+    uri = registry.push(
+        model_path=model_local_path,
+        version=version,
+        metadata=metadata,
+        update_latest=True,
+        shap_path=shap_path,
+        stage="staging",
+    )
+
+    promotion_result = registry.promote_to_production(version)
 
     alert_model_pushed(DATASET, execution_date, version, uri, val_result["rmse_val"], DAG_ID)
 
-    return {"model_uri": uri, "version": version}
+    return {
+        "model_uri": uri,
+        "version": version,
+        "stage": "production",
+        "ar_path": promotion_result.get("ar_path"),
+    }
 
 
 def task_score_cells(**context: Any) -> dict[str, Any]:
@@ -407,9 +438,7 @@ def task_score_cells(**context: Any) -> dict[str, Any]:
     version = context["ti"].xcom_pull(task_ids="push_to_registry")["version"]
 
     # Re-read features from GCS — same data, guaranteed available
-    features_gcs_path = context["ti"].xcom_pull(
-        task_ids="load_features", key="features_gcs_path"
-    )
+    features_gcs_path = context["ti"].xcom_pull(task_ids="load_features", key="features_gcs_path")
     features_df = _read_df_from_gcs(features_gcs_path)
 
     model_gcs_path = context["ti"].xcom_pull(task_ids="train_lgbm", key="model_gcs_path")
@@ -433,9 +462,7 @@ def task_publish_scores(**context: Any) -> dict[str, Any]:
     cfg = _cfg()
     execution_date = context["ds"]
 
-    scores_gcs_path = context["ti"].xcom_pull(
-        task_ids="score_cells", key="scores_gcs_path"
-    )
+    scores_gcs_path = context["ti"].xcom_pull(task_ids="score_cells", key="scores_gcs_path")
     scores_df = _read_df_from_gcs(scores_gcs_path)
     version = context["ti"].xcom_pull(task_ids="push_to_registry")["version"]
 

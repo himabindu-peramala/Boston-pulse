@@ -200,6 +200,7 @@ cython_debug/
 
 # Secrets
 secrets/
+.secrets
 
 # PyPI configuration file
 .pypirc

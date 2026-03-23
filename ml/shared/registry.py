@@ -1,15 +1,33 @@
 """
 Boston Pulse ML - Model Registry.
 
-GCP Artifact Registry push and pull for LightGBM model files.
+Unified interface for model artifact storage with two backends:
+  - Artifact Registry (AR): Primary storage for deployable model artifacts
+  - GCS: Backup storage and SHAP plots (MLflow artifacts)
+
+Repository structure with namespaced packages:
+  ml-models/                              (repository)
+    ├── navigate/crime-risk               (package - current model)
+    │   ├── 20260316                      (version)
+    │   ├── 20260322                      (version)
+    │   └── production → 20260322         (tag)
+    ├── navigate/transit-risk             (package - future)
+    └── chatbot/intent-model              (package - future)
 
 Versioning pattern:
-  dated/:  always written — permanent record for forensics/rollback
-  latest/: only updated after ALL gates pass
+  - Dated versions (e.g., "20260322") are immutable snapshots
+  - Stage tags: "staging" → "production" promotion flow
+  - "latest" always points to most recent successful training
 
-This is the two-layer rollback mechanism:
-  Layer 1: latest/ never updated if a gate fails — production never sees bad model
-  Layer 2: every dated version is permanently available for manual re-pointing
+Production deployment flow:
+  1. Train model → push to AR with "staging" tag
+  2. Gates pass → promote to "production" tag
+  3. Production service pulls "production" tag at startup
+
+The GCS backup ensures:
+  - Fallback if AR is unavailable
+  - SHAP plots accessible via MLflow UI
+  - Compatibility with existing infrastructure
 """
 
 from __future__ import annotations
@@ -27,10 +45,9 @@ logger = logging.getLogger(__name__)
 
 class ModelRegistry:
     """
-    GCS-backed model registry for LightGBM models.
+    Model registry with Artifact Registry primary and GCS backup.
 
-    Provides versioned storage with a latest/ pointer that only updates
-    after all validation gates pass.
+    Provides versioned storage with stage-based promotion for production deployment.
     """
 
     def __init__(self, cfg: dict[str, Any]):
@@ -38,19 +55,58 @@ class ModelRegistry:
         Initialize registry.
 
         Args:
-            cfg: Training config with registry section
+            cfg: Training config with registry section containing:
+                - project: GCP project ID
+                - location: AR location (e.g., us-east1)
+                - repository: AR repository name
+                - package: Namespaced package name (e.g., "navigate/crime-risk")
+                - artifact_bucket: GCS bucket for backup
         """
-        self.project = cfg.get("registry", {}).get("project", "boston-pulse")
-        self.location = cfg.get("registry", {}).get("location", "us-east1")
-        self.repository = cfg.get("registry", {}).get("repository", "ml-models")
-        self.model_name = cfg.get("model", {}).get("name", "crime-navigate-model")
-        self.bucket_name = cfg.get("registry", {}).get(
-            "artifact_bucket", "boston-pulse-mlflow-artifacts"
-        )
-        self.client = storage.Client()
-        self.bucket = self.client.bucket(self.bucket_name)
+        registry_cfg = cfg.get("registry", {})
+        self.project = registry_cfg.get("project", "bostonpulse")
+        self.location = registry_cfg.get("location", "us-east1")
+        self.repository = registry_cfg.get("repository", "ml-models")
 
-    def _model_prefix(self, version: str) -> str:
+        # Package name uses namespace convention: {domain}/{model-purpose}
+        self.package = registry_cfg.get(
+            "package", cfg.get("model", {}).get("name", "navigate/crime-risk")
+        )
+        # For display and GCS paths, use the model-purpose part
+        self.model_name = self.package.split("/")[-1] if "/" in self.package else self.package
+
+        self.gcs_bucket_name = registry_cfg.get("artifact_bucket", "boston-pulse-mlflow-artifacts")
+        self.gcs_client = storage.Client()
+        self.gcs_bucket = self.gcs_client.bucket(self.gcs_bucket_name)
+
+        self.use_artifact_registry = registry_cfg.get("use_artifact_registry", True)
+
+        self._ar_client = None
+        self._cfg = cfg
+
+    @property
+    def ar_client(self):
+        """Lazy-load AR client to avoid import errors if not needed."""
+        if self._ar_client is None and self.use_artifact_registry:
+            try:
+                from shared.artifact_registry import ArtifactRegistryClient
+
+                self._ar_client = ArtifactRegistryClient(
+                    {
+                        "registry": {
+                            "project": self.project,
+                            "location": self.location,
+                            "repository": self.repository,
+                            "package": self.package,
+                        },
+                        "model": {"name": self.model_name},
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"AR client init failed, using GCS only: {e}")
+                self.use_artifact_registry = False
+        return self._ar_client
+
+    def _gcs_prefix(self, version: str) -> str:
         """Get GCS prefix for a model version."""
         return f"registry/{self.model_name}/{version}"
 
@@ -61,110 +117,152 @@ class ModelRegistry:
         metadata: dict[str, Any],
         update_latest: bool = True,
         shap_path: str | None = None,
+        stage: str = "staging",
     ) -> str:
         """
-        Push model to GCS-backed registry.
-
-        Always writes to dated/{version}/.
-        Only writes to latest/ if update_latest=True (both gates must pass first).
+        Push model to registry (AR primary, GCS backup).
 
         Args:
             model_path: Local path to model.lgb file
-            version: Version string (e.g. "20260316")
-            metadata: Model metadata (rmse, bias_passed, git_sha, feature_list, etc.)
-            update_latest: Whether to update the latest/ pointer
+            version: Version string (e.g., "20260322")
+            metadata: Model metadata dict
+            update_latest: Whether to update the latest pointer
             shap_path: Optional path to SHAP summary plot
+            stage: Initial stage ("staging" or "production")
 
         Returns:
-            GCS path of dated version
+            Primary artifact URI (AR if enabled, else GCS)
         """
-        dated_prefix = self._model_prefix(version)
+        ar_uri = None
+        gcs_uri = None
 
-        # Upload model file
-        model_blob = self.bucket.blob(f"{dated_prefix}/model.lgb")
+        if self.use_artifact_registry and self.ar_client:
+            try:
+                result = self.ar_client.push(
+                    model_path=model_path,
+                    version=version,
+                    metadata=metadata,
+                    stage=stage,
+                    shap_path=shap_path,
+                )
+                ar_uri = result["ar_uri"]
+                logger.info(f"Pushed to Artifact Registry: {ar_uri}")
+            except Exception as e:
+                logger.warning(f"AR push failed, falling back to GCS: {e}")
+
+        gcs_uri = self._push_to_gcs(
+            model_path=model_path,
+            version=version,
+            metadata=metadata,
+            update_latest=update_latest,
+            shap_path=shap_path,
+        )
+
+        return ar_uri if ar_uri else gcs_uri
+
+    def _push_to_gcs(
+        self,
+        model_path: str,
+        version: str,
+        metadata: dict[str, Any],
+        update_latest: bool = True,
+        shap_path: str | None = None,
+    ) -> str:
+        """Push model to GCS (backup storage)."""
+        prefix = self._gcs_prefix(version)
+
+        model_blob = self.gcs_bucket.blob(f"{prefix}/model.lgb")
         model_blob.upload_from_filename(model_path)
-        logger.info(f"Uploaded model to gs://{self.bucket_name}/{dated_prefix}/model.lgb")
+        logger.info(f"Uploaded model to GCS: gs://{self.gcs_bucket_name}/{prefix}/model.lgb")
 
-        # Upload metadata
         full_metadata = {
             **metadata,
             "version": version,
             "model_name": self.model_name,
         }
-        meta_blob = self.bucket.blob(f"{dated_prefix}/metadata.json")
+        meta_blob = self.gcs_bucket.blob(f"{prefix}/metadata.json")
         meta_blob.upload_from_string(
             json.dumps(full_metadata, indent=2, default=str),
             content_type="application/json",
         )
 
-        # Upload SHAP plot if provided
         if shap_path and Path(shap_path).exists():
-            shap_blob = self.bucket.blob(f"{dated_prefix}/shap_summary.png")
+            shap_blob = self.gcs_bucket.blob(f"{prefix}/shap_summary.png")
             shap_blob.upload_from_filename(shap_path)
-            logger.info("Uploaded SHAP plot to registry")
+            logger.info("Uploaded SHAP plot to GCS")
 
-        dated_uri = f"gs://{self.bucket_name}/{dated_prefix}/model.lgb"
-        logger.info(f"Pushed model to registry: {dated_uri}")
+        gcs_uri = f"gs://{self.gcs_bucket_name}/{prefix}/model.lgb"
 
         if update_latest:
-            self._update_latest(version, model_blob, meta_blob, shap_path)
+            self._update_gcs_latest(version, model_blob, meta_blob, shap_path)
 
-        return dated_uri
+        return gcs_uri
 
-    def _update_latest(
+    def _update_gcs_latest(
         self,
         version: str,
         model_blob: storage.Blob,
         meta_blob: storage.Blob,
         shap_path: str | None = None,
     ) -> None:
-        """Update the latest/ pointer to a specific version."""
-        latest_prefix = self._model_prefix("latest")
+        """Update the GCS latest/ pointer."""
+        latest_prefix = self._gcs_prefix("latest")
 
-        # Copy model to latest/
-        self.bucket.copy_blob(model_blob, self.bucket, f"{latest_prefix}/model.lgb")
-        self.bucket.copy_blob(meta_blob, self.bucket, f"{latest_prefix}/metadata.json")
+        self.gcs_bucket.copy_blob(model_blob, self.gcs_bucket, f"{latest_prefix}/model.lgb")
+        self.gcs_bucket.copy_blob(meta_blob, self.gcs_bucket, f"{latest_prefix}/metadata.json")
 
-        # Copy SHAP if exists
-        dated_prefix = self._model_prefix(version)
-        shap_blob = self.bucket.blob(f"{dated_prefix}/shap_summary.png")
+        dated_prefix = self._gcs_prefix(version)
+        shap_blob = self.gcs_bucket.blob(f"{dated_prefix}/shap_summary.png")
         if shap_blob.exists():
-            self.bucket.copy_blob(shap_blob, self.bucket, f"{latest_prefix}/shap_summary.png")
+            self.gcs_bucket.copy_blob(
+                shap_blob, self.gcs_bucket, f"{latest_prefix}/shap_summary.png"
+            )
 
-        logger.info(f"Updated latest/ pointer to version {version}")
+        logger.info(f"Updated GCS latest/ pointer to version {version}")
+
+    def promote_to_production(self, version: str) -> dict[str, Any]:
+        """
+        Promote a staged model to production.
+
+        Args:
+            version: Version to promote
+
+        Returns:
+            Dict with promotion info
+        """
+        result = {"version": version, "stage": "production"}
+
+        if self.use_artifact_registry and self.ar_client:
+            try:
+                ar_result = self.ar_client.promote_to_production(version)
+                result["ar_path"] = ar_result.get("ar_path")
+                logger.info(f"Promoted {version} to production in AR")
+            except Exception as e:
+                logger.warning(f"AR promotion failed: {e}")
+
+        self._update_gcs_production(version)
+
+        return result
+
+    def _update_gcs_production(self, version: str) -> None:
+        """Update GCS production/ pointer."""
+        src_prefix = self._gcs_prefix(version)
+        prod_prefix = self._gcs_prefix("production")
+
+        for suffix in ["model.lgb", "metadata.json", "shap_summary.png"]:
+            src_blob = self.gcs_bucket.blob(f"{src_prefix}/{suffix}")
+            if src_blob.exists():
+                self.gcs_bucket.copy_blob(src_blob, self.gcs_bucket, f"{prod_prefix}/{suffix}")
+
+        logger.info(f"Updated GCS production/ pointer to version {version}")
 
     def pull_latest(self, local_dir: str | None = None) -> tuple[str, dict[str, Any]]:
         """
-        Pull latest model to a local directory.
+        Pull latest model.
+
+        Tries AR first (production tag), falls back to GCS.
 
         Args:
-            local_dir: Directory to download to (creates temp if not provided)
-
-        Returns:
-            (local model path, metadata dict)
-        """
-        if local_dir is None:
-            local_dir = tempfile.mkdtemp()
-
-        latest_prefix = self._model_prefix("latest")
-
-        model_path = str(Path(local_dir) / "model.lgb")
-        self.bucket.blob(f"{latest_prefix}/model.lgb").download_to_filename(model_path)
-
-        meta_content = self.bucket.blob(f"{latest_prefix}/metadata.json").download_as_text()
-        metadata = json.loads(meta_content)
-
-        logger.info(f"Pulled latest model: version={metadata.get('version')}")
-        return model_path, metadata
-
-    def pull_version(
-        self, version: str, local_dir: str | None = None
-    ) -> tuple[str, dict[str, Any]]:
-        """
-        Pull a specific model version.
-
-        Args:
-            version: Version string (e.g. "20260316")
             local_dir: Directory to download to
 
         Returns:
@@ -173,41 +271,90 @@ class ModelRegistry:
         if local_dir is None:
             local_dir = tempfile.mkdtemp()
 
-        prefix = self._model_prefix(version)
+        if self.use_artifact_registry and self.ar_client:
+            try:
+                return self.ar_client.pull("production")
+            except Exception as e:
+                logger.warning(f"AR pull failed, using GCS: {e}")
+
+        return self._pull_from_gcs("latest", local_dir)
+
+    def pull_version(
+        self, version: str, local_dir: str | None = None
+    ) -> tuple[str, dict[str, Any]]:
+        """
+        Pull a specific model version.
+
+        Args:
+            version: Version string
+            local_dir: Directory to download to
+
+        Returns:
+            (local model path, metadata dict)
+        """
+        if local_dir is None:
+            local_dir = tempfile.mkdtemp()
+
+        if self.use_artifact_registry and self.ar_client:
+            try:
+                return self.ar_client.pull(version, local_dir)
+            except Exception as e:
+                logger.warning(f"AR pull failed for {version}, using GCS: {e}")
+
+        return self._pull_from_gcs(version, local_dir)
+
+    def _pull_from_gcs(self, version: str, local_dir: str) -> tuple[str, dict[str, Any]]:
+        """Pull model from GCS."""
+        prefix = self._gcs_prefix(version)
 
         model_path = str(Path(local_dir) / "model.lgb")
-        self.bucket.blob(f"{prefix}/model.lgb").download_to_filename(model_path)
+        self.gcs_bucket.blob(f"{prefix}/model.lgb").download_to_filename(model_path)
 
-        meta_content = self.bucket.blob(f"{prefix}/metadata.json").download_as_text()
+        meta_content = self.gcs_bucket.blob(f"{prefix}/metadata.json").download_as_text()
         metadata = json.loads(meta_content)
 
-        logger.info(f"Pulled model version: {version}")
+        logger.info(f"Pulled model from GCS: version={metadata.get('version')}")
         return model_path, metadata
 
     def get_latest_metadata(self) -> dict[str, Any]:
-        """Get metadata of the currently deployed model without downloading the model file."""
-        latest_prefix = self._model_prefix("latest")
-        content = self.bucket.blob(f"{latest_prefix}/metadata.json").download_as_text()
+        """Get metadata of the currently deployed model."""
+        if self.use_artifact_registry and self.ar_client:
+            try:
+                _, metadata = self.ar_client.pull("production")
+                return metadata
+            except Exception as e:
+                logger.warning(f"AR metadata fetch failed: {e}")
+
+        prefix = self._gcs_prefix("latest")
+        content = self.gcs_bucket.blob(f"{prefix}/metadata.json").download_as_text()
         return json.loads(content)
 
     def list_versions(self) -> list[str]:
         """List all available model versions."""
-        prefix = f"registry/{self.model_name}/"
-        blobs = self.client.list_blobs(self.bucket_name, prefix=prefix)
-
         versions = set()
+
+        if self.use_artifact_registry and self.ar_client:
+            try:
+                ar_versions = self.ar_client.list_versions()
+                versions.update(v["version"] for v in ar_versions)
+            except Exception as e:
+                logger.warning(f"AR list failed: {e}")
+
+        prefix = f"registry/{self.model_name}/"
+        blobs = self.gcs_client.list_blobs(self.gcs_bucket_name, prefix=prefix)
+
         for blob in blobs:
             parts = blob.name.split("/")
             if len(parts) >= 3:
                 version = parts[2]
-                if version != "latest":
+                if version not in ("latest", "production"):
                     versions.add(version)
 
         return sorted(versions)
 
     def rollback_to_version(self, version: str) -> dict[str, Any]:
         """
-        Rollback latest/ pointer to a specific version.
+        Rollback to a specific version.
 
         Args:
             version: Version to rollback to
@@ -215,17 +362,44 @@ class ModelRegistry:
         Returns:
             Metadata of the rolled-back version
         """
-        prefix = self._model_prefix(version)
-
-        # Verify version exists
-        model_blob = self.bucket.blob(f"{prefix}/model.lgb")
+        prefix = self._gcs_prefix(version)
+        model_blob = self.gcs_bucket.blob(f"{prefix}/model.lgb")
         if not model_blob.exists():
             raise ValueError(f"Version {version} not found in registry")
 
-        meta_blob = self.bucket.blob(f"{prefix}/metadata.json")
+        if self.use_artifact_registry and self.ar_client:
+            try:
+                self.ar_client.rollback(version)
+            except Exception as e:
+                logger.warning(f"AR rollback failed: {e}")
 
-        # Update latest
-        self._update_latest(version, model_blob, meta_blob)
+        meta_blob = self.gcs_bucket.blob(f"{prefix}/metadata.json")
+        self._update_gcs_latest(version, model_blob, meta_blob)
+        self._update_gcs_production(version)
 
         logger.info(f"Rolled back to version {version}")
         return self.get_latest_metadata()
+
+    def get_production_version(self) -> str | None:
+        """Get the version currently tagged as production."""
+        if self.use_artifact_registry and self.ar_client:
+            try:
+                return self.ar_client.get_version_by_tag("production")
+            except Exception:
+                pass
+
+        try:
+            meta = self.get_latest_metadata()
+            return meta.get("version")
+        except Exception:
+            return None
+
+    def get_ar_uri(self, version: str) -> str:
+        """Get the Artifact Registry URI for a version."""
+        return f"https://{self.location}-generic.pkg.dev/{self.project}/{self.repository}/{self.package}:{version}"
+
+    def _ar_get_version_for_tag(self, tag: str) -> str | None:
+        """Get the version a tag points to in AR."""
+        if self.use_artifact_registry and self.ar_client:
+            return self.ar_client.get_version_by_tag(tag)
+        return None
