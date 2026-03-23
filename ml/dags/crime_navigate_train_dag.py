@@ -1,46 +1,26 @@
 """
-Boston Pulse ML - Crime Navigate Training DAG.
+Boston Pulse ML - Crime Navigate Training DAG (Docker-based).
 
-Navigate crime risk scoring — weekly training DAG.
+This DAG runs the ML training pipeline inside a versioned Docker container.
+The container image is built in CI and tagged with the git SHA, ensuring
+the exact code version that passed tests is used for training.
 
-Schedule: every Sunday at 2 AM UTC (independent of data pipeline DAG)
-Trigger also: on push to ml/ via GitHub Actions ml.yml
+Trigger: GitHub Actions workflow on push to main
+  - CI builds docker/ml-training.Dockerfile
+  - Pushes to us-east1-docker.pkg.dev/bostonpulse/ml-images/ml-training:<sha>
+  - Triggers this DAG with conf: {"ml_image": "<full-image-uri>", "git_sha": "<sha>"}
 
-Task chain:
-  load_features           → features_df written to GCS (run artifact)
-    → build_targets       → training_df written to GCS (run artifact)
-      → tune_hyperparams  → Optuna 20 trials, each a child MLflow run
-        → train_lgbm      → model.lgb written to GCS (run artifact)
-          → validate_model    → RMSE gate + SHAP — HALTS if fails
-            → check_bias      → Fairlearn by district — HALTS if fails
-              → push_to_registry  → AR (primary) + GCS (backup), stage promotion
-                → score_cells     → inference on features_df (re-read from GCS)
-                  → publish_scores    → Firestore upsert
-                    → pipeline_complete → Slack summary
+The DockerOperator pulls the specified image and runs the training CLI.
+This guarantees reproducibility: the training code matches the tested commit.
 
-Artifact storage pattern:
-  - Run artifacts (intermediate DataFrames, temp model) → GCS
-    Written to ml/run_artifacts/{run_id}/{name}.parquet or .lgb
-    Auto-deleted after 30 days via GCS lifecycle rule
-  - Deployable model artifacts → Artifact Registry (primary) + GCS (backup)
-    Versioned with dated tags (e.g., "20260322")
-    Stage tags: "staging" → "production" promotion flow
-    Production service pulls "production" tag at startup
-  - Small values (metrics, params, flags) → XCom directly
-
-Gate philosophy:
-  Gates FAIL the pipeline. They do not warn and continue.
-  If validate_model or check_bias fails:
-    - Pipeline halts before push_to_registry
-    - No model is pushed to AR or GCS
-    - Production model is unchanged
-    - Slack critical alert is sent
+Schedule: None (triggered by CI only)
+  - Weekly schedule is handled by GitHub Actions cron
+  - Manual runs via workflow_dispatch also trigger this DAG
 """
 
 from __future__ import annotations
 
 import os
-import tempfile
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -49,461 +29,133 @@ from airflow.operators.python import PythonOperator
 
 DAG_ID = "crime_navigate_train"
 DATASET = "crime_navigate"
-BUCKET = os.getenv("GCS_BUCKET", "boston-pulse-data-pipeline")
 
-# GCS prefix for temporary run artifacts (DataFrames, models)
-# These are written per-run and can be lifecycle-deleted after 30 days
-RUN_ARTIFACTS_PREFIX = "ml/run_artifacts"
+# Default image for manual DAG runs without CI trigger
+DEFAULT_ML_IMAGE = "us-east1-docker.pkg.dev/bostonpulse/ml-images/ml-training:latest"
 
 default_args = {
     "owner": "boston-pulse",
     "depends_on_past": False,
-    "retries": 0,
+    "retries": 1,
     "retry_delay": timedelta(minutes=5),
-    "execution_timeout": timedelta(hours=3),
+    "execution_timeout": timedelta(hours=4),
 }
 
 
-# =============================================================================
-# GCS Artifact Helpers
-# =============================================================================
-
-
-def _artifact_prefix(run_id: str) -> str:
-    """GCS prefix for artifacts from this specific DAG run."""
-    # Use run_id to namespace artifacts so parallel runs don't collide
-    safe_run_id = run_id.replace(":", "_").replace("+", "_").replace(" ", "_")
-    return f"{RUN_ARTIFACTS_PREFIX}/{safe_run_id}"
-
-
-def _write_df_to_gcs(df: Any, name: str, run_id: str) -> str:
+def get_ml_image(**context: Any) -> str:
     """
-    Write a DataFrame to GCS as parquet. Returns the full GCS path.
+    Get the ML training image from DAG run conf or use default.
 
-    Uses run_id in the path so multiple concurrent runs never collide.
+    When triggered by CI, conf contains:
+      {"ml_image": "us-east1-docker.pkg.dev/bostonpulse/ml-images/ml-training:<sha>"}
+
+    For manual runs or schedule without CI, falls back to :latest tag.
     """
-    from io import BytesIO
+    dag_run = context.get("dag_run")
+    if dag_run and dag_run.conf:
+        image = dag_run.conf.get("ml_image")
+        if image:
+            return image
 
-    from google.cloud import storage
-
-    path = f"{_artifact_prefix(run_id)}/{name}.parquet"
-    client = storage.Client()
-    bucket = client.bucket(BUCKET)
-    blob = bucket.blob(path)
-
-    buf = BytesIO()
-    df.to_parquet(buf, index=False)
-    buf.seek(0)
-    blob.upload_from_file(buf, content_type="application/octet-stream")
-
-    gcs_path = f"gs://{BUCKET}/{path}"
-    return gcs_path
+    return DEFAULT_ML_IMAGE
 
 
-def _read_df_from_gcs(gcs_path: str) -> Any:
-    """Read a DataFrame from a GCS parquet path."""
-    import pandas as pd
-
-    return pd.read_parquet(gcs_path)
-
-
-def _write_model_to_gcs(model: Any, run_id: str) -> str:
+def run_training_container(**context: Any) -> dict[str, Any]:
     """
-    Write a LightGBM model to GCS. Returns the full GCS path.
+    Run the ML training pipeline inside a Docker container.
 
-    LightGBM models have a native save_model() that produces a text file.
-    This is more reliable than pickle and readable by any LightGBM version.
+    Uses the Docker SDK to pull and run the versioned ML image.
+    The container has access to GCP credentials via the metadata server
+    (same as the Airflow containers on the VM).
     """
-    from pathlib import Path
+    import json
+    import docker
 
-    from google.cloud import storage
-
-    path = f"{_artifact_prefix(run_id)}/model.lgb"
-    client = storage.Client()
-    bucket = client.bucket(BUCKET)
-    blob = bucket.blob(path)
-
-    # Save to a temp file then upload — LightGBM save_model requires a filepath
-    with tempfile.NamedTemporaryFile(suffix=".lgb", delete=False) as f:
-        tmp_path = f.name
-
-    try:
-        model.save_model(tmp_path)
-        blob.upload_from_filename(tmp_path)
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
-
-    gcs_path = f"gs://{BUCKET}/{path}"
-    return gcs_path
-
-
-def _read_model_from_gcs(gcs_path: str) -> Any:
-    """
-    Read a LightGBM model from GCS.
-
-    Downloads to a temp file, loads with lgb.Booster, then cleans up.
-    """
-    from pathlib import Path
-
-    import lightgbm as lgb
-    from google.cloud import storage
-
-    # Parse bucket and blob path from gs:// URI
-    without_prefix = gcs_path[len("gs://") :]
-    bucket_name, blob_path = without_prefix.split("/", 1)
-
-    client = storage.Client()
-    bucket = client.bucket(bucket_name)
-    blob = bucket.blob(blob_path)
-
-    with tempfile.NamedTemporaryFile(suffix=".lgb", delete=False) as f:
-        tmp_path = f.name
-
-    try:
-        blob.download_to_filename(tmp_path)
-        model = lgb.Booster(model_file=tmp_path)
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
-
-    return model
-
-
-def _cfg() -> dict[str, Any]:
-    """Load training configuration."""
-    from shared.config_loader import load_training_config
-
-    return load_training_config("crime_navigate_train")
-
-
-# =============================================================================
-# Task Functions
-# =============================================================================
-
-
-def task_load_features(**context: Any) -> dict[str, Any]:
-    """Load latest features per (h3_index, hour_bucket) from GCS."""
-    from models.crime_navigate.feature_loader import load_features
-    from shared.alerting import alert_training_start
-
-    cfg = _cfg()
     execution_date = context["ds"]
-    run_id = context["run_id"]
+    dag_run = context.get("dag_run")
 
-    alert_training_start(DATASET, execution_date, DAG_ID)
+    # Get image from conf or default
+    ml_image = get_ml_image(**context)
+    git_sha = dag_run.conf.get("git_sha", "unknown") if dag_run and dag_run.conf else "unknown"
 
-    df, result = load_features(execution_date, cfg, BUCKET)
+    print(f"Running training with image: {ml_image}")
+    print(f"Git SHA: {git_sha}")
+    print(f"Execution date: {execution_date}")
 
-    if not result.success:
-        raise RuntimeError(f"Feature loading failed: {result.error}")
-
-    # Write to GCS — path passed to downstream tasks via XCom
-    gcs_path = _write_df_to_gcs(df, "features", run_id)
-    context["ti"].xcom_push(key="features_gcs_path", value=gcs_path)
-
-    return result.to_dict()
-
-
-def task_build_targets(**context: Any) -> dict[str, Any]:
-    """Build training matrix by joining features with danger_rate label."""
-    from models.crime_navigate.target_builder import build_targets
-
-    cfg = _cfg()
-    execution_date = context["ds"]
-    run_id = context["run_id"]
-
-    # Read features DataFrame from GCS — deterministic path from XCom
-    features_gcs_path = context["ti"].xcom_pull(task_ids="load_features", key="features_gcs_path")
-    features_df = _read_df_from_gcs(features_gcs_path)
-
-    df, result = build_targets(features_df, execution_date, cfg, BUCKET)
-
-    if not result.success:
-        raise RuntimeError(f"Target building failed: {result.error}")
-
-    gcs_path = _write_df_to_gcs(df, "training", run_id)
-    context["ti"].xcom_push(key="training_gcs_path", value=gcs_path)
-
-    return result.to_dict()
-
-
-def task_tune_hyperparams(**context: Any) -> dict[str, Any]:
-    """Run Optuna hyperparameter search with random 80/20 split."""
-    from models.crime_navigate.trainer import random_split
-    from models.crime_navigate.tuner import tune_hyperparams
-    from shared.mlflow_utils import get_or_create_run
-
-    cfg = _cfg()
-    execution_date = context["ds"]
-    run_id = context["run_id"]
-
-    training_gcs_path = context["ti"].xcom_pull(task_ids="build_targets", key="training_gcs_path")
-    df = _read_df_from_gcs(training_gcs_path)
-
-    # Random 80/20 split — cross-sectional model, NOT temporal
-    train_df, val_df = random_split(df, cfg)
-
-    # Write split DataFrames to GCS
-    train_gcs = _write_df_to_gcs(train_df, "train", run_id)
-    val_gcs = _write_df_to_gcs(val_df, "val", run_id)
-    context["ti"].xcom_push(key="train_gcs_path", value=train_gcs)
-    context["ti"].xcom_push(key="val_gcs_path", value=val_gcs)
-
-    parent_run_id = get_or_create_run(cfg, execution_date)
-
-    best_params, result = tune_hyperparams(train_df, val_df, cfg, parent_run_id)
-
-    context["ti"].xcom_push(key="best_params", value=best_params)
-    context["ti"].xcom_push(key="mlflow_run_id", value=parent_run_id)
-
-    return result.to_dict()
-
-
-def task_train_lgbm(**context: Any) -> dict[str, Any]:
-    """Train LightGBM with best hyperparameters."""
-    from models.crime_navigate.trainer import train_model
-
-    cfg = _cfg()
-    _execution_date = context["ds"]
-    run_id = context["run_id"]
-
-    train_df = _read_df_from_gcs(
-        context["ti"].xcom_pull(task_ids="tune_hyperparams", key="train_gcs_path")
-    )
-    val_df = _read_df_from_gcs(
-        context["ti"].xcom_pull(task_ids="tune_hyperparams", key="val_gcs_path")
-    )
-    best_params = context["ti"].xcom_pull(task_ids="tune_hyperparams", key="best_params")
-    mlflow_run_id = context["ti"].xcom_pull(task_ids="tune_hyperparams", key="mlflow_run_id")
-
-    model, model_path, result = train_model(train_df, val_df, best_params, cfg, mlflow_run_id)
-
-    # Write model to GCS — use LightGBM native format, not pickle
-    model_gcs_path = _write_model_to_gcs(model, run_id)
-
-    context["ti"].xcom_push(key="model_gcs_path", value=model_gcs_path)
-    # Also pass the local model_path for push_to_registry which needs a local file
-    context["ti"].xcom_push(key="model_local_path", value=model_path)
-    context["ti"].xcom_push(key="mlflow_run_id", value=mlflow_run_id)
-    context["ti"].xcom_push(key="training_result", value=result.to_dict())
-
-    return result.to_dict()
-
-
-def task_validate_model(**context: Any) -> dict[str, Any]:
-    """Run RMSE gate and SHAP analysis."""
-    from models.crime_navigate.validator import ValidationGateError, validate_model
-    from shared.alerting import alert_gate_failure
-    from shared.schemas import TrainingResult
-
-    cfg = _cfg()
-    execution_date = context["ds"]
-
-    val_df = _read_df_from_gcs(
-        context["ti"].xcom_pull(task_ids="tune_hyperparams", key="val_gcs_path")
-    )
-    mlflow_run_id = context["ti"].xcom_pull(task_ids="train_lgbm", key="mlflow_run_id")
-    training_dict = context["ti"].xcom_pull(task_ids="train_lgbm", key="training_result")
-
-    # Load model from GCS — always works regardless of which subprocess runs this
-    model_gcs_path = context["ti"].xcom_pull(task_ids="train_lgbm", key="model_gcs_path")
-    model = _read_model_from_gcs(model_gcs_path)
-
-    training_result = TrainingResult(**training_dict)
-
-    try:
-        result = validate_model(model, val_df, training_result, cfg, mlflow_run_id)
-        return result.to_dict()
-    except ValidationGateError as e:
-        alert_gate_failure(DATASET, execution_date, "RMSE/Overfit Gate", str(e), DAG_ID)
-        raise
-
-
-def task_check_bias(**context: Any) -> dict[str, Any]:
-    """Run Fairlearn bias check."""
-    from models.crime_navigate.bias_checker import BiasGateError, check_bias
-    from shared.alerting import alert_gate_failure
-
-    cfg = _cfg()
-    execution_date = context["ds"]
-
-    val_df = _read_df_from_gcs(
-        context["ti"].xcom_pull(task_ids="tune_hyperparams", key="val_gcs_path")
-    )
-    mlflow_run_id = context["ti"].xcom_pull(task_ids="train_lgbm", key="mlflow_run_id")
-
-    model_gcs_path = context["ti"].xcom_pull(task_ids="train_lgbm", key="model_gcs_path")
-    model = _read_model_from_gcs(model_gcs_path)
-
-    try:
-        result = check_bias(model, val_df, execution_date, cfg, BUCKET, mlflow_run_id)
-        return result.to_dict()
-    except BiasGateError as e:
-        alert_gate_failure(DATASET, execution_date, "Bias Gate", str(e), DAG_ID)
-        raise
-
-
-def task_push_to_registry(**context: Any) -> dict[str, Any]:
-    """
-    Push validated model to Artifact Registry (primary) and GCS (backup).
-
-    Stage promotion flow:
-      1. Push with "staging" tag initially
-      2. Both gates passed → promote to "production" tag
-      3. Production service pulls "production" tag at startup
-
-    Artifact Registry provides:
-      - Proper versioning with immutable dated versions
-      - Stage tags (staging/production) for deployment control
-      - Audit trail of who pushed what when
-
-    GCS backup provides:
-      - Fallback if AR is unavailable
-      - SHAP plots accessible via MLflow UI
-    """
-    from shared.alerting import alert_model_pushed
-    from shared.registry import ModelRegistry
-
-    cfg = _cfg()
-    execution_date = context["ds"]
-
-    model_local_path = context["ti"].xcom_pull(task_ids="train_lgbm", key="model_local_path")
-    model_gcs_path = context["ti"].xcom_pull(task_ids="train_lgbm", key="model_gcs_path")
-
-    import os
-
-    if not model_local_path or not os.path.exists(model_local_path):
-        import tempfile
-
-        from google.cloud import storage
-
-        without_prefix = model_gcs_path[len("gs://") :]
-        bucket_name, blob_path = without_prefix.split("/", 1)
-        client = storage.Client()
-        blob = client.bucket(bucket_name).blob(blob_path)
-
-        with tempfile.NamedTemporaryFile(suffix=".lgb", delete=False) as tmp:
-            tmp_path = tmp.name
-        blob.download_to_filename(tmp_path)
-        model_local_path = tmp_path
-
-    mlflow_run_id = context["ti"].xcom_pull(task_ids="train_lgbm", key="mlflow_run_id")
-    val_result = context["ti"].xcom_pull(task_ids="validate_model")
-    bias_result = context["ti"].xcom_pull(task_ids="check_bias")
-
-    version = execution_date.replace("-", "")
-
-    registry = ModelRegistry(cfg)
-    metadata = {
-        "execution_date": execution_date,
-        "mlflow_run_id": mlflow_run_id,
-        "rmse_val": val_result["rmse_val"],
-        "rmse_train": val_result["rmse_train"],
-        "overfit_ratio": val_result["overfit_ratio"],
-        "bias_passed": bias_result["passed"],
-        "bias_worst_slice": bias_result.get("worst_slice"),
-        "bias_worst_deviation_pct": bias_result.get("worst_deviation_pct"),
-        "git_sha": os.getenv("GIT_SHA", "unknown"),
-        "feature_list": cfg["features"]["input_columns"],
+    # Environment variables for the training container
+    env_vars = {
+        "GCS_BUCKET": os.getenv("GCS_BUCKET", "boston-pulse-data-pipeline"),
+        "GCP_PROJECT_ID": os.getenv("GCP_PROJECT_ID", "bostonpulse"),
+        "GOOGLE_CLOUD_PROJECT": os.getenv("GOOGLE_CLOUD_PROJECT", "bostonpulse"),
+        "MLFLOW_TRACKING_URI": os.getenv("MLFLOW_TRACKING_URI", "sqlite:////tmp/mlflow.db"),
+        "GIT_SHA": git_sha,
+        "ML_IMAGE": ml_image,
+        "SLACK_WEBHOOK_URL": os.getenv("SLACK_WEBHOOK_URL", ""),
     }
 
-    shap_path = val_result.get("shap_artifact_path")
+    # Command to run inside the container
+    command = [
+        "python", "-m", "models.crime_navigate.cli", "train",
+        "--execution-date", execution_date,
+        "--stage", "staging",
+        "--output-json", "/tmp/results.json",
+    ]
 
-    uri = registry.push(
-        model_path=model_local_path,
-        version=version,
-        metadata=metadata,
-        update_latest=True,
-        shap_path=shap_path,
-        stage="staging",
-    )
+    client = docker.from_env()
 
-    promotion_result = registry.promote_to_production(version)
+    # Pull the image first
+    print(f"Pulling image: {ml_image}")
+    try:
+        client.images.pull(ml_image)
+    except docker.errors.APIError as e:
+        print(f"Warning: Could not pull image (may already exist locally): {e}")
 
-    alert_model_pushed(DATASET, execution_date, version, uri, val_result["rmse_val"], DAG_ID)
+    # Run the container
+    print(f"Starting container with command: {' '.join(command)}")
 
-    return {
-        "model_uri": uri,
-        "version": version,
-        "stage": "production",
-        "ar_path": promotion_result.get("ar_path"),
-    }
+    try:
+        container = client.containers.run(
+            image=ml_image,
+            command=command,
+            environment=env_vars,
+            # Network mode host allows access to GCP metadata server at 169.254.169.254
+            network_mode="host",
+            # Remove container after completion
+            remove=True,
+            # Stream logs
+            detach=False,
+            stdout=True,
+            stderr=True,
+        )
 
+        # container is bytes when detach=False
+        output = container.decode("utf-8") if isinstance(container, bytes) else str(container)
+        print("Container output:")
+        print(output)
 
-def task_score_cells(**context: Any) -> dict[str, Any]:
-    """Score all active H3 cells."""
-    from models.crime_navigate.scorer import score_all_cells
+        # Try to parse the JSON results from the output
+        # The CLI prints JSON at the end
+        try:
+            # Find the last JSON object in the output
+            lines = output.strip().split("\n")
+            for line in reversed(lines):
+                line = line.strip()
+                if line.startswith("{") and line.endswith("}"):
+                    results = json.loads(line)
+                    return results
+        except (json.JSONDecodeError, IndexError):
+            pass
 
-    cfg = _cfg()
-    execution_date = context["ds"]
-    version = context["ti"].xcom_pull(task_ids="push_to_registry")["version"]
+        return {"status": "success", "output": output[:1000]}
 
-    # Re-read features from GCS — same data, guaranteed available
-    features_gcs_path = context["ti"].xcom_pull(task_ids="load_features", key="features_gcs_path")
-    features_df = _read_df_from_gcs(features_gcs_path)
-
-    model_gcs_path = context["ti"].xcom_pull(task_ids="train_lgbm", key="model_gcs_path")
-    model = _read_model_from_gcs(model_gcs_path)
-
-    scores_df, result = score_all_cells(model, features_df, execution_date, cfg, BUCKET, version)
-
-    # Write scores to GCS for publish_scores
-    run_id = context["run_id"]
-    scores_gcs_path = _write_df_to_gcs(scores_df, "scores", run_id)
-    context["ti"].xcom_push(key="scores_gcs_path", value=scores_gcs_path)
-
-    return result.to_dict()
-
-
-def task_publish_scores(**context: Any) -> dict[str, Any]:
-    """Publish scores to Firestore."""
-    from models.crime_navigate.publisher import publish_scores
-    from shared.alerting import alert_scores_published
-
-    cfg = _cfg()
-    execution_date = context["ds"]
-
-    scores_gcs_path = context["ti"].xcom_pull(task_ids="score_cells", key="scores_gcs_path")
-    scores_df = _read_df_from_gcs(scores_gcs_path)
-    version = context["ti"].xcom_pull(task_ids="push_to_registry")["version"]
-
-    result = publish_scores(scores_df, cfg, version, execution_date)
-
-    alert_scores_published(
-        DATASET,
-        execution_date,
-        result.rows_upserted,
-        scores_df["h3_index"].nunique(),
-        result.duration_seconds,
-        DAG_ID,
-    )
-
-    return result.to_dict()
-
-
-def task_pipeline_complete(**context: Any) -> dict[str, Any]:
-    """Send completion alert with summary."""
-    from shared.alerting import alert_training_complete
-
-    ti = context["ti"]
-    execution_date = context["ds"]
-
-    alert_training_complete(
-        dataset=DATASET,
-        execution_date=execution_date,
-        train_result=ti.xcom_pull(task_ids="train_lgbm"),
-        val_result=ti.xcom_pull(task_ids="validate_model"),
-        bias_result=ti.xcom_pull(task_ids="check_bias"),
-        score_result=ti.xcom_pull(task_ids="score_cells"),
-        publish_result=ti.xcom_pull(task_ids="publish_scores"),
-        dag_id=DAG_ID,
-    )
-
-    return {"status": "complete", "execution_date": execution_date}
-
-
-# =============================================================================
-# DAG Definition
-# =============================================================================
+    except docker.errors.ContainerError as e:
+        print(f"Container failed with exit code {e.exit_status}")
+        print(f"Stderr: {e.stderr}")
+        raise RuntimeError(f"Training container failed: {e.stderr}") from e
+    except docker.errors.ImageNotFound:
+        raise RuntimeError(f"ML training image not found: {ml_image}")
+    except docker.errors.APIError as e:
+        raise RuntimeError(f"Docker API error: {e}") from e
 
 
 def on_task_failure(context: Any) -> None:
@@ -520,83 +172,26 @@ def on_task_failure(context: Any) -> None:
 with DAG(
     dag_id=DAG_ID,
     default_args=default_args,
-    description="Navigate crime risk scoring — weekly model training",
-    schedule_interval="0 2 * * 0",  # Every Sunday 2 AM UTC
+    description="Navigate crime risk scoring — containerized training",
+    # No schedule - triggered by CI workflow
+    schedule_interval=None,
     start_date=datetime(2024, 1, 1),
     catchup=False,
     max_active_runs=1,
-    tags=["navigate", "ml", "crime", "training"],
+    tags=["navigate", "ml", "crime", "training", "docker"],
+    # Accept conf parameters from CI trigger
+    params={
+        "ml_image": DEFAULT_ML_IMAGE,
+        "git_sha": "manual",
+    },
 ) as dag:
 
-    t_load = PythonOperator(
-        task_id="load_features",
-        python_callable=task_load_features,
-        on_failure_callback=on_task_failure,
-    )
-
-    t_targets = PythonOperator(
-        task_id="build_targets",
-        python_callable=task_build_targets,
-        on_failure_callback=on_task_failure,
-    )
-
-    t_tune = PythonOperator(
-        task_id="tune_hyperparams",
-        python_callable=task_tune_hyperparams,
-        on_failure_callback=on_task_failure,
-    )
-
+    # Single task that runs the entire pipeline in a container
+    # This replaces the chain of PythonOperator tasks
     t_train = PythonOperator(
-        task_id="train_lgbm",
-        python_callable=task_train_lgbm,
+        task_id="run_training",
+        python_callable=run_training_container,
         on_failure_callback=on_task_failure,
-    )
-
-    t_validate = PythonOperator(
-        task_id="validate_model",
-        python_callable=task_validate_model,
-        on_failure_callback=on_task_failure,
-    )
-
-    t_bias = PythonOperator(
-        task_id="check_bias",
-        python_callable=task_check_bias,
-        on_failure_callback=on_task_failure,
-    )
-
-    t_registry = PythonOperator(
-        task_id="push_to_registry",
-        python_callable=task_push_to_registry,
-        on_failure_callback=on_task_failure,
-    )
-
-    t_score = PythonOperator(
-        task_id="score_cells",
-        python_callable=task_score_cells,
-        on_failure_callback=on_task_failure,
-    )
-
-    t_publish = PythonOperator(
-        task_id="publish_scores",
-        python_callable=task_publish_scores,
-        on_failure_callback=on_task_failure,
-    )
-
-    t_complete = PythonOperator(
-        task_id="pipeline_complete",
-        python_callable=task_pipeline_complete,
-        trigger_rule="all_success",
-    )
-
-    (
-        t_load
-        >> t_targets
-        >> t_tune
-        >> t_train
-        >> t_validate
-        >> t_bias
-        >> t_registry
-        >> t_score
-        >> t_publish
-        >> t_complete
+        # Increase timeout for full pipeline
+        execution_timeout=timedelta(hours=4),
     )

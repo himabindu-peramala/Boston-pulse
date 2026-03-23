@@ -44,4 +44,5 @@ RUN pip install --no-cache-dir \
     "mlflow>=2.10" \
     "shap>=0.44" \
     "scikit-learn>=1.4" \
-    "google-cloud-artifact-registry>=1.11"
+    "google-cloud-artifact-registry>=1.11" \
+    "google-auth>=2.0"

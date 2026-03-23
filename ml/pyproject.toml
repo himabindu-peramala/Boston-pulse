@@ -17,6 +17,7 @@ dependencies = [
     "google-cloud-storage>=2.14",
     "google-cloud-firestore>=2.14",
     "google-cloud-artifact-registry>=1.11",
+    "google-auth>=2.0",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "python-dotenv>=1.0",

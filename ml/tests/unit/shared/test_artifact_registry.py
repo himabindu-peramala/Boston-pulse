@@ -12,6 +12,7 @@ import pytest
 
 from shared.artifact_registry import (
     ArtifactRegistryClient,
+    ArtifactRegistryError,
     ensure_repository_exists,
 )
 
@@ -34,6 +35,17 @@ def ar_client(ar_cfg: dict[str, Any]) -> ArtifactRegistryClient:
     return ArtifactRegistryClient(ar_cfg)
 
 
+@pytest.fixture
+def mock_credentials():
+    """Mock ADC credentials."""
+    with patch("shared.artifact_registry.google.auth.default") as mock_auth:
+        mock_creds = MagicMock()
+        mock_creds.token = "fake-token-12345"
+        mock_creds.valid = True
+        mock_auth.return_value = (mock_creds, "test-project")
+        yield mock_creds
+
+
 class TestArtifactRegistryClient:
     """Tests for ArtifactRegistryClient."""
 
@@ -46,6 +58,16 @@ class TestArtifactRegistryClient:
         assert ar_client.model_name == "test-model"
         assert ar_client.ar_host == "us-east1-generic.pkg.dev"
         assert ar_client.ar_path == "test-project/test-models/navigate/test-model"
+
+    def test_init_sets_sdk_resource_names(self, ar_client: ArtifactRegistryClient) -> None:
+        """Client initializes with correct SDK resource names."""
+        assert ar_client._parent == (
+            "projects/test-project/locations/us-east1/repositories/test-models"
+        )
+        assert ar_client._package_parent == (
+            "projects/test-project/locations/us-east1/repositories/test-models"
+            "/packages/navigate/test-model"
+        )
 
     def test_create_artifact_package_creates_tarball(
         self, ar_client: ArtifactRegistryClient, tmp_path: Path
@@ -100,20 +122,18 @@ class TestArtifactRegistryClient:
         assert len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
 
-    @patch.object(ArtifactRegistryClient, "_run_gcloud")
+    @patch.object(ArtifactRegistryClient, "_upload_generic_artifact")
     @patch.object(ArtifactRegistryClient, "_set_tag")
-    def test_push_calls_gcloud_upload(
+    def test_push_uploads_via_sdk(
         self,
         mock_set_tag: MagicMock,
-        mock_run_gcloud: MagicMock,
+        mock_upload: MagicMock,
         ar_client: ArtifactRegistryClient,
         tmp_path: Path,
     ) -> None:
-        """Push uploads package via gcloud artifacts generic upload."""
+        """Push uploads package via Python SDK."""
         model_file = tmp_path / "model.lgb"
         model_file.write_bytes(b"model")
-
-        mock_run_gcloud.return_value = MagicMock(returncode=0)
 
         result = ar_client.push(
             model_path=str(model_file),
@@ -127,10 +147,9 @@ class TestArtifactRegistryClient:
         assert result["stage"] == "staging"
         assert "sha256" in result
 
-        upload_call = mock_run_gcloud.call_args_list[0]
-        assert "artifacts" in upload_call[0][0]
-        assert "generic" in upload_call[0][0]
-        assert "upload" in upload_call[0][0]
+        mock_upload.assert_called_once()
+        call_args = mock_upload.call_args
+        assert call_args[0][1] == "20260322"
 
     @patch.object(ArtifactRegistryClient, "_set_tag")
     def test_promote_to_production_sets_tag(
@@ -143,11 +162,18 @@ class TestArtifactRegistryClient:
         assert result["stage"] == "production"
         mock_set_tag.assert_called_with("20260322", "production")
 
-    @patch.object(ArtifactRegistryClient, "_run_gcloud")
+    @patch.object(ArtifactRegistryClient, "_download_generic_artifact")
+    @patch.object(ArtifactRegistryClient, "get_version_by_tag")
     def test_pull_downloads_and_extracts(
-        self, mock_run_gcloud: MagicMock, ar_client: ArtifactRegistryClient, tmp_path: Path
+        self,
+        mock_get_tag: MagicMock,
+        mock_download: MagicMock,
+        ar_client: ArtifactRegistryClient,
+        tmp_path: Path,
     ) -> None:
         """Pull downloads package and extracts model + metadata."""
+        mock_get_tag.return_value = "20260322"
+
         package_dir = tmp_path / "package"
         package_dir.mkdir()
         model_file = package_dir / "model.lgb"
@@ -160,18 +186,11 @@ class TestArtifactRegistryClient:
             tar.add(model_file, arcname="model.lgb")
             tar.add(meta_file, arcname="metadata.json")
 
-        def mock_download(args: list[str], check: bool = True):
-            dest = None
-            for _i, arg in enumerate(args):
-                if arg.startswith("--destination="):
-                    dest = arg.split("=")[1]
-            if dest:
-                import shutil
+        def mock_download_impl(version: str, local_dir: str):
+            import shutil
+            shutil.copy(tar_path, Path(local_dir) / "test-model.tar.gz")
 
-                shutil.copy(tar_path, Path(dest) / "test-model.tar.gz")
-            return MagicMock(returncode=0)
-
-        mock_run_gcloud.side_effect = mock_download
+        mock_download.side_effect = mock_download_impl
 
         local_dir = tmp_path / "output"
         local_dir.mkdir()
@@ -179,56 +198,63 @@ class TestArtifactRegistryClient:
 
         assert Path(model_path).exists()
         assert metadata["version"] == "20260322"
+        mock_get_tag.assert_called_once_with("production")
 
-    @patch.object(ArtifactRegistryClient, "_run_gcloud")
-    def test_list_versions_parses_json_output(
-        self, mock_run_gcloud: MagicMock, ar_client: ArtifactRegistryClient
+    @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
+    def test_list_versions_uses_sdk(
+        self, mock_ar_class: MagicMock, ar_client: ArtifactRegistryClient
     ) -> None:
-        """List versions parses gcloud JSON output."""
-        mock_run_gcloud.return_value = MagicMock(
-            returncode=0,
-            stdout=json.dumps(
-                [
-                    {"name": "projects/p/locations/l/repositories/r/packages/m/versions/20260322"},
-                    {"name": "projects/p/locations/l/repositories/r/packages/m/versions/20260315"},
-                ]
-            ),
-        )
+        """List versions uses Python SDK."""
+        mock_sdk_client = MagicMock()
+        mock_ar_class.return_value = mock_sdk_client
 
+        mock_version1 = MagicMock()
+        mock_version1.name = "projects/p/locations/l/repositories/r/packages/m/versions/20260322"
+        mock_version1.create_time = None
+        mock_version1.update_time = None
+
+        mock_version2 = MagicMock()
+        mock_version2.name = "projects/p/locations/l/repositories/r/packages/m/versions/20260315"
+        mock_version2.create_time = None
+        mock_version2.update_time = None
+
+        mock_sdk_client.list_versions.return_value = [mock_version1, mock_version2]
+
+        ar_client._ar_client = None
         versions = ar_client.list_versions()
 
         assert len(versions) == 2
         assert versions[0]["version"] == "20260322"
         assert versions[1]["version"] == "20260315"
 
-    @patch.object(ArtifactRegistryClient, "_run_gcloud")
+    @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
     def test_get_version_by_tag_returns_version(
-        self, mock_run_gcloud: MagicMock, ar_client: ArtifactRegistryClient
+        self, mock_ar_class: MagicMock, ar_client: ArtifactRegistryClient
     ) -> None:
-        """Get version by tag extracts version from tag info."""
-        mock_run_gcloud.return_value = MagicMock(
-            returncode=0,
-            stdout=json.dumps(
-                [
-                    {
-                        "name": "projects/p/locations/l/repositories/r/packages/m/tags/production",
-                        "version": "projects/p/locations/l/repositories/r/packages/m/versions/20260322",
-                    }
-                ]
-            ),
-        )
+        """Get version by tag extracts version from tag info using SDK."""
+        mock_sdk_client = MagicMock()
+        mock_ar_class.return_value = mock_sdk_client
 
+        mock_tag = MagicMock()
+        mock_tag.version = "projects/p/locations/l/repositories/r/packages/m/versions/20260322"
+        mock_sdk_client.get_tag.return_value = mock_tag
+
+        ar_client._ar_client = None
         version = ar_client.get_version_by_tag("production")
 
         assert version == "20260322"
+        mock_sdk_client.get_tag.assert_called_once()
 
-    @patch.object(ArtifactRegistryClient, "_run_gcloud")
+    @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
     def test_get_version_by_tag_returns_none_if_not_found(
-        self, mock_run_gcloud: MagicMock, ar_client: ArtifactRegistryClient
+        self, mock_ar_class: MagicMock, ar_client: ArtifactRegistryClient
     ) -> None:
         """Get version by tag returns None if tag doesn't exist."""
-        mock_run_gcloud.return_value = MagicMock(returncode=0, stdout="[]")
+        mock_sdk_client = MagicMock()
+        mock_ar_class.return_value = mock_sdk_client
+        mock_sdk_client.get_tag.side_effect = Exception("Tag not found")
 
+        ar_client._ar_client = None
         version = ar_client.get_version_by_tag("nonexistent")
 
         assert version is None
@@ -245,29 +271,57 @@ class TestArtifactRegistryClient:
         mock_promote.assert_called_once_with("20260315")
         assert result["version"] == "20260315"
 
+    @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
+    def test_list_tags_returns_dict(
+        self, mock_ar_class: MagicMock, ar_client: ArtifactRegistryClient
+    ) -> None:
+        """List tags returns dict of tag_name → version_id."""
+        mock_sdk_client = MagicMock()
+        mock_ar_class.return_value = mock_sdk_client
+
+        mock_tag1 = MagicMock()
+        mock_tag1.name = "projects/p/locations/l/repositories/r/packages/m/tags/production"
+        mock_tag1.version = "projects/p/locations/l/repositories/r/packages/m/versions/20260322"
+
+        mock_tag2 = MagicMock()
+        mock_tag2.name = "projects/p/locations/l/repositories/r/packages/m/tags/staging"
+        mock_tag2.version = "projects/p/locations/l/repositories/r/packages/m/versions/20260323"
+
+        mock_sdk_client.list_tags.return_value = [mock_tag1, mock_tag2]
+
+        ar_client._ar_client = None
+        tags = ar_client.list_tags()
+
+        assert tags == {"production": "20260322", "staging": "20260323"}
+
 
 class TestEnsureRepositoryExists:
     """Tests for ensure_repository_exists helper."""
 
-    @patch("subprocess.run")
-    def test_creates_repo_if_not_exists(self, mock_run: MagicMock) -> None:
-        """Creates repository if describe fails."""
-        mock_run.side_effect = [
-            MagicMock(returncode=1),
-            MagicMock(returncode=0),
-        ]
+    @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
+    def test_creates_repo_if_not_exists(self, mock_ar_class: MagicMock) -> None:
+        """Creates repository if get_repository fails."""
+        mock_client = MagicMock()
+        mock_ar_class.return_value = mock_client
+        mock_client.get_repository.side_effect = Exception("Not found")
+
+        mock_operation = MagicMock()
+        mock_client.create_repository.return_value = mock_operation
 
         ensure_repository_exists("proj", "us-east1", "ml-models")
 
-        assert mock_run.call_count == 2
-        create_call = mock_run.call_args_list[1]
-        assert "create" in create_call[0][0]
+        mock_client.get_repository.assert_called_once()
+        mock_client.create_repository.assert_called_once()
+        mock_operation.result.assert_called_once()
 
-    @patch("subprocess.run")
-    def test_skips_create_if_exists(self, mock_run: MagicMock) -> None:
+    @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
+    def test_skips_create_if_exists(self, mock_ar_class: MagicMock) -> None:
         """Skips creation if repository already exists."""
-        mock_run.return_value = MagicMock(returncode=0)
+        mock_client = MagicMock()
+        mock_ar_class.return_value = mock_client
+        mock_client.get_repository.return_value = MagicMock()
 
         ensure_repository_exists("proj", "us-east1", "ml-models")
 
-        assert mock_run.call_count == 1
+        mock_client.get_repository.assert_called_once()
+        mock_client.create_repository.assert_not_called()

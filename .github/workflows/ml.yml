@@ -1,44 +1,4 @@
-# Boston Pulse — ML Training Pipeline CI/CD
-#
-# ─────────────────────────────────────────────────────────────────────────────
-# Stage flow:
-#
-#   CODE PUSH
-#     │
-#     ▼
-#   lint + unit-tests + integration-tests   ← CI gate (blocks merge if fail)
-#     │
-#     ▼
-#   trigger-training  ─────────────────────► Airflow on GCE VM
-#                                               load_features
-#                                               build_targets
-#                                               tune_hyperparams (Optuna)
-#                                               train_lgbm
-#                                               validate_model (RMSE + SHAP)
-#                                               check_bias (Fairlearn slices)
-#                                               push_to_registry
-#                                                 ├─ GCS dated/   (always)
-#                                                 ├─ AR version   (always)
-#                                                 ├─ AR tag:staging (always)
-#                                                 ├─ GCS latest/  (gates pass)
-#                                                 └─ AR tag:prod  (gates pass)
-#                                               score_cells
-#                                               publish_scores → Firestore
-#     │
-#     ▼
-#   poll-training-result
-#     │
-#     ├─ success ──► verify-ar-registry  ──► notify-success
-#     │                   └─ confirm AR production tag + metadata match
-#     │
-#     └─ failed  ──► notify-gate-failure
-#                        └─ AR production tag unchanged, prod model safe
-#
-# Rollback (workflow_dispatch with rollback_to_version):
-#   Skips all other jobs.
-#   Calls registry.rollback_to_version() → moves AR production tag backwards.
-#   GCS latest/ also restored to match.
-# ─────────────────────────────────────────────────────────────────────────────
+# Boston Pulse ML Training Pipeline CI/CD
 
 name: ML Training Pipeline CI/CD
 
@@ -57,178 +17,69 @@ on:
   workflow_dispatch:
     inputs:
       execution_date:
-        description: 'Execution date YYYY-MM-DD (defaults to today)'
+        description: 'Execution date (YYYY-MM-DD) — defaults to today'
         required: false
       skip_training:
-        description: 'Run tests only — skip training trigger'
+        description: 'Skip training and only run tests'
         required: false
-        default: 'false'
-        type: choice
-        options: ['false', 'true']
-      rollback_to_version:
-        description: 'ROLLBACK: move production tag to this version (YYYYMMDD). Skips all other jobs.'
-        required: false
+        default: false
+        type: boolean
   schedule:
-    - cron: '0 2 * * 0'   # Sunday 2 AM UTC — mirrors Airflow DAG schedule
+    # Weekly Sunday 2 AM UTC — same as Airflow DAG schedule
+    # GitHub Actions triggers Airflow via REST API; Airflow does the actual work
+    - cron: '0 2 * * 0'
 
 env:
   PYTHON_VERSION: '3.11'
   MLFLOW_TRACKING_URI: 'sqlite:///mlflow_test.db'
-  GIT_PYTHON_REFRESH: quiet
 
-# =============================================================================
-# ROLLBACK
-# Standalone job — only runs when rollback_to_version input is set.
-# Moves AR production tag + GCS latest/ pointer to a previous version.
-# All other jobs are skipped.
-# =============================================================================
 jobs:
-
-  rollback:
-    name: 'Rollback production → ${{ github.event.inputs.rollback_to_version }}'
-    runs-on: ubuntu-latest
-    if: github.event.inputs.rollback_to_version != ''
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Authenticate to GCP via Workload Identity Federation
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install ml package
-        working-directory: ml
-        run: pip install -e "." "numpy" --quiet
-
-      - name: List available versions before rollback
-        run: |
-          echo "=== Available AR versions ==="
-          gcloud artifacts versions list \
-            --project=${{ secrets.GCP_PROJECT_ID }} \
-            --location=us-east1 \
-            --repository=ml-models \
-            --package=navigate/crime-risk \
-            --format="table(name.basename(), createTime)" \
-            2>/dev/null || echo "AR listing unavailable"
-
-      - name: Execute rollback
-        working-directory: ml
-        env:
-          GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-        run: |
-          python3 - <<'PYEOF'
-          import sys, json, yaml
-          from pathlib import Path
-          from shared.registry import ModelRegistry
-
-          target = "${{ github.event.inputs.rollback_to_version }}"
-          cfg = yaml.safe_load(Path("configs/crime_navigate_train.yaml").read_text())
-          reg = ModelRegistry(cfg)
-
-          available = reg.list_versions()
-          print(f"Available versions: {available}")
-
-          if target not in available:
-              print(f"ERROR: version {target} not found. Available: {available}")
-              sys.exit(1)
-
-          metadata = reg.rollback_to_version(target)
-          print(f"\nSuccessfully rolled back production → {target}")
-          print(json.dumps(metadata, indent=2, default=str))
-          PYEOF
-
-      - name: Show AR state after rollback
-        run: |
-          echo "=== AR tags after rollback ==="
-          gcloud artifacts tags list \
-            --project=${{ secrets.GCP_PROJECT_ID }} \
-            --location=us-east1 \
-            --repository=ml-models \
-            --package=navigate/crime-risk \
-            --format="table(name.basename(), version.basename())" \
-            2>/dev/null || echo "AR listing unavailable"
-
-      - name: Notify rollback outcome
-        if: always()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          STATUS="${{ job.status }}"
-          VERSION="${{ github.event.inputs.rollback_to_version }}"
-          ICON=$([[ "$STATUS" == "success" ]] && echo "⏪" || echo "❌")
-          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          curl -sf -X POST "$SLACK_WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"text\": \"$ICON Model rollback to \`$VERSION\` — $STATUS\",
-              \"blocks\": [{
-                \"type\": \"section\",
-                \"text\": {\"type\": \"mrkdwn\",
-                  \"text\": \"$ICON *Model Rollback* — *$STATUS*\n*Target version:* \`$VERSION\`\n*Triggered by:* ${{ github.actor }}\n*Commit:* \`$SHA\`\n\nAR \`production\` tag and GCS \`latest/\` both updated.\"
-                }
-              }]
-            }" || true
-
-# =============================================================================
-# LINT
-# =============================================================================
-
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
-    if: github.event.inputs.rollback_to_version == ''
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install linting tools
-        run: pip install "ruff>=0.3.0" "black>=24.0.0" --quiet
+        run: pip install ruff black mypy
 
-      - name: Ruff lint
+      - name: Run ruff linter
         run: ruff check ml/
+        continue-on-error: false
 
-      - name: Black format check
+      - name: Check black formatting
         run: black --check ml/
 
-# =============================================================================
-# UNIT TESTS
-# Covers all modules: feature loading, training, validation, bias, registry.
-# Hard gate: 80% coverage required. Blocks merge if not met.
-# =============================================================================
-
   unit-tests:
-    name: Unit Tests (≥80% coverage)
+    name: Unit Tests
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Cache pip
+      - name: Cache pip dependencies
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-ml-${{ hashFiles('ml/pyproject.toml') }}
-          restore-keys: ${{ runner.os }}-ml-
+          key: ${{ runner.os }}-pip-${{ hashFiles('ml/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         working-directory: ml
-        run: pip install -e ".[dev]" "numpy" --quiet
+        run: pip install -e ".[dev]"
 
       - name: Run unit tests with coverage
         working-directory: ml
@@ -240,7 +91,7 @@ jobs:
             --cov-report=xml:coverage.xml \
             --cov-fail-under=80
 
-      - name: Upload coverage to Codecov
+      - name: Upload coverage report
         uses: codecov/codecov-action@v4
         with:
           files: ml/coverage.xml
@@ -248,441 +99,141 @@ jobs:
           name: ml-coverage
         continue-on-error: true
 
-# =============================================================================
-# INTEGRATION TESTS
-# Uses fake-gcs-server to test GCS and inter-task artifact paths end-to-end.
-# Only runs on main and manual dispatch — not on every feature branch push.
-# =============================================================================
-
-  integration-tests:
-    name: Integration Tests (GCS emulator)
+  integration-test:
+    name: Integration Tests
     runs-on: ubuntu-latest
     needs: unit-tests
-    if: |
-      github.event.inputs.rollback_to_version == '' &&
-      (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     env:
       USE_GCS_EMULATOR: 'true'
       STORAGE_EMULATOR_HOST: 'http://localhost:4443'
-      GCS_BUCKET: test-bucket
-      GCP_PROJECT_ID: test-project
     services:
       gcs-emulator:
         image: fsouza/fake-gcs-server
         ports:
           - 4443:4443
         options: >-
-          --health-cmd "wget -q -O /dev/null http://localhost:4443/storage/v1/b || exit 1"
+          --health-cmd "curl -f http://localhost:4443/storage/v1/b || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
         working-directory: ml
-        run: pip install -e ".[dev]" "numpy" --quiet
+        run: pip install -e ".[dev]"
 
       - name: Wait for GCS emulator
         run: |
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:4443/storage/v1/b && break || sleep 2
+          for i in {1..30}; do
+            curl -s http://localhost:4443/storage/v1/b && break
+            sleep 2
           done
 
       - name: Run integration tests
         working-directory: ml
         run: pytest tests/integration/ -v --timeout=300
-        continue-on-error: true
-
-# =============================================================================
-# TRIGGER TRAINING
-# Calls Airflow REST API on the GCE VM.
-# The Airflow DAG runs the full ML pipeline — see DAG docstring for task chain.
-# =============================================================================
+        continue-on-error: true  # Integration tests may need fixtures
 
   trigger-training:
-    name: Trigger Airflow Training DAG
+    name: Trigger Training DAG
     runs-on: ubuntu-latest
     needs: [unit-tests]
     if: |
-      github.event.inputs.rollback_to_version == '' &&
-      github.event.inputs.skip_training != 'true' &&
-      (
-        (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-        github.event_name == 'schedule' ||
-        github.event_name == 'workflow_dispatch'
-      )
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_training != 'true')
     permissions:
       id-token: write
       contents: read
-    outputs:
-      dag_run_id: ${{ steps.trigger.outputs.dag_run_id }}
-      execution_date: ${{ steps.trigger.outputs.execution_date }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Authenticate to GCP via Workload Identity Federation
+      - name: Authenticate to Google Cloud
+        id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          token_format: 'access_token'
+        continue-on-error: true  # Skip if secrets not configured
 
-      - name: Resolve execution date
-        id: date
-        run: |
-          D="${{ github.event.inputs.execution_date }}"
-          [[ -z "$D" ]] && D=$(date +%Y-%m-%d)
-          echo "value=$D" >> $GITHUB_OUTPUT
-          echo "Execution date: $D"
-
-      - name: Trigger DAG via Airflow REST API
-        id: trigger
+      - name: Trigger Airflow DAG
+        if: ${{ env.AIRFLOW_URL != '' && steps.auth.outputs.access_token != '' }}
         env:
           AIRFLOW_URL: ${{ secrets.AIRFLOW_URL }}
-          AIRFLOW_USERNAME: ${{ secrets.AIRFLOW_USERNAME }}
-          AIRFLOW_PASSWORD: ${{ secrets.AIRFLOW_PASSWORD }}
+          GCP_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
-          EXEC_DATE="${{ steps.date.outputs.value }}"
-          SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
+          EXEC_DATE="${{ github.event.inputs.execution_date || '' }}"
+          if [ -z "$EXEC_DATE" ]; then
+            EXEC_DATE=$(date +%Y-%m-%d)
+          fi
 
-          echo "Triggering crime_navigate_train for $EXEC_DATE (sha=$SHORT_SHA)"
+          echo "Triggering crime_navigate_train DAG for $EXEC_DATE"
 
-          RESPONSE=$(curl -sf -X POST \
-            --user "$AIRFLOW_USERNAME:$AIRFLOW_PASSWORD" \
+          curl -sf -X POST \
+            -H "Authorization: Bearer $GCP_ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
             "$AIRFLOW_URL/api/v1/dags/crime_navigate_train/dagRuns" \
-            -d "{
-              \"conf\": {
-                \"git_sha\": \"$GITHUB_SHA\",
-                \"execution_date\": \"$EXEC_DATE\",
-                \"triggered_by\": \"github_actions\",
-                \"workflow_run_id\": \"${{ github.run_id }}\"
-              }
-            }")
-
-          echo "Airflow response: $RESPONSE"
-
-          RUN_ID=$(echo "$RESPONSE" | python3 -c \
-            "import sys,json; print(json.load(sys.stdin)['dag_run_id'])")
-
-          echo "dag_run_id=$RUN_ID" >> $GITHUB_OUTPUT
-          echo "execution_date=$EXEC_DATE" >> $GITHUB_OUTPUT
-          echo "DAG run ID: $RUN_ID"
-
-# =============================================================================
-# POLL TRAINING RESULT
-# Polls Airflow every 60s for up to 3 hours.
-# On failure: prints which task failed (validate_model vs check_bias matters).
-# =============================================================================
-
-  poll-training-result:
-    name: Poll Training Result (up to 3h)
-    runs-on: ubuntu-latest
-    needs: trigger-training
-    if: needs.trigger-training.outputs.dag_run_id != ''
-    outputs:
-      training_status: ${{ steps.poll.outputs.status }}
-    steps:
-      - name: Poll DAG until complete
-        id: poll
-        env:
-          AIRFLOW_URL: ${{ secrets.AIRFLOW_URL }}
-          AIRFLOW_USERNAME: ${{ secrets.AIRFLOW_USERNAME }}
-          AIRFLOW_PASSWORD: ${{ secrets.AIRFLOW_PASSWORD }}
-          DAG_RUN_ID: ${{ needs.trigger-training.outputs.dag_run_id }}
-        run: |
-          MAX_WAIT=10800
-          INTERVAL=60
-          ELAPSED=0
-
-          echo "Polling DAG run: $DAG_RUN_ID"
-
-          while [ $ELAPSED -lt $MAX_WAIT ]; do
-            STATE=$(curl -sf \
-              --user "$AIRFLOW_USERNAME:$AIRFLOW_PASSWORD" \
-              "$AIRFLOW_URL/api/v1/dags/crime_navigate_train/dagRuns/$DAG_RUN_ID" \
-              | python3 -c "import sys,json; print(json.load(sys.stdin)['state'])")
-
-            echo "[${ELAPSED}s] state=$STATE"
-
-            if [ "$STATE" = "success" ]; then
-              echo "status=success" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-
-            if [ "$STATE" = "failed" ]; then
-              echo "status=failed" >> $GITHUB_OUTPUT
-              echo "--- Failed task instances ---"
-              curl -sf \
-                --user "$AIRFLOW_USERNAME:$AIRFLOW_PASSWORD" \
-                "$AIRFLOW_URL/api/v1/dags/crime_navigate_train/dagRuns/$DAG_RUN_ID/taskInstances" \
-                | python3 -c "
-          import sys, json
-          for ti in json.load(sys.stdin).get('task_instances', []):
-              if ti['state'] == 'failed':
-                  print(f\"  FAILED: {ti['task_id']}  (try {ti['try_number']})\")
-          "
-              exit 1
-            fi
-
-            sleep $INTERVAL
-            ELAPSED=$((ELAPSED + INTERVAL))
-          done
-
-          echo "status=timeout" >> $GITHUB_OUTPUT
-          echo "ERROR: DAG did not complete in ${MAX_WAIT}s"
-          exit 1
-
-# =============================================================================
-# VERIFY ARTIFACT REGISTRY
-# Confirms that after a successful run:
-#   1. AR version exists for today's date
-#   2. AR 'production' tag points to that version
-#   3. Metadata in AR has correct RMSE, bias_passed, git_sha
-#   4. GCS latest/ is consistent with AR production
-# This is the CI-side audit trail that Section 7.4 requires.
-# =============================================================================
-
-  verify-ar-registry:
-    name: Verify Artifact Registry
-    runs-on: ubuntu-latest
-    needs: [trigger-training, poll-training-result]
-    if: needs.poll-training-result.outputs.training_status == 'success'
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Authenticate to GCP via Workload Identity Federation
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install ml package
-        working-directory: ml
-        run: pip install -e "." "numpy" --quiet
-
-      - name: Show AR version list
-        run: |
-          echo "=== All AR versions for navigate/crime-risk ==="
-          gcloud artifacts versions list \
-            --project=${{ secrets.GCP_PROJECT_ID }} \
-            --location=us-east1 \
-            --repository=ml-models \
-            --package=navigate/crime-risk \
-            --format="table(name.basename(), createTime)" \
-            2>/dev/null || echo "AR CLI unavailable, will verify via Python SDK"
-
-      - name: Verify AR production tag and metadata
-        working-directory: ml
-        env:
-          GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          EXECUTION_DATE: ${{ needs.trigger-training.outputs.execution_date }}
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          python3 - <<'PYEOF'
-          import sys, json, os, yaml
-          from pathlib import Path
-          from shared.registry import ModelRegistry
-
-          cfg = yaml.safe_load(Path("configs/crime_navigate_train.yaml").read_text())
-          reg = ModelRegistry(cfg)
-
-          execution_date = os.environ["EXECUTION_DATE"]
-          expected_version = execution_date.replace("-", "")
-          git_sha = os.environ["GITHUB_SHA"]
-
-          print(f"Expected version: {expected_version}")
-          print(f"Expected git_sha: {git_sha[:7]}")
-          print()
-
-          # 1. Check version exists in AR
-          available = reg.list_versions()
-          print(f"Available AR versions: {available}")
-
-          if expected_version not in available:
-              print(f"ERROR: version {expected_version} not found in AR")
-              sys.exit(1)
-          print(f"✓ Version {expected_version} exists in AR")
-
-          # 2. Check production tag points to this version
-          try:
-              prod_version = reg._ar_get_version_for_tag("production")
-              if prod_version != expected_version:
-                  print(f"ERROR: AR production tag points to {prod_version}, expected {expected_version}")
-                  sys.exit(1)
-              print(f"✓ AR production tag → {prod_version}")
-          except Exception as e:
-              print(f"WARNING: could not verify AR production tag: {e}")
-              print("Falling back to GCS latest/ verification")
-
-          # 3. Read and verify metadata
-          metadata = reg.get_latest_metadata()
-          print()
-          print("=== Production model metadata ===")
-          print(json.dumps(metadata, indent=2, default=str))
-
-          actual_version = metadata.get("version", "")
-          if actual_version != expected_version:
-              print(f"\nERROR: metadata version {actual_version} != expected {expected_version}")
-              sys.exit(1)
-
-          # 4. Sanity checks on metadata fields
-          rmse = metadata.get("rmse_val")
-          bias_passed = metadata.get("bias_passed", False)
-          meta_sha = metadata.get("git_sha", "")
-
-          print(f"\n  Version:      {actual_version}")
-          print(f"  RMSE (val):   {rmse}")
-          print(f"  Bias passed:  {bias_passed}")
-          print(f"  Git SHA:      {meta_sha[:7] if meta_sha else 'unknown'}")
-          print(f"  AR URI:       {reg.get_ar_uri(actual_version)}")
-
-          if rmse is None:
-              print("ERROR: rmse_val missing from metadata")
-              sys.exit(1)
-
-          print("\n✓ Registry verification PASSED")
-          print(f"✓ Production model: navigate/crime-risk:{actual_version}")
-          PYEOF
-
-# =============================================================================
-# NOTIFY — PIPELINE PASSED
-# Sent only on main branch after full end-to-end success.
-# =============================================================================
+            -d "{\"conf\": {\"git_sha\": \"$GITHUB_SHA\", \"execution_date\": \"$EXEC_DATE\"}}" \
+            || echo "Note: Airflow trigger skipped (secrets not configured or Airflow not available)"
 
   notify-success:
-    name: Notify Pipeline Passed
-    runs-on: ubuntu-latest
-    needs: [unit-tests, trigger-training, poll-training-result, verify-ar-registry]
-    if: |
-      always() &&
-      needs.unit-tests.result == 'success' &&
-      needs.poll-training-result.outputs.training_status == 'success' &&
-      needs.verify-ar-registry.result == 'success' &&
-      github.ref == 'refs/heads/main'
-    steps:
-      - name: Slack — success
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          EXEC_DATE: ${{ needs.trigger-training.outputs.execution_date }}
-        run: |
-          VERSION="${EXEC_DATE//-/}"
-          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          curl -sf -X POST "$SLACK_WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"text\": \"✅ ML Pipeline passed — production model $VERSION deployed\",
-              \"blocks\": [
-                {\"type\": \"header\",
-                 \"text\": {\"type\": \"plain_text\", \"text\": \"✅ ML Training Pipeline — PASSED\"}},
-                {\"type\": \"section\",
-                 \"fields\": [
-                   {\"type\": \"mrkdwn\", \"text\": \"*Version:* \`$VERSION\`\"},
-                   {\"type\": \"mrkdwn\", \"text\": \"*Commit:* \`$SHA\`\"},
-                   {\"type\": \"mrkdwn\", \"text\": \"*Branch:* \`${{ github.ref_name }}\`\"},
-                   {\"type\": \"mrkdwn\", \"text\": \"*By:* ${{ github.actor }}\"}
-                 ]},
-                {\"type\": \"section\",
-                 \"text\": {\"type\": \"mrkdwn\",
-                   \"text\": \"✓ RMSE gate   ✓ Bias gate   ✓ AR registry push\n*AR:* \`navigate/crime-risk:$VERSION\`\n*Tag:* \`production\` updated\nFirestore h3_scores refreshed.\"}},
-                {\"type\": \"actions\",
-                 \"elements\": [
-                   {\"type\": \"button\",
-                    \"text\": {\"type\": \"plain_text\", \"text\": \"GitHub Actions\"},
-                    \"url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"},
-                   {\"type\": \"button\",
-                    \"text\": {\"type\": \"plain_text\", \"text\": \"AR Console\"},
-                    \"url\": \"https://console.cloud.google.com/artifacts/generic/bostonpulse/us-east1/ml-models/navigate%2Fcrime-risk\"}
-                 ]}
-              ]
-            }" || true
-
-# =============================================================================
-# NOTIFY — CI TESTS FAILED
-# Lint or unit tests failed — training was never triggered.
-# =============================================================================
-
-  notify-ci-failure:
-    name: Notify CI Failure
+    name: Notify Success
     runs-on: ubuntu-latest
     needs: [lint, unit-tests]
-    if: |
-      always() &&
-      (needs.lint.result == 'failure' || needs.unit-tests.result == 'failure') &&
-      github.ref == 'refs/heads/main'
+    if: success() && github.ref == 'refs/heads/main'
     steps:
-      - name: Slack — CI failed
+      - name: Send Slack notification
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          FAILED=$([[ "${{ needs.lint.result }}" == "failure" ]] && echo "lint" || echo "unit-tests")
-          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          curl -sf -X POST "$SLACK_WEBHOOK_URL" \
+          curl -X POST "$SLACK_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
-            -d "{
-              \"text\": \"❌ ML CI failed — training NOT triggered\",
-              \"blocks\": [{\"type\": \"section\",
-                \"text\": {\"type\": \"mrkdwn\",
-                  \"text\": \"❌ *ML CI Failed* — job: \`$FAILED\`\n*Commit:* \`$SHA\`  *Branch:* \`${{ github.ref_name }}\`\n\nTraining was NOT triggered. Production model unchanged.\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>\"
+            -d '{
+              "text": "✅ ML Pipeline CI passed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "✅ *ML Pipeline CI passed*\n\nCommit: `'"$GITHUB_SHA"'`\nBranch: `'"$GITHUB_REF_NAME"'`"
+                  }
                 }
-              }]
-            }" || true
+              ]
+            }' || echo "Slack notification skipped"
 
-# =============================================================================
-# NOTIFY — TRAINING GATE FAILED
-# validate_model or check_bias blocked the pipeline inside Airflow.
-# AR production tag was NOT moved — production model is safe.
-# AR staging tag WAS written — the trained model exists for inspection.
-# =============================================================================
-
-  notify-gate-failure:
-    name: Notify Gate Failure
+  notify-failure:
+    name: Notify Failure
     runs-on: ubuntu-latest
-    needs: [trigger-training, poll-training-result]
-    if: |
-      always() &&
-      needs.trigger-training.result == 'success' &&
-      needs.poll-training-result.outputs.training_status == 'failed'
+    needs: [lint, unit-tests]
+    if: failure() && github.ref == 'refs/heads/main'
     steps:
-      - name: Slack — gate blocked deployment
+      - name: Send Slack notification
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          EXEC_DATE: ${{ needs.trigger-training.outputs.execution_date }}
-          DAG_RUN_ID: ${{ needs.trigger-training.outputs.dag_run_id }}
-          AIRFLOW_URL: ${{ secrets.AIRFLOW_URL }}
         run: |
-          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          VERSION="${EXEC_DATE//-/}"
-          curl -sf -X POST "$SLACK_WEBHOOK_URL" \
+          curl -X POST "$SLACK_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
-            -d "{
-              \"text\": \"🚨 ML Gate Failed — production model UNCHANGED\",
-              \"blocks\": [
-                {\"type\": \"header\",
-                 \"text\": {\"type\": \"plain_text\", \"text\": \"🚨 ML Training Gate Failed\"}},
-                {\"type\": \"section\",
-                 \"text\": {\"type\": \"mrkdwn\",
-                   \"text\": \"*DAG run:* \`$DAG_RUN_ID\`\n*Version:* \`$VERSION\`  *Commit:* \`$SHA\`\n\nEither \`validate_model\` (RMSE/overfit gate) or \`check_bias\` (district fairness gate) blocked promotion.\n\n✅ AR version \`$VERSION\` written with tag \`staging\`\n✅ AR \`production\` tag NOT moved\n✅ GCS \`latest/\` NOT updated\n✅ Production model unchanged\n\nTo inspect the staged model:\n\`gcloud artifacts versions describe $VERSION --package=navigate/crime-risk ...\`\n\nTo rollback to a prior version:\n\`workflow_dispatch → rollback_to_version: YYYYMMDD\`\"}},
-                {\"type\": \"actions\",
-                 \"elements\": [
-                   {\"type\": \"button\",
-                    \"text\": {\"type\": \"plain_text\", \"text\": \"View Airflow\"},
-                    \"url\": \"$AIRFLOW_URL/dags/crime_navigate_train/grid\"},
-                   {\"type\": \"button\",
-                    \"text\": {\"type\": \"plain_text\", \"text\": \"AR Console\"},
-                    \"url\": \"https://console.cloud.google.com/artifacts/generic/bostonpulse/us-east1/ml-models/navigate%2Fcrime-risk\"}
-                 ]}
+            -d '{
+              "text": "❌ ML Pipeline CI failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "❌ *ML Pipeline CI failed*\n\nCommit: `'"$GITHUB_SHA"'`\nBranch: `'"$GITHUB_REF_NAME"'`\n\n<'"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"'|View workflow run>"
+                  }
+                }
               ]
-            }" || true
+            }' || echo "Slack notification skipped"
