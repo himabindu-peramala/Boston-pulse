@@ -5,7 +5,6 @@ Stores and retrieves text chunks from ChromaDB vector store.
 import logging
 from typing import List
 import chromadb
-from chromadb.config import Settings as ChromaSettings
 
 from app.core.config import settings
 from app.models.schemas import RetrievedChunk

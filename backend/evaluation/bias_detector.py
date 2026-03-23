@@ -10,7 +10,6 @@ Usage:
     report = run_bias_analysis(eval_summary)
 """
 import logging
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +257,6 @@ def print_bias_report(report: dict):
 
 if __name__ == "__main__":
     import json
-    import sys
 
     # Try to load saved eval results
     try:

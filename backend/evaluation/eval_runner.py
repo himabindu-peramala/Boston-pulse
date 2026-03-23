@@ -10,11 +10,9 @@ import logging
 import time
 import json
 from datetime import datetime
-from typing import List
 
 from evaluation.eval_dataset import EVAL_DATASET
 from app.services.retriever import retrieve
-from app.services.embedder import embed_query
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -162,18 +160,18 @@ def print_summary(summary: dict):
     print("=" * 60)
     print(f"Timestamp: {summary['timestamp']}")
     print(f"Questions evaluated: {summary['total_questions']}")
-    print(f"\nOverall metrics:")
+    print("\nOverall metrics:")
     print(f"  Retrieval accuracy:    {summary['retrieval_accuracy']:.1%}")
     print(f"  Avg keyword coverage:  {summary['avg_keyword_coverage']:.1%}")
     print(f"  Avg similarity score:  {summary['avg_similarity_score']:.4f}")
     print(f"  Avg response time:     {summary['avg_response_time_ms']:.0f} ms")
 
-    print(f"\nPer category:")
+    print("\nPer category:")
     for cat, metrics in sorted(summary["per_category"].items()):
         print(f"  {cat:20s}  accuracy={metrics['retrieval_accuracy']:.1%}  "
               f"kw_coverage={metrics['avg_keyword_coverage']:.1%}")
 
-    print(f"\nPer difficulty:")
+    print("\nPer difficulty:")
     for diff, metrics in sorted(summary["per_difficulty"].items()):
         print(f"  {diff:10s}  accuracy={metrics['retrieval_accuracy']:.1%}  "
               f"(n={metrics['total']})")

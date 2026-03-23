@@ -405,9 +405,9 @@ if __name__ == "__main__":
         by_diff[q["difficulty"]] = by_diff.get(q["difficulty"], 0) + 1
 
     print(f"Total evaluation questions: {total}")
-    print(f"\nBy category:")
+    print("\nBy category:")
     for cat, count in sorted(by_cat.items()):
         print(f"  {cat}: {count}")
-    print(f"\nBy difficulty:")
+    print("\nBy difficulty:")
     for diff, count in sorted(by_diff.items()):
         print(f"  {diff}: {count}")

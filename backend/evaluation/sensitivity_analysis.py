@@ -13,10 +13,7 @@ Usage:
     python -m evaluation.sensitivity_analysis
 """
 import logging
-import json
-from typing import List
 
-from evaluation.eval_dataset import EVAL_DATASET
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +186,7 @@ def print_sensitivity_report(topk_report: dict = None,
     print("=" * 60)
 
     if topk_report and "error" not in topk_report:
-        print(f"\n--- Top-K Sensitivity ---")
+        print("\n--- Top-K Sensitivity ---")
         for k, metrics in sorted(topk_report["results"].items()):
             bar = "█" * int(metrics["retrieval_accuracy"] * 20)
             print(f"  k={k:<4}  {bar:20s}  {metrics['retrieval_accuracy']:.1%}")
@@ -197,7 +194,7 @@ def print_sensitivity_report(topk_report: dict = None,
         print(f"  Insight: {topk_report['insight']}")
 
     if temp_report and "error" not in temp_report:
-        print(f"\n--- Temperature Sensitivity ---")
+        print("\n--- Temperature Sensitivity ---")
         for temp, metrics in sorted(temp_report["results"].items()):
             bar = "█" * int(metrics["avg_keyword_coverage"] * 20)
             print(f"  t={temp:<5}  {bar:20s}  kw={metrics['avg_keyword_coverage']:.1%}")
@@ -205,7 +202,7 @@ def print_sensitivity_report(topk_report: dict = None,
         print(f"  Insight: {temp_report['insight']}")
 
     if ablation_report and "error" not in ablation_report:
-        print(f"\n--- Dataset Ablation ---")
+        print("\n--- Dataset Ablation ---")
         print(f"  Full accuracy: {ablation_report['full_accuracy']:.1%}")
         for ds, impact in sorted(
             ablation_report["impacts"].items(),

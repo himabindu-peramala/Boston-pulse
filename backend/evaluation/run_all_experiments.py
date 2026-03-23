@@ -166,11 +166,11 @@ def run_embedding_comparison():
         _clear_chromadb()
         _reset_pipeline()
 
-        print(f"    Ingesting...")
+        print("    Ingesting...")
         _reingest_fresh()
         _reset_pipeline()
 
-        print(f"    Evaluating...")
+        print("    Evaluating...")
         summary = run_evaluation()
         results[model] = summary
 
@@ -504,11 +504,11 @@ def main():
     print(f"\n{'='*60}")
     print(f"PIPELINE COMPLETE — {elapsed:.0f}s")
     print(f"{'='*60}")
-    print(f"\nNext:")
-    print(f"  mlflow ui                         # view experiment dashboard")
-    print(f"  git add evaluation/ mlruns/")
-    print(f"  git commit -m 'Complete model development: eval, experiments, bias, sensitivity'")
-    print(f"  git push origin mukul/model-development")
+    print("\nNext:")
+    print("  mlflow ui                         # view experiment dashboard")
+    print("  git add evaluation/ mlruns/")
+    print("  git commit -m 'Complete model development: eval, experiments, bias, sensitivity'")
+    print("  git push origin mukul/model-development")
 
 
 if __name__ == "__main__":
