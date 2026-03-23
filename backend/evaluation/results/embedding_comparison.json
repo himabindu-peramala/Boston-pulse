@@ -1,0 +1,132 @@
+{
+  "all-MiniLM-L6-v2": {
+    "retrieval_accuracy": 0.0,
+    "avg_keyword_coverage": 0.0,
+    "avg_similarity_score": 0.0,
+    "avg_response_time_ms": 0.0,
+    "per_category": {
+      "crime": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "cross_dataset": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "berdo": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "street_sweeping": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "cityscore": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "food_inspections": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "311": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      }
+    }
+  },
+  "all-mpnet-base-v2": {
+    "retrieval_accuracy": 0.0,
+    "avg_keyword_coverage": 0.0,
+    "avg_similarity_score": 0.0,
+    "avg_response_time_ms": 0.0,
+    "per_category": {
+      "crime": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "cross_dataset": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "berdo": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "street_sweeping": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "cityscore": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "food_inspections": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "311": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      }
+    }
+  },
+  "bge-base-en-v1.5": {
+    "retrieval_accuracy": 0.0,
+    "avg_keyword_coverage": 0.0,
+    "avg_similarity_score": 0.0,
+    "avg_response_time_ms": 0.0,
+    "per_category": {
+      "crime": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "cross_dataset": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "berdo": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "street_sweeping": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "cityscore": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "food_inspections": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      },
+      "311": {
+        "total": 6,
+        "retrieval_accuracy": 0.0,
+        "avg_keyword_coverage": 0.0
+      }
+    }
+  },
+  "best_model": "sentence-transformers/all-MiniLM-L6-v2"
+}

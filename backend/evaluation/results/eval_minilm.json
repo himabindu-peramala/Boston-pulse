@@ -1,0 +1,1220 @@
+{
+  "timestamp": "2026-03-23T21:26:43.170946",
+  "total_questions": 42,
+  "retrieval_accuracy": 0.7143,
+  "avg_keyword_coverage": 0.5734,
+  "avg_similarity_score": 0.4775,
+  "avg_response_time_ms": 39.26,
+  "per_category": {
+    "cityscore": {
+      "total": 6,
+      "retrieval_accuracy": 0.0,
+      "avg_keyword_coverage": 0.25
+    },
+    "street_sweeping": {
+      "total": 6,
+      "retrieval_accuracy": 1.0,
+      "avg_keyword_coverage": 0.7778
+    },
+    "311": {
+      "total": 6,
+      "retrieval_accuracy": 1.0,
+      "avg_keyword_coverage": 0.8056
+    },
+    "cross_dataset": {
+      "total": 6,
+      "retrieval_accuracy": 0.6667,
+      "avg_keyword_coverage": 0.4584
+    },
+    "food_inspections": {
+      "total": 6,
+      "retrieval_accuracy": 1.0,
+      "avg_keyword_coverage": 0.8611
+    },
+    "crime": {
+      "total": 6,
+      "retrieval_accuracy": 0.3333,
+      "avg_keyword_coverage": 0.2222
+    },
+    "berdo": {
+      "total": 6,
+      "retrieval_accuracy": 1.0,
+      "avg_keyword_coverage": 0.6389
+    }
+  },
+  "per_difficulty": {
+    "medium": {
+      "total": 15,
+      "retrieval_accuracy": 0.7333
+    },
+    "easy": {
+      "total": 11,
+      "retrieval_accuracy": 0.7273
+    },
+    "hard": {
+      "total": 16,
+      "retrieval_accuracy": 0.6875
+    }
+  },
+  "results": [
+    {
+      "id": "crime_01",
+      "question": "What types of crimes were reported in district B2?",
+      "category": "crime",
+      "difficulty": "easy",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.0,
+      "keyword_hits": [],
+      "keyword_misses": [
+        "offense",
+        "B2",
+        "incident"
+      ],
+      "avg_score": 0.3183,
+      "response_time_ms": 1282.08,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "crime"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "crime_02",
+      "question": "Were there any shooting incidents reported recently in Boston?",
+      "category": "crime",
+      "difficulty": "easy",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.0,
+      "keyword_hits": [],
+      "keyword_misses": [
+        "shooting",
+        "incident"
+      ],
+      "avg_score": 0.4085,
+      "response_time_ms": 22.16,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "crime"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "crime_03",
+      "question": "What crimes happen most frequently at night after 10 PM?",
+      "category": "crime",
+      "difficulty": "medium",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.3333,
+      "keyword_hits": [
+        "hour"
+      ],
+      "keyword_misses": [
+        "offense",
+        "night"
+      ],
+      "avg_score": 0.4412,
+      "response_time_ms": 9.23,
+      "retrieved_datasets": [
+        "crime",
+        "crime",
+        "crime",
+        "crime",
+        "crime"
+      ],
+      "expected_datasets": [
+        "crime"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "crime_04",
+      "question": "Is the area around Boylston Street safe to walk at night?",
+      "category": "crime",
+      "difficulty": "medium",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.3333,
+      "keyword_hits": [
+        "Boylston"
+      ],
+      "keyword_misses": [
+        "crime",
+        "incident"
+      ],
+      "avg_score": 0.405,
+      "response_time_ms": 21.8,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "crime"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "crime_05",
+      "question": "Which district has the most crime incidents on weekends?",
+      "category": "crime",
+      "difficulty": "hard",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.3333,
+      "keyword_hits": [
+        "district"
+      ],
+      "keyword_misses": [
+        "Saturday",
+        "Sunday"
+      ],
+      "avg_score": 0.4121,
+      "response_time_ms": 8.63,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "crime"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "crime_06",
+      "question": "How does crime on Tremont Street compare between day and night?",
+      "category": "crime",
+      "difficulty": "hard",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.3333,
+      "keyword_hits": [
+        "hour"
+      ],
+      "keyword_misses": [
+        "Tremont",
+        "offense"
+      ],
+      "avg_score": 0.4783,
+      "response_time_ms": 6.86,
+      "retrieved_datasets": [
+        "crime",
+        "crime",
+        "crime",
+        "crime",
+        "crime"
+      ],
+      "expected_datasets": [
+        "crime"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "311_01",
+      "question": "What are the most common 311 service requests in Dorchester?",
+      "category": "311",
+      "difficulty": "easy",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "Dorchester",
+        "service",
+        "request"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.7072,
+      "response_time_ms": 5.92,
+      "retrieved_datasets": [
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311"
+      ],
+      "expected_datasets": [
+        "service_311"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "311_02",
+      "question": "How long does it take for the city to resolve a pothole complaint?",
+      "category": "311",
+      "difficulty": "medium",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.6667,
+      "keyword_hits": [
+        "status",
+        "open"
+      ],
+      "keyword_misses": [
+        "pothole"
+      ],
+      "avg_score": 0.3212,
+      "response_time_ms": 17.98,
+      "retrieved_datasets": [
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311"
+      ],
+      "expected_datasets": [
+        "service_311"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "311_03",
+      "question": "Are 311 requests in Roxbury resolved on time?",
+      "category": "311",
+      "difficulty": "medium",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.6667,
+      "keyword_hits": [
+        "Roxbury",
+        "status"
+      ],
+      "keyword_misses": [
+        "on_time"
+      ],
+      "avg_score": 0.6249,
+      "response_time_ms": 6.01,
+      "retrieved_datasets": [
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311"
+      ],
+      "expected_datasets": [
+        "service_311"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "311_04",
+      "question": "What department handles street light outage complaints?",
+      "category": "311",
+      "difficulty": "easy",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.5,
+      "keyword_hits": [
+        "department"
+      ],
+      "keyword_misses": [
+        "street light"
+      ],
+      "avg_score": 0.3839,
+      "response_time_ms": 18.8,
+      "retrieved_datasets": [
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311"
+      ],
+      "expected_datasets": [
+        "service_311"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "311_05",
+      "question": "Which neighborhood has the most overdue 311 requests?",
+      "category": "311",
+      "difficulty": "hard",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "neighborhood",
+        "overdue",
+        "status"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.5285,
+      "response_time_ms": 8.71,
+      "retrieved_datasets": [
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311"
+      ],
+      "expected_datasets": [
+        "service_311"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "311_06",
+      "question": "What types of service requests are filed most during winter months?",
+      "category": "311",
+      "difficulty": "hard",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "service",
+        "request",
+        "topic"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.3021,
+      "response_time_ms": 17.89,
+      "retrieved_datasets": [
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311"
+      ],
+      "expected_datasets": [
+        "service_311"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "food_01",
+      "question": "Which restaurants passed food inspections in Back Bay?",
+      "category": "food_inspections",
+      "difficulty": "easy",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.6667,
+      "keyword_hits": [
+        "restaurant",
+        "result"
+      ],
+      "keyword_misses": [
+        "Pass"
+      ],
+      "avg_score": 0.6065,
+      "response_time_ms": 5.55,
+      "retrieved_datasets": [
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections"
+      ],
+      "expected_datasets": [
+        "food_inspections"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "food_02",
+      "question": "Has the restaurant on 123 Main Street passed its health inspection?",
+      "category": "food_inspections",
+      "difficulty": "easy",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "restaurant",
+        "result",
+        "address"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.5904,
+      "response_time_ms": 9.29,
+      "retrieved_datasets": [
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections"
+      ],
+      "expected_datasets": [
+        "food_inspections"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "food_03",
+      "question": "Which restaurants failed their most recent food inspection?",
+      "category": "food_inspections",
+      "difficulty": "medium",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "restaurant",
+        "Fail",
+        "result"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.6386,
+      "response_time_ms": 5.26,
+      "retrieved_datasets": [
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections"
+      ],
+      "expected_datasets": [
+        "food_inspections"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "food_04",
+      "question": "Are there any restaurants with repeated inspection failures?",
+      "category": "food_inspections",
+      "difficulty": "hard",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "restaurant",
+        "Fail",
+        "inspection"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.5715,
+      "response_time_ms": 5.41,
+      "retrieved_datasets": [
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections"
+      ],
+      "expected_datasets": [
+        "food_inspections"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "food_05",
+      "question": "What is the inspection result for Tatte Bakery?",
+      "category": "food_inspections",
+      "difficulty": "medium",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.5,
+      "keyword_hits": [
+        "result"
+      ],
+      "keyword_misses": [
+        "Tatte"
+      ],
+      "avg_score": 0.5027,
+      "response_time_ms": 5.38,
+      "retrieved_datasets": [
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections"
+      ],
+      "expected_datasets": [
+        "food_inspections"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "food_06",
+      "question": "How many food establishments were inspected last month?",
+      "category": "food_inspections",
+      "difficulty": "medium",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "inspection",
+        "restaurant",
+        "date"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.5456,
+      "response_time_ms": 5.37,
+      "retrieved_datasets": [
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections"
+      ],
+      "expected_datasets": [
+        "food_inspections"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "berdo_01",
+      "question": "Which buildings in Boston have the highest greenhouse gas emissions?",
+      "category": "berdo",
+      "difficulty": "easy",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "emissions",
+        "property",
+        "CO2"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.6415,
+      "response_time_ms": 5.55,
+      "retrieved_datasets": [
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo"
+      ],
+      "expected_datasets": [
+        "berdo"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "berdo_02",
+      "question": "What is the energy star score for buildings on Beacon Street?",
+      "category": "berdo",
+      "difficulty": "medium",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.3333,
+      "keyword_hits": [
+        "score"
+      ],
+      "keyword_misses": [
+        "energy_star",
+        "Beacon"
+      ],
+      "avg_score": 0.5021,
+      "response_time_ms": 5.53,
+      "retrieved_datasets": [
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo"
+      ],
+      "expected_datasets": [
+        "berdo"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "berdo_03",
+      "question": "How much energy does Boston University's campus use?",
+      "category": "berdo",
+      "difficulty": "medium",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "energy",
+        "kBtu",
+        "property"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.5284,
+      "response_time_ms": 5.29,
+      "retrieved_datasets": [
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo"
+      ],
+      "expected_datasets": [
+        "berdo"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "berdo_04",
+      "question": "Which property type has the highest emissions per building?",
+      "category": "berdo",
+      "difficulty": "hard",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.5,
+      "keyword_hits": [
+        "emissions"
+      ],
+      "keyword_misses": [
+        "property_type"
+      ],
+      "avg_score": 0.5469,
+      "response_time_ms": 5.16,
+      "retrieved_datasets": [
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo"
+      ],
+      "expected_datasets": [
+        "berdo"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "berdo_05",
+      "question": "Are residential buildings more energy efficient than commercial ones?",
+      "category": "berdo",
+      "difficulty": "hard",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.3333,
+      "keyword_hits": [
+        "energy"
+      ],
+      "keyword_misses": [
+        "property_type",
+        "residential"
+      ],
+      "avg_score": 0.3356,
+      "response_time_ms": 5.15,
+      "retrieved_datasets": [
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo"
+      ],
+      "expected_datasets": [
+        "berdo"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "berdo_06",
+      "question": "What is the total energy consumption for buildings in zip code 02116?",
+      "category": "berdo",
+      "difficulty": "medium",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.6667,
+      "keyword_hits": [
+        "energy",
+        "kBtu"
+      ],
+      "keyword_misses": [
+        "02116"
+      ],
+      "avg_score": 0.5162,
+      "response_time_ms": 5.1,
+      "retrieved_datasets": [
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo"
+      ],
+      "expected_datasets": [
+        "berdo"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "city_01",
+      "question": "What is Boston's current CityScore?",
+      "category": "cityscore",
+      "difficulty": "easy",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.0,
+      "keyword_hits": [],
+      "keyword_misses": [
+        "score",
+        "metric"
+      ],
+      "avg_score": 0.5344,
+      "response_time_ms": 5.33,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "cityscore"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "city_02",
+      "question": "Which city metrics are performing below target?",
+      "category": "cityscore",
+      "difficulty": "medium",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.6667,
+      "keyword_hits": [
+        "metric",
+        "score"
+      ],
+      "keyword_misses": [
+        "target"
+      ],
+      "avg_score": 0.3409,
+      "response_time_ms": 5.23,
+      "retrieved_datasets": [
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo"
+      ],
+      "expected_datasets": [
+        "cityscore"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "city_03",
+      "question": "How has the streetlight outage score changed over the past month?",
+      "category": "cityscore",
+      "difficulty": "medium",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.0,
+      "keyword_hits": [],
+      "keyword_misses": [
+        "streetlight",
+        "score",
+        "month"
+      ],
+      "avg_score": 0.259,
+      "response_time_ms": 17.77,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "cityscore"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "city_04",
+      "question": "Is the 311 call center meeting its performance targets?",
+      "category": "cityscore",
+      "difficulty": "medium",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.3333,
+      "keyword_hits": [
+        "311"
+      ],
+      "keyword_misses": [
+        "score",
+        "target"
+      ],
+      "avg_score": 0.4557,
+      "response_time_ms": 8.67,
+      "retrieved_datasets": [
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311"
+      ],
+      "expected_datasets": [
+        "cityscore"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "city_05",
+      "question": "Which CityScore metric has the lowest weekly score?",
+      "category": "cityscore",
+      "difficulty": "hard",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.5,
+      "keyword_hits": [
+        "metric"
+      ],
+      "keyword_misses": [
+        "week_score"
+      ],
+      "avg_score": 0.2358,
+      "response_time_ms": 9.01,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo"
+      ],
+      "expected_datasets": [
+        "cityscore"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "city_06",
+      "question": "How does Boston's overall city performance trend look this year?",
+      "category": "cityscore",
+      "difficulty": "hard",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.0,
+      "keyword_hits": [],
+      "keyword_misses": [
+        "score",
+        "metric",
+        "trend"
+      ],
+      "avg_score": 0.4656,
+      "response_time_ms": 5.56,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "cityscore"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "sweep_01",
+      "question": "When is street sweeping on Beacon Street?",
+      "category": "street_sweeping",
+      "difficulty": "easy",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "Beacon",
+        "schedule",
+        "season"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.671,
+      "response_time_ms": 17.34,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "street_sweeping"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "sweep_02",
+      "question": "Which streets in District 5 have tow zone enforcement for sweeping?",
+      "category": "street_sweeping",
+      "difficulty": "medium",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "District",
+        "tow",
+        "street"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.6025,
+      "response_time_ms": 5.86,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "street_sweeping"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "sweep_03",
+      "question": "Is there street sweeping in my neighborhood during winter?",
+      "category": "street_sweeping",
+      "difficulty": "easy",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "season",
+        "sweeping",
+        "schedule"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.5686,
+      "response_time_ms": 8.58,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "street_sweeping"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "sweep_04",
+      "question": "What side of Commonwealth Avenue is swept on Mondays?",
+      "category": "street_sweeping",
+      "difficulty": "medium",
+      "retrieval_hit": true,
+      "keyword_coverage": 1.0,
+      "keyword_hits": [
+        "Commonwealth",
+        "side",
+        "schedule"
+      ],
+      "keyword_misses": [],
+      "avg_score": 0.5563,
+      "response_time_ms": 8.48,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "street_sweeping"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "sweep_05",
+      "question": "Which streets are swept every week versus bi-weekly?",
+      "category": "street_sweeping",
+      "difficulty": "hard",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.6667,
+      "keyword_hits": [
+        "frequency",
+        "street"
+      ],
+      "keyword_misses": [
+        "week"
+      ],
+      "avg_score": 0.5757,
+      "response_time_ms": 5.54,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "street_sweeping"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "sweep_06",
+      "question": "When does the street sweeping season start and end in Boston?",
+      "category": "street_sweeping",
+      "difficulty": "easy",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.0,
+      "keyword_hits": [],
+      "keyword_misses": [
+        "season_start",
+        "season_end"
+      ],
+      "avg_score": 0.7446,
+      "response_time_ms": 5.48,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping"
+      ],
+      "expected_datasets": [
+        "street_sweeping"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "cross_01",
+      "question": "Is Dorchester a safe neighborhood with good city services?",
+      "category": "cross_dataset",
+      "difficulty": "hard",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.6667,
+      "keyword_hits": [
+        "Dorchester",
+        "service"
+      ],
+      "keyword_misses": [
+        "crime"
+      ],
+      "avg_score": 0.4585,
+      "response_time_ms": 5.06,
+      "retrieved_datasets": [
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311"
+      ],
+      "expected_datasets": [
+        "crime",
+        "service_311"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "cross_02",
+      "question": "What is the overall quality of life in Back Bay?",
+      "category": "cross_dataset",
+      "difficulty": "hard",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.0,
+      "keyword_hits": [],
+      "keyword_misses": [
+        "Back Bay",
+        "safety",
+        "service"
+      ],
+      "avg_score": 0.2228,
+      "response_time_ms": 5.55,
+      "retrieved_datasets": [
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo",
+        "berdo"
+      ],
+      "expected_datasets": [
+        "crime",
+        "service_311",
+        "food_inspections"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "cross_03",
+      "question": "I want to move to Boston. Which area has low crime and good restaurants?",
+      "category": "cross_dataset",
+      "difficulty": "hard",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.6667,
+      "keyword_hits": [
+        "restaurant",
+        "inspection"
+      ],
+      "keyword_misses": [
+        "crime"
+      ],
+      "avg_score": 0.4752,
+      "response_time_ms": 16.51,
+      "retrieved_datasets": [
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections",
+        "food_inspections"
+      ],
+      "expected_datasets": [
+        "crime",
+        "food_inspections"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "cross_04",
+      "question": "Are there any environmental or safety concerns on Tremont Street?",
+      "category": "cross_dataset",
+      "difficulty": "hard",
+      "retrieval_hit": false,
+      "keyword_coverage": 0.0,
+      "keyword_hits": [],
+      "keyword_misses": [
+        "Tremont",
+        "emissions",
+        "crime"
+      ],
+      "avg_score": 0.3328,
+      "response_time_ms": 5.76,
+      "retrieved_datasets": [
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311",
+        "service_311"
+      ],
+      "expected_datasets": [
+        "crime",
+        "berdo"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "cross_05",
+      "question": "How well is the city maintaining my neighborhood in Roxbury?",
+      "category": "cross_dataset",
+      "difficulty": "hard",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.75,
+      "keyword_hits": [
+        "Roxbury",
+        "service",
+        "sweeping"
+      ],
+      "keyword_misses": [
+        "score"
+      ],
+      "avg_score": 0.3643,
+      "response_time_ms": 10.43,
+      "retrieved_datasets": [
+        "street_sweeping",
+        "street_sweeping",
+        "street_sweeping",
+        "service_311",
+        "service_311"
+      ],
+      "expected_datasets": [
+        "service_311",
+        "cityscore",
+        "street_sweeping"
+      ],
+      "num_chunks": 5
+    },
+    {
+      "id": "cross_06",
+      "question": "What should I know before renting an apartment in Jamaica Plain?",
+      "category": "cross_dataset",
+      "difficulty": "hard",
+      "retrieval_hit": true,
+      "keyword_coverage": 0.6667,
+      "keyword_hits": [
+        "Jamaica Plain",
+        "service"
+      ],
+      "keyword_misses": [
+        "safety"
+      ],
+      "avg_score": 0.3342,
+      "response_time_ms": 8.48,
+      "retrieved_datasets": [
+        "service_311",
+        "service_311",
+        "service_311",
+        "berdo",
+        "berdo"
+      ],
+      "expected_datasets": [
+        "crime",
+        "service_311",
+        "food_inspections",
+        "street_sweeping"
+      ],
+      "num_chunks": 5
+    }
+  ]
+}
