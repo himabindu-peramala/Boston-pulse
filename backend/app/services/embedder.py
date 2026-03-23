@@ -1,11 +1,13 @@
 """
 Boston Pulse — Embedder
+<<<<<<< HEAD
 ...
+=======
+Converts text chunks into vectors using HuggingFace sentence-transformers.
+>>>>>>> origin/backend-api-sushma
 """
 import logging
 from typing import List
-from functools import lru_cache
-
 from sentence_transformers import SentenceTransformer
 from app.core.config import settings
 
@@ -24,30 +26,12 @@ def _get_model() -> SentenceTransformer:
 
 
 def embed_texts(texts: List[str]) -> List[List[float]]:
-    """
-    Convert a list of text strings into embedding vectors.
-    
-    Args:
-        texts: List of text chunks to embed
-    
-    Returns:
-        List of embedding vectors
-    """
     model = _get_model()
     embeddings = model.encode(texts, show_progress_bar=True)
     return embeddings.tolist()
 
 
 def embed_query(query: str) -> List[float]:
-    """
-    Embed a single query string for similarity search.
-    
-    Args:
-        query: User's question
-    
-    Returns:
-        Embedding vector
-    """
     model = _get_model()
     embedding = model.encode([query])
     return embedding[0].tolist()
@@ -57,7 +41,8 @@ def embed_query(query: str) -> List[float]:
 # Text chunking helpers — converts DataFrame rows into text chunks
 # =============================================================================
 def chunk_crime_records(df) -> List[dict]:
-    """Convert crime DataFrame rows into text chunks."""
+    """Crime columns: incident_number, offense_category, offense_description,
+    district, occurred_on_date, street, lat, long"""
     chunks = []
     for _, row in df.iterrows():
         text = (
@@ -71,12 +56,13 @@ def chunk_crime_records(df) -> List[dict]:
             f"Day: {row.get('day_of_week', 'Unknown')}. "
             f"Shooting: {row.get('shooting', False)}."
         )
-        chunks.append({"text": text, "dataset": "crime", "metadata": row.to_dict()})
+        chunks.append({"text": text, "dataset": "crime", "metadata": {}})
     return chunks
 
 
 def chunk_311_records(df) -> List[dict]:
-    """Convert 311 DataFrame rows into text chunks."""
+    """311 columns: case_id, open_date, close_date, case_topic, service_name,
+    assigned_department, case_status, neighborhood, on_time"""
     chunks = []
     for _, row in df.iterrows():
         text = (
@@ -90,12 +76,12 @@ def chunk_311_records(df) -> List[dict]:
             f"Closed: {row.get('close_date', 'Unknown')}. "
             f"On time: {row.get('on_time', 'Unknown')}."
         )
-        chunks.append({"text": text, "dataset": "service_311", "metadata": row.to_dict()})
+        chunks.append({"text": text, "dataset": "service_311", "metadata": {}})
     return chunks
 
 
 def chunk_food_inspection_records(df) -> List[dict]:
-    """Convert food inspection DataFrame rows into text chunks."""
+    """Food columns: businessname, licenseno, result, resultdttm, address, zip"""
     chunks = []
     for _, row in df.iterrows():
         text = (
@@ -106,12 +92,11 @@ def chunk_food_inspection_records(df) -> List[dict]:
             f"Date: {row.get('resultdttm', 'Unknown')}. "
             f"License: {row.get('licenseno', 'Unknown')}."
         )
-        chunks.append({"text": text, "dataset": "food_inspections", "metadata": row.to_dict()})
+        chunks.append({"text": text, "dataset": "food_inspections", "metadata": {}})
     return chunks
 
 
 def chunk_cityscore_records(df) -> List[dict]:
-    """Convert CityScore DataFrame rows into text chunks."""
     chunks = []
     for _, row in df.iterrows():
         text = (
@@ -123,12 +108,11 @@ def chunk_cityscore_records(df) -> List[dict]:
             f"Target: {row.get('target', 'Unknown')}. "
             f"Date: {row.get('date', row.get('timestamp', 'Unknown'))}."
         )
-        chunks.append({"text": text, "dataset": "cityscore", "metadata": row.to_dict()})
+        chunks.append({"text": text, "dataset": "cityscore", "metadata": {}})
     return chunks
 
 
 def chunk_berdo_records(df) -> List[dict]:
-    """Convert BERDO DataFrame rows into text chunks."""
     chunks = []
     for _, row in df.iterrows():
         text = (
@@ -141,12 +125,11 @@ def chunk_berdo_records(df) -> List[dict]:
             f"Energy Star score: {row.get('energy_star_score', 'Unknown')}. "
             f"Year: {row.get('reporting_year', 'Unknown')}."
         )
-        chunks.append({"text": text, "dataset": "berdo", "metadata": row.to_dict()})
+        chunks.append({"text": text, "dataset": "berdo", "metadata": {}})
     return chunks
 
 
 def chunk_street_sweeping_records(df) -> List[dict]:
-    """Convert street sweeping DataFrame rows into text chunks."""
     chunks = []
     for _, row in df.iterrows():
         text = (

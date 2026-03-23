@@ -1,12 +1,12 @@
 """
 Boston Pulse — FastAPI Backend
-Chatbot RAG pipeline API.
+Main entry point. Registers all routes.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routes import health, chat
+from app.routes import health, chat, ingest
 
 app = FastAPI(
     title="Boston Pulse Chatbot API",
@@ -23,5 +23,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(health.router, tags=["Health"])
-app.include_router(chat.router, prefix="/api", tags=["Chat"])
+app.include_router(health.router,  tags=["Health"])
+app.include_router(chat.router,    prefix="/api", tags=["Chat"])
+app.include_router(ingest.router,  prefix="/api", tags=["Ingest"])
