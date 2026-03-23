@@ -49,7 +49,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
 
     # Boston Pulse — GCP config
-    BP_ENVIRONMENT: ${BP_ENVIRONMENT:-dev}
+    BP_ENVIRONMENT: local
     PYTHONPATH: /opt/airflow:/opt/airflow/data-pipeline
     GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/secrets/gcp-key.json
     GCP_PROJECT_ID: ${GCP_PROJECT_ID}
@@ -154,6 +154,9 @@ services:
           --lastname User \
           --role Admin \
           --email ${AIRFLOW_EMAIL:-admin@localhost} || true
+
+        echo "Creating fake-gcs bucket for local development..."
+        curl -s -X POST http://fake-gcs:4443/storage/v1/b -H 'Content-Type: application/json' -d '{"name": "boston-pulse-data"}' || true
 
         echo "Airflow initialization complete!"
     environment:

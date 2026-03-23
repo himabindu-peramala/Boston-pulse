@@ -118,7 +118,9 @@ class CityScorePreprocessor(BasePreprocessor):
 
             # Add temporal components
             df["year"] = df["timestamp"].dt.year
-            df["month_num"] = df["timestamp"].dt.month
+            df["month"] = df["timestamp"].dt.month
+            df["day_of_week"] = df["timestamp"].dt.day_name()
+            df["hour"] = df["timestamp"].dt.hour
             df["date"] = df["timestamp"].dt.date
 
         return df
@@ -148,7 +150,9 @@ class CityScorePreprocessor(BasePreprocessor):
             "week_score",
             "month_score",
             "year",
-            "month_num",
+            "month",
+            "day_of_week",
+            "hour",
             "date",
         ]
         available_columns = [c for c in output_columns if c in df.columns]

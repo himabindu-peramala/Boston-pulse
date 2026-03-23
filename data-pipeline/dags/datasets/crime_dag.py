@@ -74,15 +74,15 @@ def ingest_data(**context) -> dict:
 def detect_anomalies(**context) -> dict:
     """Detect anomalies in raw data after ingestion."""
     from dags.utils import alert_anomaly_detected, read_data
-    from src.validation import AnomalyDetector
+    from src.validation.anomaly_registry import get_anomaly_detector
 
     execution_date = context["ds"]
 
     # Read raw data
     df = read_data(DATASET, "raw", execution_date)
 
-    # Detect anomalies
-    detector = AnomalyDetector()
+    # Detect anomalies using registry
+    detector = get_anomaly_detector(DATASET)
 
     result = detector.detect_anomalies(df, DATASET)
 

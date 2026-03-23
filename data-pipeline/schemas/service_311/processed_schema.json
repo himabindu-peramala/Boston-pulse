@@ -28,6 +28,9 @@
         "service_name": {
             "type": "string"
         },
+        "type": {
+            "type": "string"
+        },
         "assigned_department": {
             "type": "string"
         },
@@ -69,6 +72,7 @@
         "case_id",
         "open_date",
         "case_topic",
+        "type",
         "neighborhood"
     ],
     "additionalProperties": true

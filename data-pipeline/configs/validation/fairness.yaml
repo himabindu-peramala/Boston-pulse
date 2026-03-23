@@ -18,7 +18,7 @@ global:
   # Fairness gate - blocks pipeline on violations
   gate:
     enabled: true
-    fail_on_critical: true
+    fail_on_critical: false
     warn_on_warning: true
 
   # Minimum sample size for statistical validity

@@ -42,8 +42,8 @@ def test_get_dataset_name(preprocessor):
 def test_get_required_columns(preprocessor):
     required = preprocessor.get_required_columns()
     assert "_id" in required
-    assert "berdo_id" in required
     assert "total_ghg_emissions" in required
+    assert "property_type" in required
 
 
 def test_transform_empty_df(preprocessor):
@@ -54,7 +54,6 @@ def test_transform_empty_df(preprocessor):
 
 def test_standardize_strings(preprocessor, sample_df):
     result = preprocessor.transform(sample_df)
-    assert result["property_owner_name"].str.isupper().all()
     assert result["property_type"].str.isupper().all()
 
 

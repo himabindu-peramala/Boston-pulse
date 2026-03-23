@@ -190,6 +190,7 @@ class FairnessConfig(BaseModel):
         default_factory=lambda: ["neighborhood", "hour_of_day", "day_of_week"]
     )
     thresholds: FairnessThresholdsConfig = Field(default_factory=FairnessThresholdsConfig)
+    reference_distributions: dict[str, dict[str, float]] = Field(default_factory=dict)
     gate_enabled: bool = False
 
 
@@ -289,7 +290,7 @@ class Settings(BaseSettings):
     )
 
     # Environment
-    environment: Literal["dev", "prod"] = "dev"
+    environment: Literal["dev", "prod", "local"] = "dev"
 
     # Configuration sections
     project: ProjectConfig = Field(default_factory=ProjectConfig)
@@ -312,7 +313,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_environment(cls, v: str) -> str:
         """Validate environment value."""
-        valid_envs = {"dev", "prod"}
+        valid_envs = {"dev", "prod", "local"}
         if v not in valid_envs:
             raise ValueError(f"Invalid environment: {v}. Must be one of: {valid_envs}")
         return v
@@ -487,4 +488,4 @@ def is_production() -> bool:
 def is_development() -> bool:
     """Check if running in development environment."""
     config = get_config()
-    return config.environment == "dev"
+    return config.environment in ("dev", "local")

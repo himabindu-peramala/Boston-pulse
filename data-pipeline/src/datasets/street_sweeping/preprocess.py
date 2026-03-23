@@ -25,22 +25,16 @@ class StreetSweepingPreprocessor(BasePreprocessor):
 
     COLUMN_MAPPINGS = {
         "_id": "_id",
-        "main_id": "sam_street_id",
-        "st_name": "full_street_name",
-        "dist": "district",
-        "dist_name": "district_name",
-        "side": "side_of_street",
-        "from": "from_street",
-        "to": "to_street",
-        "start_time": "start_time",
-        "end_time": "end_time",
-        "week_1": "week_1",
-        "week_2": "week_2",
-        "week_3": "week_3",
-        "week_4": "week_4",
-        "miles": "miles",
-        "one_way": "one_way",
-        "year_round": "year_round",
+        "sam_street_id": "sam_street_id",
+        "full_street_name": "full_street_name",
+        "district": "district",
+        "side_of_street": "side_of_street",
+        "from_street": "from_street",
+        "to_street": "to_street",
+        "season_start": "season_start",
+        "season_end": "season_end",
+        "week_type": "week_type",
+        "tow_zone": "tow_zone",
     }
 
     REQUIRED_COLUMNS = [
@@ -91,6 +85,10 @@ class StreetSweepingPreprocessor(BasePreprocessor):
 
     def _standardize_strings(self, df: pd.DataFrame) -> pd.DataFrame:
         """Standardize string fields."""
+        # Force sam_street_id as string
+        if "sam_street_id" in df.columns:
+            df["sam_street_id"] = df["sam_street_id"].astype(str).str.split(".").str[0]
+
         for col in ["full_street_name", "district", "district_name", "side_of_street"]:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.strip().str.upper()
@@ -102,28 +100,34 @@ class StreetSweepingPreprocessor(BasePreprocessor):
         for col in ["district", "side_of_street", "district_name"]:
             if col in df.columns:
                 df[col] = df[col].fillna("Unknown")
+
+        # Ensure weekday columns exist for features
+        for day in ["monday", "tuesday", "wednesday", "thursday", "friday"]:
+            if day not in df.columns:
+                df[day] = 0
+
         return df
 
     def _select_output_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Select and order output columns."""
+        """Select and order output columns based on processed_schema.json."""
         output_columns = [
             "_id",
             "sam_street_id",
             "full_street_name",
-            "district",
-            "district_name",
-            "side_of_street",
             "from_street",
             "to_street",
-            "start_time",
-            "end_time",
-            "week_1",
-            "week_2",
-            "week_3",
-            "week_4",
-            "miles",
-            "one_way",
-            "year_round",
+            "district",
+            "side_of_street",
+            "season_start",
+            "season_end",
+            "week_type",
+            "tow_zone",
+            "lat",
+            "long",
+            # Intermediate cleaned features needed for feature builder
+            "is_year_round",
+            "is_every_week",
+            "sweep_days_count",
         ]
         available = [c for c in output_columns if c in df.columns]
         return df[available].copy()

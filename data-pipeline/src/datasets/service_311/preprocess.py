@@ -37,6 +37,7 @@ class Service311Preprocessor(BasePreprocessor):
         "latitude": "lat",
         "longitude": "long",
         "on_time": "on_time",
+        "type": "type",
     }
 
     # Data type mappings
@@ -52,6 +53,7 @@ class Service311Preprocessor(BasePreprocessor):
         "lat": "float",
         "long": "float",
         "on_time": "string",  # Often 'ON TIME' or 'OVERDUE'
+        "type": "string",
     }
 
     # Required output columns
@@ -208,6 +210,7 @@ class Service311Preprocessor(BasePreprocessor):
             "case_status",
             "neighborhood",
             "on_time",
+            "type",
             "lat",
             "long",
             "year",
