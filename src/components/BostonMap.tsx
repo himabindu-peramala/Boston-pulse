@@ -78,8 +78,8 @@ export default function BostonMap({ result, loading }: BostonMapProps) {
           radius: z.radius,
           color: z.color,
           fillColor: z.color,
-          fillOpacity: 0.06,
-          weight: 0.5,
+          fillOpacity: 0.26,
+          weight: 1,
           opacity: 0.25,
         }).addTo(map);
         zonesRef.current.push(circle);
