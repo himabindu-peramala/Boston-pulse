@@ -9,7 +9,7 @@ on:
       - 'docker/ml-training.Dockerfile'
       - '.github/workflows/ml.yml'
     branches:
-      - main
+      - test
       - 'feature/**'
   pull_request:
     paths:
@@ -113,8 +113,7 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: unit-tests
-    # if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-    if: always()
+    if: github.ref == 'refs/heads/test' || github.event_name == 'workflow_dispatch'
     env:
       USE_GCS_EMULATOR: 'true'
       STORAGE_EMULATOR_HOST: 'http://localhost:4443'
@@ -124,7 +123,7 @@ jobs:
         ports:
           - 4443:4443
         options: >-
-          --health-cmd "curl -f http://localhost:4443/storage/v1/b || exit 1"
+          --health-cmd "curl -f https://localhost:4443/storage/v1/b || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -144,7 +143,7 @@ jobs:
       - name: Wait for GCS emulator
         run: |
           for i in {1..30}; do
-            curl -s http://localhost:4443/storage/v1/b && break
+            curl -k -s https://localhost:4443/storage/v1/b && break
             sleep 2
           done
 
@@ -157,11 +156,10 @@ jobs:
     name: Build & Push ML Training Image
     runs-on: ubuntu-latest
     needs: [unit-tests]
-    if: github.event.inputs.skip_image_build != 'true'
-    # if: |
-    #   (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-    #   github.event_name == 'schedule' ||
-    #   (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_image_build != 'true')
+    if: |
+      (github.ref == 'refs/heads/test' && github.event_name == 'push') ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_image_build != 'true')
     permissions:
       id-token: write
       contents: read
@@ -211,7 +209,7 @@ jobs:
           docker push "${IMAGE_SHA}"
           
           # Only push :latest on main branch
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          if [[ "${{ github.ref }}" == "refs/heads/test" ]]; then
             echo "Pushing ${IMAGE_LATEST}..."
             docker push "${IMAGE_LATEST}"
           fi
@@ -236,11 +234,10 @@ jobs:
     name: Trigger Training DAG
     runs-on: ubuntu-latest
     needs: [unit-tests, build-push-image]
-    if: github.event.inputs.skip_training != 'true'
-    # if: |
-    #   (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-    #   github.event_name == 'schedule' ||
-    #   (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_training != 'true')
+    if: |
+      (github.ref == 'refs/heads/test' && github.event_name == 'push') ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_training != 'true')
     permissions:
       id-token: write
       contents: read
@@ -309,8 +306,7 @@ jobs:
     name: Deploy to GCS
     runs-on: ubuntu-latest
     needs: [unit-tests]
-    # if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    if: always()
+    if: github.ref == 'refs/heads/test' && github.event_name == 'push'
     permissions:
       id-token: write
       contents: read
@@ -347,7 +343,7 @@ jobs:
     name: Notify Success
     runs-on: ubuntu-latest
     needs: [lint, unit-tests]
-    if: success() && github.ref == 'refs/heads/main'
+    if: success() && github.ref == 'refs/heads/test'
     steps:
       - name: Send Slack notification
         if: ${{ env.SLACK_WEBHOOK_URL != '' }}
@@ -373,7 +369,7 @@ jobs:
     name: Notify Failure
     runs-on: ubuntu-latest
     needs: [lint, unit-tests]
-    if: failure() && github.ref == 'refs/heads/main'
+    if: failure() && github.ref == 'refs/heads/test'
     steps:
       - name: Send Slack notification
         if: ${{ env.SLACK_WEBHOOK_URL != '' }}
