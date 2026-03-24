@@ -6,6 +6,7 @@ on:
   push:
     paths:
       - 'ml/**'
+      - 'docker/ml-training.Dockerfile'
       - '.github/workflows/ml.yml'
     branches:
       - main
@@ -13,6 +14,7 @@ on:
   pull_request:
     paths:
       - 'ml/**'
+      - 'docker/ml-training.Dockerfile'
       - '.github/workflows/ml.yml'
   workflow_dispatch:
     inputs:
@@ -24,6 +26,11 @@ on:
         required: false
         default: false
         type: boolean
+      skip_image_build:
+        description: 'Skip Docker image build (use :latest)'
+        required: false
+        default: false
+        type: boolean
   schedule:
     # Weekly Sunday 2 AM UTC — same as Airflow DAG schedule
     # GitHub Actions triggers Airflow via REST API; Airflow does the actual work
@@ -32,6 +39,9 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   MLFLOW_TRACKING_URI: 'sqlite:///mlflow_test.db'
+  AR_REGION: 'us-east1'
+  AR_REPOSITORY: 'ml-images'
+  IMAGE_NAME: 'ml-training'
 
 jobs:
   lint:
@@ -103,7 +113,8 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: unit-tests
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    # if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    if: always()
     env:
       USE_GCS_EMULATOR: 'true'
       STORAGE_EMULATOR_HOST: 'http://localhost:4443'
@@ -142,14 +153,94 @@ jobs:
         run: pytest tests/integration/ -v --timeout=300
         continue-on-error: true  # Integration tests may need fixtures
 
+  build-push-image:
+    name: Build & Push ML Training Image
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    if: github.event.inputs.skip_image_build != 'true'
+    # if: |
+    #   (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+    #   github.event_name == 'schedule' ||
+    #   (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_image_build != 'true')
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      image_uri: ${{ steps.build.outputs.image_uri }}
+      image_digest: ${{ steps.build.outputs.image_digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          token_format: 'access_token'
+        continue-on-error: true
+
+      - name: Configure Docker for Artifact Registry
+        if: steps.auth.outcome == 'success'
+        run: |
+          gcloud auth configure-docker ${{ env.AR_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        id: build
+        if: steps.auth.outcome == 'success'
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          IMAGE_BASE="${{ env.AR_REGION }}-docker.pkg.dev/${PROJECT_ID}/${{ env.AR_REPOSITORY }}/${{ env.IMAGE_NAME }}"
+          IMAGE_SHA="${IMAGE_BASE}:${{ github.sha }}"
+          IMAGE_LATEST="${IMAGE_BASE}:latest"
+          
+          echo "Building image: ${IMAGE_SHA}"
+          
+          docker build \
+            -f docker/ml-training.Dockerfile \
+            -t "${IMAGE_SHA}" \
+            -t "${IMAGE_LATEST}" \
+            --label "git.sha=${{ github.sha }}" \
+            --label "git.ref=${{ github.ref }}" \
+            --label "build.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            .
+          
+          echo "Pushing ${IMAGE_SHA}..."
+          docker push "${IMAGE_SHA}"
+          
+          # Only push :latest on main branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "Pushing ${IMAGE_LATEST}..."
+            docker push "${IMAGE_LATEST}"
+          fi
+          
+          # Get digest
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE_SHA}" | cut -d@ -f2)
+          
+          echo "image_uri=${IMAGE_SHA}" >> $GITHUB_OUTPUT
+          echo "image_digest=${DIGEST}" >> $GITHUB_OUTPUT
+          
+          echo "✅ Image pushed: ${IMAGE_SHA}"
+          echo "   Digest: ${DIGEST}"
+
+      - name: Skip notice (no auth)
+        if: steps.auth.outcome != 'success'
+        run: |
+          echo "⚠️ Image build skipped (WIF secrets not configured)"
+          echo "image_uri=" >> $GITHUB_OUTPUT
+          echo "image_digest=" >> $GITHUB_OUTPUT
+
   trigger-training:
     name: Trigger Training DAG
     runs-on: ubuntu-latest
-    needs: [unit-tests]
-    if: |
-      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_training != 'true')
+    needs: [unit-tests, build-push-image]
+    if: github.event.inputs.skip_training != 'true'
+    # if: |
+    #   (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+    #   github.event_name == 'schedule' ||
+    #   (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_training != 'true')
     permissions:
       id-token: write
       contents: read
@@ -164,27 +255,93 @@ jobs:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
           token_format: 'access_token'
-        continue-on-error: true  # Skip if secrets not configured
+        continue-on-error: true
 
       - name: Trigger Airflow DAG
-        if: ${{ env.AIRFLOW_URL != '' && steps.auth.outputs.access_token != '' }}
+        if: steps.auth.outcome == 'success'
         env:
           AIRFLOW_URL: ${{ secrets.AIRFLOW_URL }}
           GCP_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          ML_IMAGE: ${{ needs.build-push-image.outputs.image_uri }}
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           EXEC_DATE="${{ github.event.inputs.execution_date || '' }}"
           if [ -z "$EXEC_DATE" ]; then
             EXEC_DATE=$(date +%Y-%m-%d)
           fi
+          
+          # Use built image or fall back to :latest
+          if [ -n "$ML_IMAGE" ]; then
+            IMAGE_URI="$ML_IMAGE"
+          else
+            IMAGE_URI="${{ env.AR_REGION }}-docker.pkg.dev/${PROJECT_ID}/${{ env.AR_REPOSITORY }}/${{ env.IMAGE_NAME }}:latest"
+          fi
 
-          echo "Triggering crime_navigate_train DAG for $EXEC_DATE"
+          echo "Triggering crime_navigate_train DAG"
+          echo "  Execution date: $EXEC_DATE"
+          echo "  Git SHA: $GITHUB_SHA"
+          echo "  ML Image: $IMAGE_URI"
+
+          # Build DAG conf with image and SHA
+          DAG_CONF=$(cat <<EOF
+          {
+            "ml_image": "${IMAGE_URI}",
+            "git_sha": "$GITHUB_SHA",
+            "execution_date": "$EXEC_DATE"
+          }
+          EOF
+          )
 
           curl -sf -X POST \
             -H "Authorization: Bearer $GCP_ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
             "$AIRFLOW_URL/api/v1/dags/crime_navigate_train/dagRuns" \
-            -d "{\"conf\": {\"git_sha\": \"$GITHUB_SHA\", \"execution_date\": \"$EXEC_DATE\"}}" \
-            || echo "Note: Airflow trigger skipped (secrets not configured or Airflow not available)"
+            -d "$DAG_CONF" \
+            && echo "✅ DAG triggered successfully" \
+            || echo "⚠️ Airflow trigger failed (check Airflow URL and credentials)"
+
+      - name: Skip notice (no auth)
+        if: steps.auth.outcome != 'success'
+        run: |
+          echo "⚠️ DAG trigger skipped (WIF secrets not configured)"
+
+  deploy-to-gcs:
+    name: Deploy to GCS
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    # if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: always()
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      manifest_path: ${{ steps.deploy.outputs.manifest_path }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+        continue-on-error: true
+
+      - name: Deploy to GCS
+        id: deploy
+        if: steps.auth.outcome == 'success'
+        env:
+          GCS_DEPLOY_BUCKET: boston-pulse-deployments
+          DEPLOY_PREFIX: airflow
+        run: |
+          chmod +x scripts/deploy-to-gcs.sh
+          ./scripts/deploy-to-gcs.sh
+
+      - name: Skip notice (no auth)
+        if: steps.auth.outcome != 'success'
+        run: |
+          echo "⚠️ GCS deploy skipped (WIF secrets not configured)"
 
   notify-success:
     name: Notify Success
