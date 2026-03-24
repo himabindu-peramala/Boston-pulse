@@ -212,7 +212,10 @@ def test_checker_default_config():
 
 def test_evaluate_fairness_balanced(balanced_data):
     """Test fairness evaluation on balanced data has no critical violations."""
-    checker = FairnessChecker()
+    config = get_config("dev")
+    # Force uniform distribution expectation by clearing the global baselines
+    config.fairness.reference_distributions = {}
+    checker = FairnessChecker(config)
 
     result = checker.evaluate_fairness(
         balanced_data,

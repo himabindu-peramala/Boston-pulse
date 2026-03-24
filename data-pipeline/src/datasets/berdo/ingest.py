@@ -88,23 +88,71 @@ class BerdoIngester(BaseIngester):
             raise RuntimeError(f"HTTP {response.status_code}: {response.text[:200]}")
 
         logger.info("Parsing BERDO Excel file")
-        df = pd.read_excel(BytesIO(response.content))
+        # Explicitly read key IDs as strings to prevent "C123" conversion errors
+        df = pd.read_excel(
+            BytesIO(response.content), dtype={"BERDO ID": str, "Property ID": str, "Parcel(s)": str}
+        )
 
-        # Standardize column names
+        # Replace common "Not Available" strings with NaN to prevent Parquet conversion errors
+        df = df.replace(["Not Available", "Not available", "n/a", "N/A"], pd.NA)
+
+        # Standardize column names for RAW stage (must match raw_schema.json)
+        # 1. Normalize available headers to lowercase and underscores
         df.columns = [c.lower().strip().replace(" ", "_") for c in df.columns]
 
-        # Add a synthetic _id column if not present
-        if "_id" not in df.columns:
-            df.insert(0, "_id", range(1, len(df) + 1))
+        # 2. Direct mapping to Raw Schema names
+        raw_mapping = {
+            "building_name": "property_name",
+            "property_name": "property_name",
+            "property_id": "berdo_id",
+            "berdo_id": "berdo_id",
+            "building_address": "address",
+            "address": "address",
+            "zip": "zip",
+            "postal_code": "zip",
+            "largest_property_type": "property_type",
+            "property_type": "property_type",
+            "reported_gross_floor_area_(sq_ft)": "gross_floor_area",
+            "total_site_energy_usage_(kbtu)": "site_energy_use_kbtu",
+            "estimated_total_ghg_emissions_(kgco2e)": "total_ghg_emissions",
+            "energy_star_score": "energy_star_score",
+            "electricity_usage_(kwh)": "electricity_use_grid_purchase",
+            "natural_gas_usage_(kbtu)": "natural_gas_use",
+        }
+        df = df.rename(columns=raw_mapping)
 
-        # Drop footer/notes rows — filter out rows where berdo_id is a long string
+        # Ensure reporting_year is present
+        if "reporting_year" not in df.columns:
+            df["reporting_year"] = 2024
+
+        # Drop footer/notes rows (berdo_id is needed for filtering but NOT for output)
         if "berdo_id" in df.columns:
             df = df[df["berdo_id"].astype(str).str.len() < 50].copy()
             df = df.reset_index(drop=True)
 
-        # Convert all object columns to string to avoid pyarrow type errors
-        for col in df.select_dtypes(include=["object"]).columns:
-            df[col] = df[col].astype(str)
+        expected_cols = [
+            "_id",
+            "reporting_year",
+            "property_name",
+            "address",
+            "zip",
+            "property_type",
+            "gross_floor_area",
+            "site_energy_use_kbtu",
+            "total_ghg_emissions",
+            "energy_star_score",
+            "electricity_use_grid_purchase",
+            "natural_gas_use",
+            "lat",
+            "long",
+        ]
+        df = df.reindex(columns=expected_cols)
+
+        # Ensure _id is non-null if reindexed
+        if df["_id"].isnull().any():
+            df["_id"] = range(1, len(df) + 1)
+
+        return df
 
         logger.info(f"Fetched {len(df)} BERDO records")
         return df

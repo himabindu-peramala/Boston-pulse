@@ -18,13 +18,13 @@ def sample_df():
     return pd.DataFrame(
         {
             "_id": [1, 2, 3],
-            "main_id": ["12345", "67890", "11111"],
-            "st_name": ["main st", "elm st", "oak ave"],
-            "dist": ["1A", "1B", "2A"],
-            "dist_name": ["District 1A", "District 1B", "District 2A"],
-            "side": ["left", "right", "left"],
-            "from": ["elm st", "oak st", "pine st"],
-            "to": ["oak st", "pine st", "maple st"],
+            "sam_street_id": ["12345", "67890", "11111"],
+            "full_street_name": ["main st", "elm st", "oak ave"],
+            "district": ["1A", "1B", "2A"],
+            "district_name": ["District 1A", "District 1B", "District 2A"],
+            "side_of_street": ["left", "right", "left"],
+            "from_street": ["elm st", "oak st", "pine st"],
+            "to_street": ["oak st", "pine st", "maple st"],
             "start_time": ["8:00 AM", "9:00 AM", "10:00 AM"],
             "end_time": ["12:00 PM", "1:00 PM", "2:00 PM"],
             "week_1": ["Y", "Y", "Y"],
@@ -68,7 +68,7 @@ def test_drop_duplicates(preprocessor, sample_df):
 
 
 def test_handle_missing_values(preprocessor, sample_df):
-    sample_df.loc[0, "dist"] = None
+    sample_df.loc[0, "district"] = None
     result = preprocessor.transform(sample_df)
     assert result["district"].isna().sum() == 0
 

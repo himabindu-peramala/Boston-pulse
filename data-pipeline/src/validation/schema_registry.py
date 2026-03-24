@@ -74,8 +74,11 @@ class SchemaRegistry:
         # Initialize GCS client
         if self.config.storage.emulator.enabled:
             # Use fake-gcs-server for local development
+            from google.auth.credentials import AnonymousCredentials
+
             self.client = storage.Client(
                 project="test-project",
+                credentials=AnonymousCredentials(),
                 client_options={"api_endpoint": self.config.storage.emulator.host},
             )
         else:
@@ -355,7 +358,13 @@ class SchemaRegistry:
 
             # Check type compatibility (basic check)
             actual_dtype = str(df[col].dtype)
-            if not self._is_type_compatible(actual_dtype, expected_type):
+            is_compatible = self._is_type_compatible(actual_dtype, expected_type)
+
+            if not is_compatible:
+                logger.error(
+                    f"TYPE MISMATCH for {dataset}/{layer} column '{col}': "
+                    f"actual={actual_dtype}, expected={expected_type}"
+                )
                 errors.append(
                     f"Column '{col}' has dtype '{actual_dtype}' but schema expects '{expected_type}'"
                 )
@@ -400,6 +409,9 @@ class SchemaRegistry:
         # Handle list of expected types (e.g., ["string", "null"])
         if isinstance(expected, list):
             return any(self._is_type_compatible(actual, t) for t in expected)
+
+        if actual.startswith("datetime64"):
+            return expected in ("datetime", "object")
 
         # Map pandas dtypes to schema types
         type_mappings = {

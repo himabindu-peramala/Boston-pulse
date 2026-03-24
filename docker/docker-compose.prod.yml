@@ -1,0 +1,130 @@
+# PRODUCTION — GCE VM ONLY
+# Uses real GCS via VM service account (--scopes=cloud-platform).
+# Runs both data-pipeline and ml DAGs together.
+# DO NOT use this for local development — use data-pipeline/docker/ instead.
+
+version: '3.8'
+
+x-airflow-common: &airflow-common
+  build:
+    context: ..
+    dockerfile: docker/airflow.prod.Dockerfile
+  image: boston-pulse-prod:latest
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_DEFAULT_CONNECTIONS: 'false'
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${WEBSERVER_SECRET_KEY}
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'false'
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 30
+    AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 30
+    AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+    BP_ENVIRONMENT: dev
+    GCP_PROJECT_ID: bostonpulse
+    GCP_BUCKET_NAME: boston-pulse-data-pipeline
+    GCP_REGION: us-east1
+    GOOGLE_CLOUD_PROJECT: bostonpulse
+    GCS_BUCKET: boston-pulse-data-pipeline
+    MLFLOW_TRACKING_URI: sqlite:////opt/airflow/mlflow/mlflow.db
+    SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+    PYTHONPATH: /opt/airflow/dags:/opt/boston-pulse/data-pipeline:/opt/boston-pulse/ml
+  volumes:
+    - /opt/airflow/dags:/opt/airflow/dags
+    - /opt/boston-pulse/data-pipeline:/opt/boston-pulse/data-pipeline
+    - /opt/boston-pulse/ml:/opt/boston-pulse/ml
+    - /opt/airflow/logs:/opt/airflow/logs
+    - /opt/airflow/mlflow:/opt/airflow/mlflow
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: boston-pulse-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: boston-pulse-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        # Packages already installed in image — just do editable installs
+        # so DAG imports resolve correctly to the mounted source
+        echo "Registering data-pipeline as editable install..."
+        pip install --no-cache-dir --no-deps -e /opt/boston-pulse/data-pipeline/
+
+        echo "Registering ml as editable install..."
+        pip install --no-cache-dir --no-deps -e /opt/boston-pulse/ml/
+
+        echo "Migrating database..."
+        airflow db migrate
+
+        echo "Creating admin user..."
+        airflow users create \
+          --username admin \
+          --password ${AIRFLOW_ADMIN_PASSWORD} \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@bostonpulse.com || true
+
+        echo "Init complete."
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: boston-pulse-airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: boston-pulse-airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+    name: boston-pulse-prod-postgres
+
+networks:
+  default:
+    name: boston-pulse-prod-network
