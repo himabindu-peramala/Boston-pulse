@@ -324,6 +324,12 @@ jobs:
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
         continue-on-error: true
 
+      - name: Set up gcloud CLI
+        if: steps.auth.outcome == 'success'
+        run: |
+          gcloud auth login --cred-file="${GOOGLE_APPLICATION_CREDENTIALS}" --quiet
+          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+
       - name: Deploy to GCS
         id: deploy
         if: steps.auth.outcome == 'success'
