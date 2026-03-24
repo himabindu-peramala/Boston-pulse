@@ -1,0 +1,6 @@
+h3>=4.0
+google-cloud-firestore>=2.14
+numpy
+pandas
+pytest
+pytest-mock

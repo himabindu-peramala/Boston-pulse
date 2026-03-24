@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boston Pulse — Safe Walking Routes</title>
+  <meta name="description" content="Find the safest walking routes in Boston. Compare safety-ranked paths between popular landmarks." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #0f0f1a;
+      --bg-card: rgba(255, 255, 255, 0.06);
+      --bg-card-hover: rgba(255, 255, 255, 0.1);
+      --border-glass: rgba(255, 255, 255, 0.12);
+      --text-primary: #f0f0f5;
+      --text-secondary: #a0a0b8;
+      --accent-green: #34d399;
+      --accent-orange: #fb923c;
+      --accent-red: #f87171;
+      --accent-blue: #60a5fa;
+      --gradient-start: #1a1a2e;
+      --gradient-end: #16213e;
+      --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 50%, #0a1628 100%);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── Header ───────────────────────────────────────────────────────── */
+    .header {
+      text-align: center;
+      padding: 2.5rem 1rem 1.5rem;
+      position: relative;
+    }
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-green), var(--accent-blue));
+      border-radius: 2px;
+    }
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.5px;
+    }
+    .header p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      margin-top: 0.5rem;
+    }
+
+    /* ─── Layout ───────────────────────────────────────────────────────── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem 3rem;
+    }
+
+    /* ─── Controls Panel ───────────────────────────────────────────────── */
+    .controls {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius);
+      padding: 1.5rem 2rem;
+      display: flex;
+      gap: 1rem;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      box-shadow: var(--shadow);
+    }
+    .controls .field {
+      flex: 1;
+      min-width: 200px;
+    }
+    .controls label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-secondary);
+      margin-bottom: 0.4rem;
+    }
+    .controls select {
+      width: 100%;
+      padding: 0.7rem 1rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-glass);
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.9rem;
+      appearance: none;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23a0a0b8' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 5.5l6.5 6.5 6.5-6.5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+    .controls select:hover { border-color: var(--accent-blue); }
+    .controls select:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+      background: rgba(255,255,255,0.08);
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
+    }
+    .controls select option {
+      background: #1e1e30;
+      color: var(--text-primary);
+    }
+
+    .btn-find {
+      padding: 0.7rem 2rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
+      color: #0f0f1a;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s;
+      white-space: nowrap;
+    }
+    .btn-find:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(52, 211, 153, 0.3);
+    }
+    .btn-find:active { transform: translateY(0); }
+    .btn-find:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* ─── Date/Time badge ──────────────────────────────────────────────── */
+    .datetime-badge {
+      text-align: center;
+      margin: 1.2rem 0 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+    .datetime-badge span {
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      padding: 0.3rem 0.9rem;
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+    }
+
+    /* ─── Map ──────────────────────────────────────────────────────────── */
+    #map {
+      width: 100%;
+      height: 420px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-glass);
+      margin-top: 1.5rem;
+      box-shadow: var(--shadow);
+      z-index: 0;
+    }
+
+    /* ─── Route Cards ──────────────────────────────────────────────────── */
+    .routes-section {
+      margin-top: 1.5rem;
+    }
+    .routes-section h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: var(--text-secondary);
+    }
+    .route-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    .route-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius);
+      padding: 1.4rem 1.6rem;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s, border-color 0.2s;
+      cursor: default;
+      position: relative;
+      overflow: hidden;
+    }
+    .route-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+    .route-card.safest::before  { background: linear-gradient(90deg, var(--accent-green), #6ee7b7); }
+    .route-card.balanced::before { background: linear-gradient(90deg, var(--accent-orange), #fbbf24); }
+    .route-card.fastest::before  { background: linear-gradient(90deg, var(--accent-red), #fca5a5); }
+
+    .route-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(255,255,255,0.2);
+    }
+    .route-card .label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 0.8rem;
+      display: inline-block;
+      padding: 0.25rem 0.7rem;
+      border-radius: 6px;
+    }
+    .route-card.safest .label  { background: rgba(52,211,153,0.15); color: var(--accent-green); }
+    .route-card.balanced .label { background: rgba(251,146,60,0.15); color: var(--accent-orange); }
+    .route-card.fastest .label  { background: rgba(248,113,113,0.15); color: var(--accent-red); }
+
+    .route-card .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.6rem;
+    }
+    .route-card .stat {
+      text-align: center;
+    }
+    .route-card .stat-value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .route-card .stat-label {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .route-card.safest .stat-value  { color: var(--accent-green); }
+    .route-card.balanced .stat-value { color: var(--accent-orange); }
+    .route-card.fastest .stat-value  { color: var(--accent-red); }
+
+    /* ─── Loading / Error / Empty ──────────────────────────────────────── */
+    .message-box {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+    .message-box.error { color: var(--accent-red); }
+
+    .spinner {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: var(--accent-blue);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-bottom: 0.8rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Responsive ───────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .controls { flex-direction: column; align-items: stretch; padding: 1rem; }
+      .controls .field { min-width: auto; }
+      .btn-find { width: 100%; }
+      .header h1 { font-size: 1.5rem; }
+      #map { height: 300px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>🚶 Boston Pulse</h1>
+    <p>Find the safest walking route between Boston landmarks</p>
+  </div>
+
+  <div class="container">
+
+    <!-- Controls -->
+    <div class="controls">
+      <div class="field">
+        <label for="source">From</label>
+        <select id="source">
+          <option value="42.3551,-71.0656">Boston Common</option>
+          <option value="42.3467,-71.0972">Fenway Park</option>
+          <option value="42.3596,-71.0921">MIT (Main Entrance)</option>
+          <option value="42.3732,-71.1189">Harvard Square</option>
+          <option value="42.3662,-71.0621">North End (Hanover St)</option>
+          <option value="42.3519,-71.0466">South Boston Waterfront</option>
+          <option value="42.3493,-71.0780">Back Bay (Copley Square)</option>
+          <option value="42.3565,-71.0624">Faneuil Hall</option>
+          <option value="42.3388,-71.0904">Longwood Medical Area</option>
+          <option value="42.3631,-71.0064">East Boston (Maverick Sq)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="destination">To</label>
+        <select id="destination">
+          <option value="42.3493,-71.0780">Back Bay (Copley Square)</option>
+          <option value="42.3551,-71.0656">Boston Common</option>
+          <option value="42.3467,-71.0972">Fenway Park</option>
+          <option value="42.3596,-71.0921">MIT (Main Entrance)</option>
+          <option value="42.3732,-71.1189">Harvard Square</option>
+          <option value="42.3662,-71.0621">North End (Hanover St)</option>
+          <option value="42.3519,-71.0466">South Boston Waterfront</option>
+          <option value="42.3565,-71.0624">Faneuil Hall</option>
+          <option value="42.3388,-71.0904">Longwood Medical Area</option>
+          <option value="42.3631,-71.0064">East Boston (Maverick Sq)</option>
+        </select>
+      </div>
+      <button class="btn-find" id="findBtn" onclick="findRoutes()">Find Routes</button>
+    </div>
+
+    <!-- Date/time badge -->
+    <div class="datetime-badge">
+      <span id="datetimeBadge">—</span>
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Routes -->
+    <div class="routes-section" id="routesSection" style="display:none;">
+      <h2>Ranked Routes</h2>
+      <div class="route-cards" id="routeCards"></div>
+    </div>
+
+    <!-- Loading / empty / error -->
+    <div class="message-box" id="messageBox">
+      <p>Select a source and destination, then click <strong>Find Routes</strong>.</p>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // ─── Map setup ──────────────────────────────────────────────────────
+    const map = L.map('map').setView([42.355, -71.065], 13);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    let routeLayers = [];
+
+    const ROUTE_COLORS = {
+      safest:  '#34d399',
+      balanced: '#fb923c',
+      fastest: '#f87171',
+      alternative: '#60a5fa',
+    };
+    const ROUTE_EMOJI = {
+      safest:  '🛡️',
+      balanced: '⚖️',
+      fastest: '⚡',
+      alternative: '🔵',
+    };
+
+    // ─── Date/time helper ───────────────────────────────────────────────
+    function getNow() {
+      const now = new Date();
+      const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const pad = n => String(n).padStart(2, '0');
+      return {
+        date: `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`,
+        day: days[now.getDay()],
+        time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+      };
+    }
+
+    // Update the badge every second
+    function refreshBadge() {
+      const { date, day, time } = getNow();
+      document.getElementById('datetimeBadge').textContent = `📅 ${date}  •  ${day}  •  🕐 ${time}`;
+    }
+    refreshBadge();
+    setInterval(refreshBadge, 1000);
+
+    // ─── Find routes ────────────────────────────────────────────────────
+    async function findRoutes() {
+      const srcVal  = document.getElementById('source').value.split(',').map(Number);
+      const dstVal  = document.getElementById('destination').value.split(',').map(Number);
+      const { date, day, time } = getNow();
+
+      const btn     = document.getElementById('findBtn');
+      const msgBox  = document.getElementById('messageBox');
+      const section = document.getElementById('routesSection');
+      const cards   = document.getElementById('routeCards');
+
+      // Validate different locations
+      if (srcVal[0] === dstVal[0] && srcVal[1] === dstVal[1]) {
+        msgBox.innerHTML = '<p class="error">Source and destination cannot be the same.</p>';
+        msgBox.style.display = 'block';
+        section.style.display = 'none';
+        return;
+      }
+
+      // Show loading
+      btn.disabled = true;
+      btn.textContent = 'Searching…';
+      section.style.display = 'none';
+      msgBox.style.display = 'block';
+      msgBox.className = 'message-box';
+      msgBox.innerHTML = '<div class="spinner"></div><p>Finding safe walking routes…</p>';
+
+      // Clear old routes from map
+      routeLayers.forEach(l => map.removeLayer(l));
+      routeLayers = [];
+
+      try {
+        const resp = await fetch('/api/routes/safe-walk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source: srcVal,
+            destination: dstVal,
+            date, day, time,
+          }),
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || `Server returned ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        const routes = data.routes || [];
+
+        if (routes.length === 0) {
+          msgBox.innerHTML = '<p>No routes found. Try different locations.</p>';
+          return;
+        }
+
+        // ── Render cards ──────────────────────────────────────────────
+        cards.innerHTML = '';
+        routes.forEach(r => {
+          const label = r.rank_label.split(' / ')[0]; // handle combined labels
+          const color = ROUTE_COLORS[label] || ROUTE_COLORS.alternative;
+          const emoji = ROUTE_EMOJI[label] || '🔵';
+          const distKm = (r.distance_m / 1000).toFixed(2);
+          const durMin = (r.duration_s / 60).toFixed(1);
+
+          cards.innerHTML += `
+            <div class="route-card ${label}">
+              <div class="label">${emoji} ${r.rank_label}</div>
+              <div class="stat-row">
+                <div class="stat">
+                  <div class="stat-value">${r.safety_score}</div>
+                  <div class="stat-label">Safety Score</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-value">${distKm}</div>
+                  <div class="stat-label">km</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-value">${durMin}</div>
+                  <div class="stat-label">min</div>
+                </div>
+              </div>
+            </div>`;
+
+          // ── Draw route on map ─────────────────────────────────────
+          if (r.geometry && r.geometry.length) {
+            const latlngs = r.geometry.map(p => [p[0], p[1]]);
+            const polyline = L.polyline(latlngs, {
+              color,
+              weight: 5,
+              opacity: 0.85,
+            }).addTo(map);
+            routeLayers.push(polyline);
+          }
+        });
+
+        // Fit map to all routes
+        if (routeLayers.length) {
+          const group = L.featureGroup(routeLayers);
+          map.fitBounds(group.getBounds().pad(0.1));
+        }
+
+        // Add markers for source and destination
+        const srcMarker = L.circleMarker([srcVal[0], srcVal[1]], {
+          radius: 8, fillColor: '#34d399', fillOpacity: 1, color: '#fff', weight: 2,
+        }).addTo(map).bindPopup('Start');
+        const dstMarker = L.circleMarker([dstVal[0], dstVal[1]], {
+          radius: 8, fillColor: '#f87171', fillOpacity: 1, color: '#fff', weight: 2,
+        }).addTo(map).bindPopup('End');
+        routeLayers.push(srcMarker, dstMarker);
+
+        msgBox.style.display = 'none';
+        section.style.display = 'block';
+
+      } catch (err) {
+        msgBox.className = 'message-box error';
+        msgBox.innerHTML = `<p>⚠️ ${err.message}</p>`;
+        section.style.display = 'none';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Find Routes';
+      }
+    }
+  </script>
+</body>
+</html>
