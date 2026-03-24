@@ -820,4 +820,4 @@ with dag:
         task_id="trigger_chatbot_ingest",
         python_callable=trigger_chatbot_ingest,
     )
-    t_pipeline_complete >> t_trigger_chatbot
+    t_trigger_chatbot >> t_pipeline_complete
