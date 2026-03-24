@@ -34,9 +34,9 @@ Set in `docker/docker-compose.prod.yml` or `.env` file:
 | `WEBSERVER_SECRET_KEY` | Airflow webserver secret | Airflow webserver |
 | `AIRFLOW_ADMIN_PASSWORD` | Initial admin password | Airflow init |
 
-### ML Training Container
+### ML Training Container (Cloud Run Job)
 
-Passed via DAG's DockerOperator environment:
+Set by CI via `gcloud run jobs update --update-env-vars` and by the container image:
 
 | Variable | Description |
 |----------|-------------|
