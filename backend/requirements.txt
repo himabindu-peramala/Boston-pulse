@@ -1,0 +1,13 @@
+flask>=3.0
+flask-cors>=4.0
+flasgger>=0.9.7
+requests>=2.31
+polyline>=2.0
+numpy>=1.24
+pandas>=2.0
+pyyaml>=6.0
+python-dotenv>=1.0
+h3>=4.0
+google-cloud-firestore>=2.14
+pytest
+pytest-mock
