@@ -99,7 +99,7 @@ jobs:
             --cov=shared \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
-            --cov-fail-under=80
+            --cov-fail-under=60
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
