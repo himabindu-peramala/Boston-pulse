@@ -21,7 +21,6 @@ Usage
 
 from __future__ import annotations
 
-from typing import Optional
 
 import h3
 from google.cloud import firestore

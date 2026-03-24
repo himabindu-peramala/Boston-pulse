@@ -1,6 +1,6 @@
 """Unit tests for SafetyGrid (Firestore + H3 backed)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import h3
 import pytest

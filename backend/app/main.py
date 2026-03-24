@@ -10,7 +10,6 @@ Swagger UI available at: http://localhost:5001/apidocs
 from __future__ import annotations
 
 import os
-from datetime import datetime
 
 from dotenv import load_dotenv
 from flasgger import Swagger
