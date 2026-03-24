@@ -24,9 +24,7 @@ from shared.schemas import (
 
 
 def _feature_result() -> FeatureLoadResult:
-    return FeatureLoadResult(
-        rows=100, h3_cells=10, columns=["a"], success=True, error=None
-    )
+    return FeatureLoadResult(rows=100, h3_cells=10, columns=["a"], success=True, error=None)
 
 
 def _target_result() -> TargetBuildResult:
@@ -414,9 +412,7 @@ def test_run_training_pipeline_feature_load_fails(
     sample_features_df: Any,
 ) -> None:
     mocker.patch.object(cli_module, "load_config", return_value=sample_cfg)
-    bad = FeatureLoadResult(
-        rows=0, h3_cells=0, columns=[], success=False, error="missing"
-    )
+    bad = FeatureLoadResult(rows=0, h3_cells=0, columns=[], success=False, error="missing")
     mocker.patch(
         "models.crime_navigate.feature_loader.load_features",
         return_value=(sample_features_df, bad),
@@ -510,5 +506,3 @@ def test_main_train_failure_writes_json(
     assert rc == 1
     err = json.loads(out_path.read_text())
     assert err["status"] == "failed"
-
-
