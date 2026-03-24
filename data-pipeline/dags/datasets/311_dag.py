@@ -599,10 +599,13 @@ with DAG(
 
 def trigger_chatbot_ingest(**context) -> dict:
     """Trigger chatbot backend to re-ingest latest data into ChromaDB."""
-    import requests
     import os
 
-    backend_url = os.getenv("CHATBOT_BACKEND_URL", "https://boston-pulse-chatbot-384523870431.us-central1.run.app")
+    import requests
+
+    backend_url = os.getenv(
+        "CHATBOT_BACKEND_URL", "https://boston-pulse-chatbot-384523870431.us-central1.run.app"
+    )
 
     try:
         response = requests.post(f"{backend_url}/api/ingest", timeout=10)

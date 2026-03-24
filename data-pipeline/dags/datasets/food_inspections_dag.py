@@ -601,8 +601,13 @@ with DAG(
 
 
 def trigger_chatbot_ingest(**context) -> dict:
-    import requests, os
-    backend_url = os.getenv("CHATBOT_BACKEND_URL", "https://boston-pulse-chatbot-384523870431.us-central1.run.app")
+    import os
+
+    import requests
+
+    backend_url = os.getenv(
+        "CHATBOT_BACKEND_URL", "https://boston-pulse-chatbot-384523870431.us-central1.run.app"
+    )
     try:
         response = requests.post(f"{backend_url}/api/ingest", timeout=10)
         response.raise_for_status()
