@@ -227,56 +227,13 @@ jobs:
           echo "image_uri=" >> $GITHUB_OUTPUT
           echo "image_digest=" >> $GITHUB_OUTPUT
 
-  deploy-to-gcs:
-    name: Deploy to GCS
-    runs-on: ubuntu-latest
-    needs: integration-test
-    if: github.ref == 'refs/heads/test' && github.event_name == 'push'
-    permissions:
-      id-token: write
-      contents: read
-    outputs:
-      manifest_path: ${{ steps.deploy.outputs.manifest_path }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
-        continue-on-error: true
-
-      - name: Set up gcloud CLI
-        if: steps.auth.outcome == 'success'
-        run: |
-          gcloud auth login --cred-file="${GOOGLE_APPLICATION_CREDENTIALS}" --quiet
-          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
-
-      - name: Deploy to GCS
-        id: deploy
-        if: steps.auth.outcome == 'success'
-        env:
-          GCS_DEPLOY_BUCKET: boston-pulse-deployments
-          DEPLOY_PREFIX: airflow
-        run: |
-          chmod +x scripts/deploy-to-gcs.sh
-          ./scripts/deploy-to-gcs.sh
-
-      - name: Skip notice (no auth)
-        if: steps.auth.outcome != 'success'
-        run: |
-          echo "⚠️ GCS deploy skipped (WIF secrets not configured)"
-
   # Training: Cloud Run runs the *container image* from Artifact Registry.
   # docker/ml-training.Dockerfile COPYs ml/models, ml/shared, ml/configs into /app; CI pushes the image with --label git.sha.
   # The job only sets --image + CLI args; runtime reads data from GCS/Firestore using the job service account.
   run-cloud-run-training:
     name: Run training (Cloud Run Job)
     runs-on: ubuntu-latest
-    needs: [build-push-image]
+    needs: build-push-image
     if: |
       needs.build-push-image.result == 'success' &&
       (
@@ -347,10 +304,8 @@ jobs:
   notify-pipeline:
     name: Notify pipeline result
     runs-on: ubuntu-latest
-    needs:
-      - deploy-to-gcs
-      - run-cloud-run-training
-    # always() so this runs when optional jobs (e.g. deploy-to-gcs) are skipped
+    needs: run-cloud-run-training
+    # always() so this runs when optional jobs are skipped
     if: |
       always() &&
       (github.ref == 'refs/heads/test' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
@@ -367,14 +322,13 @@ jobs:
           U="${{ needs.unit-tests.result }}"
           I="${{ needs.integration-test.result }}"
           B="${{ needs.build-push-image.result }}"
-          D="${{ needs.deploy-to-gcs.result }}"
           T="${{ needs.run-cloud-run-training.result }}"
           ANY_FAIL=0
-          for s in "$L" "$U" "$I" "$B" "$D" "$T"; do
+          for s in "$L" "$U" "$I" "$B" "$T"; do
             [ "$s" = "failure" ] && ANY_FAIL=1
           done
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          DETAIL="lint=${L} unit=${U} integration=${I} build=${B} deploy=${D} training=${T}"
+          DETAIL="lint=${L} unit=${U} integration=${I} build=${B} training=${T}"
           if [ "$ANY_FAIL" = "1" ]; then
             EMOJI="❌"
             TITLE="ML pipeline failed"
