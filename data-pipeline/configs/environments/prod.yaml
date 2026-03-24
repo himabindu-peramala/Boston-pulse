@@ -16,9 +16,9 @@ _inherit: base
 # -----------------------------------------------------------------------------
 storage:
   buckets:
-    main: "boston-pulse-data-prod"
-    dvc: "boston-pulse-dvc-prod"
-    temp: "boston-pulse-temp-prod"
+    main: "boston-pulse-data-pipeline"
+    dvc: "boston-pulse-dvc-pipeline"
+    temp: "boston-pulse-temp-pipeline"
 
   # Production retention policies
   retention:
