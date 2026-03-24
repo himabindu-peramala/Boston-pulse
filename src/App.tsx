@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import BostonMap from "./components/BostonMap";
+
 type Page = "home" | "navigate" | "chat" | "dashboard";
 type SafetyLevel = "safe" | "moderate" | "caution";
 interface Message { id: number; role: "user" | "assistant"; text: string; sources?: string[]; loading?: boolean; }
-interface RouteResult { time: string; distance: string; safetyScore: number; level: SafetyLevel; notes: string[]; coordinates?: [number, number][]; }interface SavedRoute { id: number; from: string; to: string; safety: SafetyLevel; time: string; date: string; }
+interface RouteResult { time: string; distance: string; safetyScore: number; level: SafetyLevel; notes: string[]; coordinates?: [number, number][]; }
+interface SavedRoute { id: number; from: string; to: string; safety: SafetyLevel; time: string; date: string; }
 
 const C = {
   bg: "#080b12", bgCard: "#0f1520", bgElevated: "#141c2e", bgHover: "#1a2236",
@@ -13,12 +15,10 @@ const C = {
   teal: "#00d4aa", amber: "#f59e0b", red: "#ef4444", green: "#10b981", blue: "#3b82f6",
 };
 
-// ── API service layer — swap mock for real when backend is ready ────────────
 const BASE_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
 
 const api = {
-  // ── Navigate: replace mock with real when Prashanth's API is ready ───────
-  // Real call (uncomment when ready):
+  // Real call — uncomment when Purvaja's API is ready:
   // navigate: async (from: string, to: string, weight: number): Promise<RouteResult> => {
   //   const res = await fetch(`${BASE_URL}/api/navigate`, {
   //     method: "POST",
@@ -27,8 +27,6 @@ const api = {
   //   });
   //   return res.json();
   // },
-
-  // Mock (remove when real API is ready):
   navigate: async (from: string, to: string, weight: number): Promise<RouteResult> => {
     await new Promise(r => setTimeout(r, 1600));
     const s = Math.min(99, Math.round(58 + Math.random() * 38 * (weight / 100 + 0.5)));
@@ -45,18 +43,15 @@ const api = {
     };
   },
 
-  // ── Chat: replace mock with real when Mukul/Hima's API is ready ──────────
-  // Real call (uncomment when ready):
-  // chat: async (msg: string, history: {role:string;text:string}[]): Promise<{ text: string; sources: string[] }> => {
+  // Real call — uncomment when Sushma's API is ready:
+  // chat: async (msg: string): Promise<{ text: string; sources: string[] }> => {
   //   const res = await fetch(`${BASE_URL}/api/chat`, {
   //     method: "POST",
   //     headers: { "Content-Type": "application/json" },
-  //     body: JSON.stringify({ message: msg, history }),
+  //     body: JSON.stringify({ message: msg }),
   //   });
   //   return res.json();
   // },
-
-  // Mock (remove when real API is ready):
   chat: async (msg: string): Promise<{ text: string; sources: string[] }> => {
     await new Promise(r => setTimeout(r, 1400));
     const safe = msg.toLowerCase().includes("safe");
@@ -66,7 +61,6 @@ const api = {
   },
 };
 
-// ── Shared components ──────────────────────────────────────────────────────
 function SafetyBadge({ level, size = "sm" }: { level: SafetyLevel; size?: "sm" | "lg" }) {
   const m = { safe: [C.green, "#052e1c", "Safe"], moderate: [C.amber, "#2d1f04", "Moderate"], caution: [C.red, "#2d0808", "High risk"] };
   const [color, bg, label] = m[level];
@@ -105,7 +99,6 @@ function ScoreRing({ score, size = 72 }: { score: number; size?: number }) {
   );
 }
 
-// ── Animated orb background ────────────────────────────────────────────────
 function AnimatedBg() {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -115,19 +108,19 @@ function AnimatedBg() {
     let H = c.height = c.offsetHeight;
     let raf = 0;
     const orbs = [
-      { x: W * 0.15, y: H * 0.4,  vx: 0.22,  vy: 0.12,  r: 340, color: C.purple + "16" },
-      { x: W * 0.78, y: H * 0.3,  vx: -0.15, vy: 0.18,  r: 280, color: C.teal   + "10" },
-      { x: W * 0.5,  y: H * 0.75, vx: 0.13,  vy: -0.16, r: 220, color: C.purple + "0c" },
+      { x: W*0.15, y: H*0.4,  vx: 0.22,  vy: 0.12,  r: 340, color: C.purple+"16" },
+      { x: W*0.78, y: H*0.3,  vx: -0.15, vy: 0.18,  r: 280, color: C.teal+"10"   },
+      { x: W*0.5,  y: H*0.75, vx: 0.13,  vy: -0.16, r: 220, color: C.purple+"0c" },
     ];
     function draw() {
       ctx.clearRect(0, 0, W, H);
       orbs.forEach(o => {
         o.x += o.vx; o.y += o.vy;
-        if (o.x < -o.r || o.x > W + o.r) o.vx *= -1;
-        if (o.y < -o.r || o.y > H + o.r) o.vy *= -1;
-        const g = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r);
+        if (o.x < -o.r || o.x > W+o.r) o.vx *= -1;
+        if (o.y < -o.r || o.y > H+o.r) o.vy *= -1;
+        const g = ctx.createRadialGradient(o.x,o.y,0,o.x,o.y,o.r);
         g.addColorStop(0, o.color); g.addColorStop(1, "transparent");
-        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(o.x,o.y,o.r,0,Math.PI*2); ctx.fill();
       });
       raf = requestAnimationFrame(draw);
     }
@@ -136,106 +129,106 @@ function AnimatedBg() {
     window.addEventListener("resize", onResize);
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
   }, []);
-  return <canvas ref={ref} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />;
+  return <canvas ref={ref} style={{ position:"absolute", inset:0, width:"100%", height:"100%", pointerEvents:"none" }} />;
 }
 
-// ── NavBar ─────────────────────────────────────────────────────────────────
 function NavBar({ page, setPage }: { page: Page; setPage: (p: Page) => void }) {
   const tabs = [
     { id: "home"      as Page, label: "Home",      icon: "⌂" },
     { id: "navigate"  as Page, label: "Navigate",  icon: "◎" },
-    { id: "chat"      as Page, label: "Chat",       icon: "✦" },
+    { id: "chat"      as Page, label: "Chat",      icon: "✦" },
     { id: "dashboard" as Page, label: "Dashboard", icon: "▦" },
   ];
   return (
-    <nav style={{ background: `${C.bgCard}f8`, backdropFilter: "blur(12px)", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 28px", height: 56, position: "sticky", top: 0, zIndex: 200, width: "100%" }}>
-      <div onClick={() => setPage("home")} style={{ display: "flex", alignItems: "center", gap: 10, marginRight: 32, cursor: "pointer" }}>
-        <div style={{ width: 30, height: 30, borderRadius: 8, background: `linear-gradient(135deg, ${C.purple}, ${C.teal})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, boxShadow: `0 0 16px ${C.purple}50` }}>◉</div>
+    <nav style={{ background:`${C.bgCard}f8`, backdropFilter:"blur(12px)", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 28px", height:56, position:"sticky", top:0, zIndex:200, width:"100%" }}>
+      <div onClick={() => setPage("home")} style={{ display:"flex", alignItems:"center", gap:10, marginRight:32, cursor:"pointer" }}>
+        <div style={{ width:30, height:30, borderRadius:8, background:`linear-gradient(135deg,${C.purple},${C.teal})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, boxShadow:`0 0 16px ${C.purple}50` }}>◉</div>
         <div>
-          <div style={{ color: C.text, fontWeight: 700, fontSize: 14, letterSpacing: 0.2 }}>Boston Pulse</div>
-          <div style={{ color: C.textMuted, fontSize: 9, letterSpacing: 1, textTransform: "uppercase" }}>Civic Intelligence</div>
+          <div style={{ color:C.text, fontWeight:700, fontSize:14, letterSpacing:0.2 }}>Boston Pulse</div>
+          <div style={{ color:C.textMuted, fontSize:9, letterSpacing:1, textTransform:"uppercase" }}>Civic Intelligence</div>
         </div>
       </div>
-      <div style={{ display: "flex", gap: 2, flex: 1 }}>
+      <div style={{ display:"flex", gap:2, flex:1 }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => setPage(t.id)}
-            style={{ background: page === t.id ? C.purpleDim : "transparent", color: page === t.id ? C.purpleBright : C.textMuted, border: page === t.id ? `1px solid ${C.purple}50` : "1px solid transparent", borderRadius: 8, padding: "6px 16px", fontSize: 12, fontWeight: page === t.id ? 600 : 400, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s" }}
-            onMouseEnter={e => { if (page !== t.id) { const b = e.currentTarget as HTMLButtonElement; b.style.color = C.text; b.style.background = C.bgHover; } }}
-            onMouseLeave={e => { if (page !== t.id) { const b = e.currentTarget as HTMLButtonElement; b.style.color = C.textMuted; b.style.background = "transparent"; } }}>
-            <span style={{ fontSize: 10 }}>{t.icon}</span>{t.label}
+            style={{ background:page===t.id?C.purpleDim:"transparent", color:page===t.id?C.purpleBright:C.textMuted, border:page===t.id?`1px solid ${C.purple}50`:"1px solid transparent", borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:page===t.id?600:400, cursor:"pointer", display:"flex", alignItems:"center", gap:6, transition:"all 0.15s" }}
+            onMouseEnter={e => { if (page!==t.id) { const b=e.currentTarget as HTMLButtonElement; b.style.color=C.text; b.style.background=C.bgHover; } }}
+            onMouseLeave={e => { if (page!==t.id) { const b=e.currentTarget as HTMLButtonElement; b.style.color=C.textMuted; b.style.background="transparent"; } }}>
+            <span style={{ fontSize:10 }}>{t.icon}</span>{t.label}
           </button>
         ))}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.bgElevated, border: `1px solid ${C.border}`, borderRadius: 20, padding: "4px 12px 4px 8px" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, background:C.bgElevated, border:`1px solid ${C.border}`, borderRadius:20, padding:"4px 12px 4px 8px" }}>
           <PulseIndicator color={C.green} />
-          <span style={{ fontSize: 10, color: C.textMuted }}>Live</span>
+          <span style={{ fontSize:10, color:C.textMuted }}>Live</span>
         </div>
-        <div style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg, ${C.purple}, ${C.purpleBright})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 700, border: `2px solid ${C.purpleBright}40`, cursor: "pointer" }}>SG</div>
+        <div style={{ width:32, height:32, borderRadius:"50%", background:`linear-gradient(135deg,${C.purple},${C.purpleBright})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#fff", fontWeight:700, border:`2px solid ${C.purpleBright}40`, cursor:"pointer" }}>SG</div>
       </div>
     </nav>
   );
 }
 
-// ── HomePage ───────────────────────────────────────────────────────────────
 function HomePage({ setPage }: { setPage: (p: Page) => void }) {
   const [q, setQ] = useState("");
   const features = [
-    { icon: "◎", title: "Safety-first navigation", sub: "XGBoost · 530K+ incidents",  desc: "Routes that adapt to time-of-day risk, lighting data, and real-time incident feeds from Boston Police.", page: "navigate"  as Page, color: C.teal   },
-    { icon: "✦", title: "Civic intelligence chat",  sub: "LLM + RAG pipeline",         desc: "Ask anything about Boston in plain English. Every response cites its source — no hallucinations.",       page: "chat"      as Page, color: C.purple },
-    { icon: "▦", title: "Your dashboard",           sub: "History · preferences",       desc: "Saved routes, query history, and safety preferences. Your personal civic data hub.",                        page: "dashboard" as Page, color: C.amber  },
+    { icon:"◎", title:"Safety-first navigation", sub:"XGBoost · 530K+ incidents", desc:"Routes that adapt to time-of-day risk, lighting data, and real-time incident feeds from Boston Police.", page:"navigate" as Page, color:C.teal   },
+    { icon:"✦", title:"Civic intelligence chat",  sub:"LLM + RAG pipeline",        desc:"Ask anything about Boston in plain English. Every response cites its source — no hallucinations.",      page:"chat"      as Page, color:C.purple },
+    { icon:"▦", title:"Your dashboard",           sub:"History · preferences",      desc:"Saved routes, query history, and safety preferences. Your personal civic data hub.",                      page:"dashboard" as Page, color:C.amber  },
   ];
   return (
-    <div style={{ width: "100%", background: C.bg }}>
-
-      {/* Hero — full width + animated orb background */}
-      <div style={{ width: "100%", position: "relative", overflow: "hidden", borderBottom: `1px solid ${C.border}`, padding: "88px 0 72px" }}>
+    <div style={{ width:"100%", background:C.bg }}>
+      {/* Hero */}
+      <div style={{ width:"100%", position:"relative", overflow:"hidden", borderBottom:`1px solid ${C.border}`, padding:"88px 0 72px" }}>
         <AnimatedBg />
-        <div style={{ position: "relative", maxWidth: 720, margin: "0 auto", textAlign: "center", padding: "0 40px" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: C.bgElevated, border: `1px solid ${C.borderMid}`, borderRadius: 20, padding: "5px 14px 5px 8px", marginBottom: 28 }}>
+        <div style={{ position:"relative", maxWidth:720, margin:"0 auto", textAlign:"center", padding:"0 40px" }}>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:C.bgElevated, border:`1px solid ${C.borderMid}`, borderRadius:20, padding:"5px 14px 5px 8px", marginBottom:28 }}>
             <PulseIndicator color={C.teal} />
-            <span style={{ fontSize: 11, color: C.textMuted }}>Live · 18 data sources · updated 12 min ago</span>
+            <span style={{ fontSize:11, color:C.textMuted }}>Live · 6 data sources · updated 12 min ago</span>
           </div>
-          <h1 style={{ color: C.text, fontSize: 52, fontWeight: 800, margin: "0 0 16px", lineHeight: 1.12, letterSpacing: -1.5 }}>
+          <h1 style={{ color:C.text, fontSize:52, fontWeight:800, margin:"0 0 16px", lineHeight:1.12, letterSpacing:-1.5 }}>
             The Bostonian that knows<br />
-            <span style={{ background: `linear-gradient(135deg, ${C.purple}, ${C.teal})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>the city inside out</span>
+            <span style={{ background:`linear-gradient(135deg,${C.purple},${C.teal})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>the city inside out</span>
           </h1>
-          <p style={{ color: C.textMuted, fontSize: 15, margin: "0 auto 36px", lineHeight: 1.8, maxWidth: 500 }}>
+          <p style={{ color:C.textMuted, fontSize:15, margin:"0 auto 36px", lineHeight:1.8, maxWidth:500 }}>
             ML-driven civic intelligence — safe routing, 311 timelines, and neighborhood insights in one conversational platform.
           </p>
-          <div style={{ display: "flex", gap: 10, maxWidth: 580, margin: "0 auto" }}>
-            <div style={{ flex: 1, position: "relative" }}>
-              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: C.textDim, fontSize: 13 }}>✦</span>
-              <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === "Enter" && setPage("chat")}
+          <div style={{ display:"flex", gap:10, maxWidth:580, margin:"0 auto" }}>
+            <div style={{ flex:1, position:"relative" }}>
+              <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", color:C.textDim, fontSize:13 }}>✦</span>
+              <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key==="Enter" && setPage("chat")}
                 placeholder='Try "Is Roxbury safe to walk at midnight?"'
-                style={{ width: "100%", background: `${C.bgCard}cc`, border: `1px solid ${C.borderMid}`, borderRadius: 12, padding: "13px 14px 13px 36px", fontSize: 13, color: C.text, outline: "none", boxSizing: "border-box", backdropFilter: "blur(8px)" }}
-                onFocus={e => (e.target as HTMLInputElement).style.borderColor = C.purple}
-                onBlur={e => (e.target as HTMLInputElement).style.borderColor = C.borderMid} />
+                style={{ width:"100%", background:`${C.bgCard}cc`, border:`1px solid ${C.borderMid}`, borderRadius:12, padding:"13px 14px 13px 36px", fontSize:13, color:C.text, outline:"none", boxSizing:"border-box", backdropFilter:"blur(8px)" }}
+                onFocus={e => (e.target as HTMLInputElement).style.borderColor=C.purple}
+                onBlur={e  => (e.target as HTMLInputElement).style.borderColor=C.borderMid} />
             </div>
-            <button onClick={() => setPage("chat")} style={{ background: `linear-gradient(135deg, ${C.purple}, ${C.purpleBright})`, border: "none", borderRadius: 12, padding: "13px 26px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", boxShadow: `0 4px 20px ${C.purple}40` }}>Ask →</button>
+            <button onClick={() => setPage("chat")} style={{ background:`linear-gradient(135deg,${C.purple},${C.purpleBright})`, border:"none", borderRadius:12, padding:"13px 26px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap", boxShadow:`0 4px 20px ${C.purple}40` }}>Ask →</button>
           </div>
         </div>
       </div>
 
-      {/* Feature cards — full width, no max-width container */}
-      <div style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderBottom: `1px solid ${C.border}` }}>
-        {features.map((f, i) => (
+      {/* Feature cards */}
+      <div style={{ width:"100%", display:"grid", gridTemplateColumns:"1fr 1fr 1fr", borderBottom:`1px solid ${C.border}` }}>
+        {features.map((f,i) => (
           <div key={f.title} onClick={() => setPage(f.page)}
-            style={{ padding: "32px 36px", cursor: "pointer", transition: "background 0.2s", borderRight: i < 2 ? `1px solid ${C.border}` : "none", background: "transparent" }}
-            onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = C.bgCard}
-            onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = "transparent"}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: `${f.color}15`, border: `1px solid ${f.color}25`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: f.color, marginBottom: 16 }}>{f.icon}</div>
-            <div style={{ color: C.text, fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{f.title}</div>
-            <div style={{ fontSize: 10, color: f.color, marginBottom: 10, fontWeight: 500, letterSpacing: 0.3 }}>{f.sub}</div>
-            <div style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.7, marginBottom: 18 }}>{f.desc}</div>
-            <div style={{ fontSize: 11, color: C.textMuted }}>Open →</div>
+            style={{ padding:"32px 36px", cursor:"pointer", transition:"background 0.2s", borderRight:i<2?`1px solid ${C.border}`:"none", background:"transparent" }}
+            onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background=C.bgCard}
+            onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background="transparent"}>
+            <div style={{ width:42, height:42, borderRadius:10, background:`${f.color}15`, border:`1px solid ${f.color}25`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, color:f.color, marginBottom:16 }}>{f.icon}</div>
+            <div style={{ color:C.text, fontWeight:700, fontSize:14, marginBottom:4 }}>{f.title}</div>
+            <div style={{ fontSize:10, color:f.color, marginBottom:10, fontWeight:500, letterSpacing:0.3 }}>{f.sub}</div>
+            <div style={{ color:C.textMuted, fontSize:12, lineHeight:1.7, marginBottom:18 }}>{f.desc}</div>
+            <div style={{ fontSize:11, color:C.textMuted }}>Open →</div>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
 
-// ── NavigatePage ───────────────────────────────────────────────────────────
 function NavigatePage() {
-  const [from, setFrom] = useState(""), [to, setTo] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [weight, setWeight] = useState(70);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<RouteResult | null>(null);
@@ -243,7 +236,8 @@ function NavigatePage() {
 
   async function compute() {
     if (!from || !to) return;
-    setLoading(true); setResult(null);
+    setLoading(true);
+    setResult(null);
     try {
       const r = await api.navigate(from, to, weight);
       setResult(r);
@@ -268,7 +262,7 @@ function NavigatePage() {
         </div>
         <div style={{ padding:20, display:"flex", flexDirection:"column", gap:16, flex:1 }}>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            {([["A", C.teal, from, setFrom, "Origin — e.g. Northeastern"], ["B", C.red, to, setTo, "Destination — e.g. Back Bay T"]] as const).map(([lbl,col,val,set,ph]) => (
+            {([["A",C.teal,from,setFrom,"Origin — e.g. Northeastern"],["B",C.red,to,setTo,"Destination — e.g. Back Bay T"]] as const).map(([lbl,col,val,set,ph]) => (
               <div key={lbl} style={{ position:"relative" }}>
                 <div style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", width:18, height:18, borderRadius:"50%", background:`${col}18`, border:`1px solid ${col}50`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:col, fontWeight:700 }}>{lbl}</div>
                 <input value={val} onChange={e=>set(e.target.value)} onKeyDown={e=>e.key==="Enter"&&compute()} placeholder={ph}
@@ -327,7 +321,7 @@ function NavigatePage() {
             <div style={{ fontSize:10, color:C.textMuted, fontWeight:600, letterSpacing:1, marginBottom:8, textTransform:"uppercase" }}>Common routes</div>
             <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
               {quick.map(([r,l]) => (
-                <div key={r} onClick={() => { const [f,t] = r.split(" → "); setFrom(f); setTo(t); }}
+                <div key={r} onClick={() => { const [f,t]=r.split(" → "); setFrom(f); setTo(t); }}
                   style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 10px", borderRadius:8, cursor:"pointer", background:C.bgElevated, border:`1px solid ${C.border}`, transition:"border-color 0.15s" }}
                   onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.borderColor=C.borderLight}
                   onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.borderColor=C.border}>
@@ -371,12 +365,12 @@ function NavigatePage() {
   );
 }
 
-// ── ChatPage ───────────────────────────────────────────────────────────────
 function ChatPage() {
   const [msgs, setMsgs] = useState<Message[]>([
     { id:0, role:"assistant", text:"Hi — I'm Boston Pulse. Ask me anything about the city: safe routes, 311 timelines, neighborhood comparisons, permits, housing. Every response cites its sources.", sources:["Boston Open Data Portal"] }
   ]);
-  const [input, setInput] = useState(""), [busy, setBusy] = useState(false);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
   const suggestions = [
     { icon:"◎", text:"Is it safe to walk from Northeastern to Fenway at midnight?" },
@@ -387,11 +381,12 @@ function ChatPage() {
   async function send(text = input) {
     if (!text.trim() || busy) return;
     setMsgs(p => [...p, { id:Date.now(), role:"user", text }, { id:Date.now()+1, role:"assistant", text:"", loading:true }]);
-    setInput(""); setBusy(true);
+    setInput("");
+    setBusy(true);
     try {
       const r = await api.chat(text);
       setMsgs(p => p.map(m => m.loading ? { ...m, loading:false, text:r.text, sources:r.sources } : m));
-    } catch (err) {
+    } catch {
       setMsgs(p => p.map(m => m.loading ? { ...m, loading:false, text:"Something went wrong. Please try again." } : m));
     } finally {
       setBusy(false);
@@ -402,12 +397,7 @@ function ChatPage() {
     <div style={{ display:"flex", height:"calc(100vh - 56px)", width:"100%", background:C.bg }}>
       <div style={{ width:240, background:C.bgCard, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", padding:16, gap:10, flexShrink:0 }}>
         <div style={{ fontSize:10, color:C.textMuted, fontWeight:600, letterSpacing:1, textTransform:"uppercase", marginBottom:2 }}>Active data sources</div>
-        {[["Crime Reports","530K+ records — BPD"],
-["Service 311","500K+ requests"],
-["Food Inspections","868K+ records"],
-["BERDO Emissions","5K+ buildings"],
-["City Score","65K+ metrics"],
-["Street Sweeping","Schedule data"]].map(([name,sub]) => (
+        {[["Crime Reports","530K+ records"],["Service 311","500K+ requests"],["Food Inspections","868K+ records"],["BERDO Emissions","5K+ buildings"],["City Score","65K+ metrics"],["Street Sweeping","Schedule data"]].map(([name,sub]) => (
           <div key={name} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:C.bgElevated, border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 10px" }}>
             <div>
               <div style={{ fontSize:11, color:C.text, fontWeight:500 }}>{name}</div>
@@ -454,7 +444,7 @@ function ChatPage() {
             <div ref={bottom} />
           </div>
         </div>
-        {msgs.length === 1 && (
+        {msgs.length===1 && (
           <div style={{ maxWidth:720, width:"100%", margin:"0 auto", padding:"0 24px 14px" }}>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
               {suggestions.map(s => (
@@ -487,7 +477,6 @@ function ChatPage() {
   );
 }
 
-// ── DashboardPage ──────────────────────────────────────────────────────────
 function DashboardPage() {
   const [weight, setWeight] = useState(70);
   const [tod, setTod] = useState("night");
@@ -497,10 +486,10 @@ function DashboardPage() {
     { id:3, from:"Roxbury Crossing",        to:"Downtown Crossing", safety:"caution",  time:"22 min", date:"Mar 22"          },
   ];
   const history = [
-    { q:"Is Tremont St safe after 11pm?",                      time:"2h ago",    tag:"Safety"  },
-    { q:"311 resolution time for potholes in Mission Hill",    time:"Yesterday", tag:"311"     },
-    { q:"Accessible apartments near Green Line under $1,800",  time:"2 days ago",tag:"Housing" },
-    { q:"Outdoor event permit requirements Boston",            time:"3 days ago",tag:"Permits" },
+    { q:"Is Tremont St safe after 11pm?",                     time:"2h ago",     tag:"Safety"  },
+    { q:"311 resolution time for potholes in Mission Hill",   time:"Yesterday",  tag:"311"     },
+    { q:"Accessible apartments near Green Line under $1,800", time:"2 days ago", tag:"Housing" },
+    { q:"Outdoor event permit requirements Boston",           time:"3 days ago", tag:"Permits" },
   ];
   const tagColor: Record<string,string> = { Safety:C.red, "311":C.amber, Housing:C.blue, Permits:C.green };
   return (
@@ -569,7 +558,6 @@ function DashboardPage() {
   );
 }
 
-// ── App ────────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState<Page>("home");
   return (
