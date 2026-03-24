@@ -1,96 +1,73 @@
-# Boston Pulse
+# React + TypeScript + Vite
 
-Boston Pulse is a machine-learning–driven “digital twin” of the City of Boston. It unifies municipal open data, real-time feeds, and analytics into a conversational and navigation system that helps residents and newcomers understand, navigate, and make decisions about city life.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-The system:
-- Integrates heterogeneous Boston city datasets into a unified city state
-- Builds predictive models for civic services, neighborhood recommendations, and urban risk
-- Enables natural-language interaction with structured and real-time city data
-- Demonstrates an end-to-end ML pipeline grounded in public open data
-  
-This repository is organized as a **monorepo of micro-services**: each top-level directory is its own component with its own README and setup, so you can work on the data pipeline, backend, and frontend independently.
+Currently, two official plugins are available:
 
-## Monorepo Structure
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-From the repo root:
+## React Compiler
 
-```text
-Boston-pulse/
-├── backend/          # API + model serving service
-├── frontend/         # Web UI
-├── data-pipeline/    # Airflow-based ETL + GCS bucket store & versioning
-├── notebooks/        # Exploratory analysis & research
-├── docker/           # Shared infra / docker-compose (root-level)
-├── data/             # Small sample or config data (not full raw data)
-├── secrets/          # Local-only secrets (gitignored)
-└── .github/          # CI workflows (tests, lint, etc.)
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
 
-Each of these acts as a separate micro‑service:
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
-- **`backend/` (WIP)** – Backend APIs and model endpoints used by the UI and chatbot.
-- **`frontend/`(WIP)** – Single‑page application that talks to `backend/`.
-- **`data-pipeline/`** – Data pipeline stages:
-  - Airflow DAGs for ingest → validate → preprocess → features
-  - Strict schema & quality validation
-  - Bias/fairness checks and model cards
-  - GCS‑native lineage using GCS object generations
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
 
-> If you are interested in the data pipeline, go directly to [`data-pipeline/`](./data-pipeline/), then read:
-> - [`data-pipeline/README.md`](./data-pipeline/README.md) – quickstart (env, Airflow, tests)
-> - [`data-pipeline/CONTRIBUTING.md`](./data-pipeline/CONTRIBUTING.md) – deep‑dive for contributors
-- **`notebooks/`** – Jupyter notebooks used for EDA, prototyping, and documenting experiments.
-
-
-## Getting Started
-
-### 1. Clone the repo
-
-```bash
-git clone https://github.com/himabindu-peramala/boston-pulse.git
-cd boston-pulse
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
-
-### 2. Pick a component to work on
-
-- **Data Pipeline**
-  
-  See [`data-pipeline/README.md`](./data-pipeline/README.md) for:
-  - copying `.env.example` → `.env`
-  - `make setup-dev`
-  - `make airflow-up-dp` to run Airflow locally
-
-- **Backend API**
-  
-  See `backend/` for how to run the API service and connect it to the pipeline outputs.
-
-- **Frontend**
-  
-  See `frontend/` for the UI setup (Node.js, dev server, etc.).
-
-- **Notebooks**
-  
-  Open `notebooks/` in Jupyter or VS Code to explore the data and experiments.
-
-## Contributing
-
-- Keep each micro‑service **self‑contained** with its own README and clear entry points.
-- Use environment variables / `.env` files (gitignored) for secrets; **never** commit API keys or service account JSON.
-
-You can also enable [pre‑commit](https://pre-commit.com/) locally to mirror CI checks:
-
-```bash
-pip install pre-commit
-pre-commit install
-```
-
-## Data Sources
-
-The project primarily relies on datasets from Analyze Boston, including:
-
-- 311 Service Requests
-- Crime Incident Reports
-- Fire Incident Reporting
-- Food Inspections
-- Vision Zero
-- BERDO
