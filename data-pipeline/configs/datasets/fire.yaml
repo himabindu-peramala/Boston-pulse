@@ -1,0 +1,19 @@
+dataset:
+  name: fire
+
+api:
+  base_url: https://data.boston.gov/api/3/action
+  endpoint: datastore_search_sql
+  resource_id: "91a38b1f-8439-46df-ba47-a30c48845e06"
+  batch_size: 1000
+  timeout_seconds: 60
+
+ingestion:
+  watermark_field: "alarm_date"
+  primary_key: "incident_number"
+  lookback_days: 30
+
+validation:
+  temporal:
+    max_future_days: 1
+    max_past_years: 20
