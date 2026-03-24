@@ -128,7 +128,7 @@ def log_model_info(
     """
     import json
 
-    with mlflow.start_run(run_id=run_id):
+    with mlflow.start_run(run_id=run_id, nested=True):
         mlflow.log_param("model_path", model_path)
         mlflow.log_param("n_features", len(feature_columns))
         mlflow.log_param("features", json.dumps(feature_columns))
