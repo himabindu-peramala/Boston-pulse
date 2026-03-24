@@ -31,7 +31,8 @@
     },
     "side_of_street": {
       "type": ["string", "null"],
-      "description": "Side of street (Left/Right)"
+      "description": "Side of street (Left/Right)",
+      "null_ratio_threshold": 0.20
     },
     "season_start": {
       "type": ["string", "null"],

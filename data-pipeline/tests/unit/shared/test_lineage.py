@@ -10,7 +10,7 @@ Comprehensive unit tests for:
 
 import json
 from datetime import UTC, datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -401,6 +401,7 @@ class TestLineageTracker:
 
         mock_client.assert_called_with(
             project="test-project",
+            credentials=ANY,
             client_options={"api_endpoint": "http://localhost:4443"},
         )
 

@@ -224,10 +224,15 @@ class DAGAlertManager:
             f"- Violations ({len(violations)} total):\n{violation_details}"
         )
 
+        # Determine overall severity (critical if any violation is critical)
+        severity = "warning"
+        if any(v.get("severity") == "critical" for v in violations):
+            severity = "critical"
+
         send_alert(
             title=f"Fairness Violation: {dataset}",
             message=message,
-            severity="critical",
+            severity=severity,
             dataset=dataset,
             dag_id=dag_id,
             execution_date=execution_date,

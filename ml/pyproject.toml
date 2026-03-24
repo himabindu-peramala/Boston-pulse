@@ -1,0 +1,74 @@
+[project]
+name = "boston-pulse-ml"
+version = "0.1.0"
+description = "ML Training Pipeline for Boston Pulse"
+requires-python = ">=3.11"
+
+dependencies = [
+    "numpy>=2.0,<3",
+    "pandas>=2.2,<3.0",
+    "pyarrow>=15.0",
+    "scipy>=1.13",
+    "lightgbm>=4.0",
+    "optuna>=3.5",
+    "mlflow>=2.10",
+    "shap>=0.44",
+    "fairlearn>=0.10",
+    "google-cloud-storage>=2.14",
+    "google-cloud-firestore>=2.14",
+    "google-cloud-artifact-registry>=1.11",
+    "google-auth>=2.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "python-dotenv>=1.0",
+    "scikit-learn>=1.4",
+    "requests>=2.31",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-mock>=3.12",
+    "pytest-cov>=4.0",
+    "pytest-timeout>=2.2",
+    "ruff>=0.3",
+    "black>=24.0",
+    "mypy>=1.8",
+    "types-PyYAML>=6.0",
+    "types-requests>=2.31",
+    "pandas-stubs>=2.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["models*", "shared*", "dags*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

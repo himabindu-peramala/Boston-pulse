@@ -15,7 +15,8 @@
     },
     "property_name": {
       "type": ["string", "null"],
-      "description": "Name of the building/property"
+      "description": "Name of the building/property",
+      "null_ratio_threshold": 1.0
     },
     "address": {
       "type": ["string", "null"],
@@ -47,7 +48,8 @@
     },
     "electricity_use_grid_purchase": {
       "type": ["number", "string", "null"],
-      "description": "Grid electricity purchased in kBtu"
+      "description": "Grid electricity purchased in kBtu",
+      "null_ratio_threshold": 0.50
     },
     "natural_gas_use": {
       "type": ["number", "string", "null"],

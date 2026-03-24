@@ -19,6 +19,7 @@ from datetime import datetime
 from io import StringIO
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import requests
 
@@ -90,18 +91,66 @@ class StreetSweepingIngester(BaseIngester):
         logger.info("Parsing street sweeping CSV file")
         df = pd.read_csv(StringIO(response.text))
 
-        # Standardize column names
+        # Standardize column names for RAW stage (must match raw_schema.json)
+        # 1. Normalize headers first
         df.columns = [c.lower().strip().replace(" ", "_") for c in df.columns]
 
-        # Add a synthetic _id column if not present
+        # 2. Map normalized names to schema names
+        raw_mapping = {
+            "main_id": "sam_street_id",
+            "st_name": "full_street_name",
+            "from": "from_street",
+            "to": "to_street",
+            "dist": "district",
+            "side": "side_of_street",
+        }
+        df = df.rename(columns=raw_mapping)
+
+        # Add missing fields required by raw_schema.json
+        if "season_start" not in df.columns:
+            df["season_start"] = "April"
+        if "season_end" not in df.columns:
+            df["season_end"] = "November"
+        if "week_type" not in df.columns:
+            df["week_type"] = "Every Week"
+        if "tow_zone" not in df.columns:
+            df["tow_zone"] = "YES"
+
+        # Add lat/long if missing (Use NaN to satisfy schema while indicating no geo data)
+        if "lat" not in df.columns:
+            df["lat"] = np.nan
+        if "long" not in df.columns:
+            df["long"] = np.nan
+
+        # Critical: Add a synthetic _id column (Required for primary key and preprocessor)
         if "_id" not in df.columns:
             df.insert(0, "_id", range(1, len(df) + 1))
+
+        # Only keep columns expected by the raw schema
+        expected_cols = {
+            "_id",
+            "sam_street_id",
+            "full_street_name",
+            "from_street",
+            "to_street",
+            "district",
+            "side_of_street",
+            "season_start",
+            "season_end",
+            "week_type",
+            "tow_zone",
+            "lat",
+            "long",
+        }
+        available_cols = [c for c in df.columns if c in expected_cols]
+        df = df[available_cols].copy()
 
         # Convert all object columns to string to avoid pyarrow type errors
         for col in df.select_dtypes(include=["object"]).columns:
             df[col] = df[col].astype(str)
+            df[col] = df[col].replace("nan", np.nan)
 
-        logger.info(f"Fetched {len(df)} street sweeping records")
+        logger.info(f"Fetched {len(df)} street sweeping records after filtering")
         return df
 
 

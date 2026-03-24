@@ -89,7 +89,9 @@ class BerdoFeatureBuilder(BaseFeatureBuilder):
         df = self._engineer_energy_features(df)
         df = self._engineer_efficiency_category(df)
 
-        return df
+        feature_cols = [f.name for f in self.get_feature_definitions()]
+        available = [c for c in feature_cols if c in df.columns]
+        return df[available].copy()
 
     def _engineer_emissions_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Engineer emissions-related features."""

@@ -29,7 +29,13 @@
         "year": {
             "type": "integer"
         },
-        "month_num": {
+        "month": {
+            "type": "integer"
+        },
+        "day_of_week": {
+            "type": "string"
+        },
+        "hour": {
             "type": "integer"
         },
         "date": {

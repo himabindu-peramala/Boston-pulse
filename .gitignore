@@ -200,6 +200,7 @@ cython_debug/
 
 # Secrets
 secrets/
+.secrets
 
 # PyPI configuration file
 .pypirc
@@ -216,4 +217,12 @@ secrets/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+<<<<<<< HEAD
 backend/mlruns/
+=======
+
+
+# Local files
+merge_files.py
+merged_output.txt
+>>>>>>> origin/main

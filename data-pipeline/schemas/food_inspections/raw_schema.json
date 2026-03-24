@@ -69,7 +69,8 @@
                 "string",
                 "null"
             ],
-            "description": "Description of the violation"
+            "description": "Description of the violation",
+            "null_ratio_threshold": 0.20
         },
         "violdttm": {
             "type": [
@@ -98,7 +99,8 @@
                 "string",
                 "null"
             ],
-            "description": "Geographic location string (often '(Lat, Long)')"
+            "description": "Geographic location string (often '(Lat, Long)')",
+            "null_ratio_threshold": 0.20
         },
         "namelast": {
             "type": [

@@ -55,8 +55,11 @@ class WatermarkManager:
 
         # Initialize GCS client
         if self.config.storage.emulator.enabled:
+            from google.auth.credentials import AnonymousCredentials
+
             self.client = storage.Client(
                 project="test-project",
+                credentials=AnonymousCredentials(),
                 client_options={"api_endpoint": self.config.storage.emulator.host},
             )
         else:
