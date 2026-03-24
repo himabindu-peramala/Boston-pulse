@@ -233,33 +233,6 @@ function HomePage({ setPage }: { setPage: (p: Page) => void }) {
         ))}
       </div>
 
-      {/* Data pipeline — full width */}
-      <div style={{ width: "100%", padding: "20px 32px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <span style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>Data pipeline</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <PulseIndicator color={C.green} />
-            <span style={{ fontSize: 11, color: C.textMuted }}>All sources operational</span>
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
-          {[["BPD Crime","2 min"],["311 Requests","8 min"],["MBTA Feeds","30 sec"],["Weather","5 min"],["Vision Zero","1 hr"],["Reddit","15 min"]].map(([src, lag]) => (
-            <div key={src} style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 11, color: C.text, fontWeight: 500 }}>{src}</div>
-                <div style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>{lag} ago</div>
-              </div>
-              <PulseIndicator color={lag === "1 hr" ? C.amber : C.green} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-    </div>
-  );
-}
-
-
 // ── NavigatePage ───────────────────────────────────────────────────────────
 function NavigatePage() {
   const [from, setFrom] = useState(""), [to, setTo] = useState("");
@@ -429,7 +402,12 @@ function ChatPage() {
     <div style={{ display:"flex", height:"calc(100vh - 56px)", width:"100%", background:C.bg }}>
       <div style={{ width:240, background:C.bgCard, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", padding:16, gap:10, flexShrink:0 }}>
         <div style={{ fontSize:10, color:C.textMuted, fontWeight:600, letterSpacing:1, textTransform:"uppercase", marginBottom:2 }}>Active data sources</div>
-        {[["311 Requests","500K+ records"],["Crime Reports","530K+ records"],["MBTA Feeds","Real-time"],["Food Inspections","868K+ records"],["Vision Zero","Live"],["BERDO Emissions","5K+ records"]].map(([name,sub]) => (
+        {[["Crime Reports","530K+ records — BPD"],
+["Service 311","500K+ requests"],
+["Food Inspections","868K+ records"],
+["BERDO Emissions","5K+ buildings"],
+["City Score","65K+ metrics"],
+["Street Sweeping","Schedule data"]].map(([name,sub]) => (
           <div key={name} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:C.bgElevated, border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 10px" }}>
             <div>
               <div style={{ fontSize:11, color:C.text, fontWeight:500 }}>{name}</div>
