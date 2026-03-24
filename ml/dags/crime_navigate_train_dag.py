@@ -9,7 +9,6 @@ Trigger: GitHub Actions workflow on push to main
   - CI builds docker/ml-training.Dockerfile
   - Pushes to us-east1-docker.pkg.dev/bostonpulse/ml-images/ml-training:<sha>
   - Triggers this DAG with conf: {"ml_image": "<full-image-uri>", "git_sha": "<sha>"}
-
 The DockerOperator pulls the specified image and runs the training CLI.
 This guarantees reproducibility: the training code matches the tested commit.
 
