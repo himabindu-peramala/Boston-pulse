@@ -1074,3 +1074,22 @@ with DAG(
         >> t_record_lineage
         >> t_pipeline_complete
     )
+
+
+def trigger_chatbot_ingest(**context) -> dict:
+    import requests, os
+    backend_url = os.getenv("CHATBOT_BACKEND_URL", "https://boston-pulse-chatbot-384523870431.us-central1.run.app")
+    try:
+        response = requests.post(f"{backend_url}/api/ingest", timeout=10)
+        response.raise_for_status()
+        return {"status": "triggered"}
+    except Exception as e:
+        return {"status": "failed", "error": str(e)}
+
+
+with dag:
+    t_trigger_chatbot = PythonOperator(
+        task_id="trigger_chatbot_ingest",
+        python_callable=trigger_chatbot_ingest,
+    )
+    t_pipeline_complete >> t_trigger_chatbot

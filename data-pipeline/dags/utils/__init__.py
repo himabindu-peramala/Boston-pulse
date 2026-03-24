@@ -104,3 +104,22 @@ __all__ = [
     "print_lineage_summary",
     "print_lineage_diff",
 ]
+
+
+def trigger_chatbot_ingest(**context) -> dict:
+    """Trigger chatbot backend to re-ingest latest data into ChromaDB."""
+    import requests
+    import os
+
+    backend_url = os.getenv(
+        "CHATBOT_BACKEND_URL",
+        "https://boston-pulse-chatbot-384523870431.us-central1.run.app"
+    )
+
+    try:
+        response = requests.post(f"{backend_url}/api/ingest", timeout=10)
+        response.raise_for_status()
+        return {"status": "triggered", "response": response.json()}
+    except Exception as e:
+        # Don't fail the pipeline if chatbot ingest fails
+        return {"status": "failed", "error": str(e)}
