@@ -16,12 +16,15 @@ google-cloud-firestore==2.16.0
 # Embeddings — HuggingFace (free, local)
 sentence-transformers==2.7.0
 
-# Vector DB — ChromaDB (local, no API key needed)
-chromadb==0.5.0
+# Vector DB — ChromaDB (latest fixes numpy 2.0 issue)
+chromadb>=1.0.0
 
 # Data
 pandas==2.2.2
 pyarrow>=17.0.0
+
+# NumPy pinned to avoid ChromaDB conflict
+numpy>=2.0.0
 
 # Testing
 pytest==8.2.0

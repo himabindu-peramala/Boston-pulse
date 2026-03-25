@@ -225,4 +225,11 @@ backend/mlruns/
 # Local files
 merge_files.py
 merged_output.txt
+<<<<<<< HEAD
+>>>>>>> origin/main
+=======
+data-pipeline/airflow.db
+data-pipeline/data/raw/
+data-pipeline/data/processed/
+data-pipeline/logs/
 >>>>>>> origin/main

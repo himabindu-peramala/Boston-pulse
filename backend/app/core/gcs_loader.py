@@ -1,106 +1,69 @@
 """
 Boston Pulse Backend — GCS Data Loader
-Wraps the pipeline's GCSDataIO to load processed Parquet files.
+Reads processed Parquet files directly from GCS.
 """
 import logging
-import sys
 import os
 from functools import lru_cache
+from datetime import date, timedelta
+from io import BytesIO
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# Correct path to data-pipeline
-_PIPELINE_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../../data-pipeline")
-)
-if _PIPELINE_PATH not in sys.path:
-    sys.path.insert(0, _PIPELINE_PATH)
 
-logger.info(f"Pipeline path: {_PIPELINE_PATH}")
+def _get_bucket():
+    from google.cloud import storage
+    bucket_name = os.getenv("GCS_BUCKET_MAIN", "boston-pulse-data-prod")
+    client = storage.Client()
+    return client.bucket(bucket_name)
 
 
-def _get_gcs_io():
+def _load_latest(dataset: str) -> pd.DataFrame:
+    """Load latest parquet file for a dataset directly from GCS."""
+    import json
     try:
-        from dags.utils.gcs_io import GCSDataIO
-        return GCSDataIO()
+        bucket = _get_bucket()
+        # Try latest.json pointer first
+        pointer_blob = bucket.blob(f"processed/{dataset}/latest.json")
+        if pointer_blob.exists():
+            pointer = json.loads(pointer_blob.download_as_string())
+            execution_date = pointer["execution_date"]
+            path = f"processed/{dataset}/dt={execution_date}/data.parquet"
+            blob = bucket.blob(path)
+            content = blob.download_as_bytes()
+            df = pd.read_parquet(BytesIO(content))
+            logger.info(f"Loaded {dataset}: {len(df)} rows from {path}")
+            return df
     except Exception as e:
-        logger.warning(f"GCSDataIO unavailable: {e} — returning empty DataFrames")
-        return None
+        logger.warning(f"Could not load {dataset}: {e}")
+    return pd.DataFrame()
 
 
 @lru_cache(maxsize=1)
 def load_crime() -> pd.DataFrame:
-    gcs = _get_gcs_io()
-    if gcs is None:
-        return pd.DataFrame()
-    try:
-        return gcs.read_latest_parquet("crime", "processed")
-    except Exception as e:
-        logger.warning(f"Could not load crime: {e}")
-        return pd.DataFrame()
-
+    return _load_latest("crime")
 
 @lru_cache(maxsize=1)
 def load_service_311() -> pd.DataFrame:
-    gcs = _get_gcs_io()
-    if gcs is None:
-        return pd.DataFrame()
-    try:
-        return gcs.read_latest_parquet("service_311", "processed")
-    except Exception as e:
-        logger.warning(f"Could not load 311: {e}")
-        return pd.DataFrame()
-
+    return _load_latest("service_311")
 
 @lru_cache(maxsize=1)
 def load_food_inspections() -> pd.DataFrame:
-    gcs = _get_gcs_io()
-    if gcs is None:
-        return pd.DataFrame()
-    try:
-        return gcs.read_latest_parquet("food_inspections", "processed")
-    except Exception as e:
-        logger.warning(f"Could not load food inspections: {e}")
-        return pd.DataFrame()
-
+    return _load_latest("food_inspections")
 
 @lru_cache(maxsize=1)
 def load_cityscore() -> pd.DataFrame:
-    gcs = _get_gcs_io()
-    if gcs is None:
-        return pd.DataFrame()
-    try:
-        return gcs.read_latest_parquet("cityscore", "processed")
-    except Exception as e:
-        logger.warning(f"Could not load cityscore: {e}")
-        return pd.DataFrame()
-
+    return _load_latest("cityscore")
 
 @lru_cache(maxsize=1)
 def load_berdo() -> pd.DataFrame:
-    gcs = _get_gcs_io()
-    if gcs is None:
-        return pd.DataFrame()
-    try:
-        return gcs.read_latest_parquet("berdo", "processed")
-    except Exception as e:
-        logger.warning(f"Could not load berdo: {e}")
-        return pd.DataFrame()
-
+    return _load_latest("berdo")
 
 @lru_cache(maxsize=1)
 def load_street_sweeping() -> pd.DataFrame:
-    gcs = _get_gcs_io()
-    if gcs is None:
-        return pd.DataFrame()
-    try:
-        return gcs.read_latest_parquet("street_sweeping", "processed")
-    except Exception as e:
-        logger.warning(f"Could not load street sweeping: {e}")
-        return pd.DataFrame()
-
+    return _load_latest("street_sweeping")
 
 def clear_cache():
     load_crime.cache_clear()
