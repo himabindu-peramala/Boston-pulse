@@ -109,13 +109,3 @@ mlflow ui
 Recommendations are saved to `results/bias_report.json`.
 
 ---
-
-## CI/CD Pipeline
-
-The GitHub Actions workflow (`.github/workflows/model_pipeline.yml`) runs on every push to `mukul/model-development`:
-
-1. **Lint & Code Quality** — ruff check
-2. **Unit Tests** — pytest + dataset/chunking verification
-3. **Model Evaluation** — runs eval pipeline if GCP data is available
-4. **Registry Push** — pushes best model to MLflow registry (main/prod only)
->>>>>>> 56dc4c8782f44ff5132bf5fe2832fce1694ecdf3
