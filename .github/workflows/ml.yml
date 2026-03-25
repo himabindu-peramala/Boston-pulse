@@ -300,12 +300,17 @@ jobs:
 
           echo "✅ Cloud Run training job finished"
 
-  # Single Slack at end of pipeline (lint → tests → integration → build → deploy → Cloud Run)
+  # Single Slack at end of pipeline (lint → tests → integration → build → Cloud Run)
   notify-pipeline:
     name: Notify pipeline result
     runs-on: ubuntu-latest
-    needs: run-cloud-run-training
-    # always() so this runs when optional jobs are skipped
+    needs:
+      - lint
+      - unit-tests
+      - integration-test
+      - build-push-image
+      - run-cloud-run-training
+    # Run after all jobs finish (success, failure, or skipped) so results are available in needs.*.
     if: |
       always() &&
       (github.ref == 'refs/heads/test' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
@@ -314,21 +319,23 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
-            echo "SLACK_WEBHOOK_URL not set; skipping"
-            exit 0
-          fi
+          set -euo pipefail
           L="${{ needs.lint.result }}"
           U="${{ needs.unit-tests.result }}"
           I="${{ needs.integration-test.result }}"
           B="${{ needs.build-push-image.result }}"
           T="${{ needs.run-cloud-run-training.result }}"
+
           ANY_FAIL=0
           for s in "$L" "$U" "$I" "$B" "$T"; do
-            [ "$s" = "failure" ] && ANY_FAIL=1
+            case "$s" in
+              failure|cancelled) ANY_FAIL=1 ;;
+            esac
           done
+
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           DETAIL="lint=${L} unit=${U} integration=${I} build=${B} training=${T}"
+
           if [ "$ANY_FAIL" = "1" ]; then
             EMOJI="❌"
             TITLE="ML pipeline failed"
@@ -336,7 +343,17 @@ jobs:
             EMOJI="✅"
             TITLE="ML pipeline finished"
           fi
-          curl -sS -X POST "$SLACK_WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"text\":\"${EMOJI} *${TITLE}*\n\`${DETAIL}\`\nCommit: \`${GITHUB_SHA}\` • \`${GITHUB_REF_NAME}\`\n<${RUN_URL}|View run>\"}" \
-            || true
+
+          if [ -n "${SLACK_WEBHOOK_URL}" ]; then
+            curl -sS -X POST "$SLACK_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d "{\"text\":\"${EMOJI} *${TITLE}*\n\`${DETAIL}\`\nCommit: \`${GITHUB_SHA}\` • \`${GITHUB_REF_NAME}\`\n<${RUN_URL}|View run>\"}" \
+              || echo "Warning: Slack POST failed (non-fatal)"
+          else
+            echo "SLACK_WEBHOOK_URL not set; skipping Slack"
+          fi
+
+          if [ "$ANY_FAIL" = "1" ]; then
+            echo "::error::Pipeline had failing or cancelled jobs: ${DETAIL}"
+            exit 1
+          fi
