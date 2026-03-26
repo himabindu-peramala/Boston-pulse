@@ -369,7 +369,105 @@ EVAL_DATASET = [
         "difficulty": "hard",
     },
 ]
-
+# =========================================================================
+# NEGATIVE / OUT-OF-SCOPE (test robustness)
+# =========================================================================
+{
+    "id": "neg_01",
+    "question": "Which restaurant failed food inspection recently in New York City?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "easy",
+},
+{
+    "id": "neg_02", 
+    "question": "Which is the best medicine for headache?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "easy",
+},
+{
+    "id": "neg_01",
+    "question": "Which restaurant failed food inspection recently in New York City?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "easy",
+},
+{
+    "id": "neg_02",
+    "question": "What is the crime rate in Los Angeles?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "easy",
+},
+{
+    "id": "neg_03",
+    "question": "When is street sweeping in Chicago?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "easy",
+},
+{
+    "id": "neg_04",
+    "question": "Which is the best medicine for headache?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "easy",
+},
+{
+    "id": "neg_05",
+    "question": "What is the stock price of Apple today?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "easy",
+},
+{
+    "id": "neg_06",
+    "question": "Who won the Super Bowl last year?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "easy",
+},
+{
+    "id": "neg_07",
+    "question": "What is the weather forecast for Boston tomorrow?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "medium",
+},
+{
+    "id": "neg_08",
+    "question": "How do I apply for a Boston parking permit?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "medium",
+},
+{
+    "id": "neg_09",
+    "question": "What are the Boston Marathon results?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "medium",
+},
+{
+    "id": "neg_10",
+    "question": "What is the Boston school calendar for 2026?",
+    "expected_dataset": "none",
+    "expected_keywords": [],
+    "category": "out_of_scope",
+    "difficulty": "hard",
+},
 
 def get_eval_questions() -> list:
     """Return all evaluation questions."""
