@@ -181,13 +181,22 @@ jobs:
       - name: Install dependencies
         run: pip install mlflow google-cloud-storage
 
-      - name: Register best model in MLflow
+      - name: Save best eval config to GCS
         run: |
           python -c "
           from evaluation.mlflow_tracker import get_best_run
+          from google.cloud import storage
+          import json, os
           best = get_best_run()
           if best:
-              print(f'Best run: {best}')
+              client = storage.Client()
+              bucket = client.bucket(os.environ.get('GCS_BUCKET', 'boston-pulse-data-pipeline'))
+              blob = bucket.blob('model-registry/best_config.json')
+              blob.upload_from_string(json.dumps(best))
+              print('Best config saved to GCS')
           else:
               print('No runs to register yet')
           "
+        env:
+          GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
+          MLFLOW_TRACKING_URI: gs://boston-pulse-data-pipeline/mlruns
