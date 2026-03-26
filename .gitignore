@@ -233,3 +233,4 @@ data-pipeline/data/raw/
 data-pipeline/data/processed/
 data-pipeline/logs/
 >>>>>>> origin/main
+backend/evaluation/results/
