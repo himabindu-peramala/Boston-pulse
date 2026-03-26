@@ -134,7 +134,7 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
         continue-on-error: true
 
       - name: Run evaluation
@@ -176,7 +176,7 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
       - name: Install dependencies
         run: pip install mlflow google-cloud-storage
