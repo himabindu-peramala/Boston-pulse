@@ -47,6 +47,8 @@ def test_slice_by_category_empty():
 
 
 def test_mlflow_compare_runs_returns_list():
+    import os
+    os.environ["MLFLOW_TRACKING_URI"] = "file:./mlruns"
     from evaluation.mlflow_tracker import compare_runs
     result = compare_runs()
     assert isinstance(result, list)

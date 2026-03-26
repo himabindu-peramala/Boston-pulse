@@ -22,10 +22,8 @@ EXPERIMENT_NAME = "boston-pulse-rag"
 
 def setup_mlflow():
     """Initialize MLflow with GCS or local tracking."""
-    gcs_uri = os.environ.get(
-        "MLFLOW_TRACKING_URI",
-        "gs://boston-pulse-data-pipeline/mlruns"
-    )
+    bucket = os.environ.get("GCS_BUCKET", "boston-pulse-data-pipeline")
+    gcs_uri = os.environ.get("MLFLOW_TRACKING_URI", f"gs://{bucket}/mlruns")
     mlflow.set_tracking_uri(gcs_uri)
     mlflow.set_experiment(EXPERIMENT_NAME)
     logger.info(f"MLflow experiment: {EXPERIMENT_NAME} @ {gcs_uri}")
