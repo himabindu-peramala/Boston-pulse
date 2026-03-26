@@ -234,3 +234,5 @@ data-pipeline/data/processed/
 data-pipeline/logs/
 >>>>>>> origin/main
 backend/evaluation/results/
+backend/exec -l
+backend/exec -l
