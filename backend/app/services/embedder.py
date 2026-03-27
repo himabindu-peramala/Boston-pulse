@@ -1,10 +1,6 @@
 """
 Boston Pulse — Embedder
-<<<<<<< HEAD
-...
-=======
 Converts text chunks into vectors using HuggingFace sentence-transformers.
->>>>>>> origin/backend-api-sushma
 """
 import logging
 from typing import List
