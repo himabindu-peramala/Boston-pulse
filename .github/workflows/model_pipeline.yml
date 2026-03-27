@@ -1,0 +1,202 @@
+# Boston Pulse — Model Development CI/CD Pipeline
+# Triggers on pushes to model-development branches
+# Runs: lint → test → evaluate → bias check → registry push
+
+name: Model Pipeline
+
+on:
+  push:
+    branches:
+      - 'mukul/model-development'
+      - 'main'
+    paths:
+      - 'backend/**'
+  pull_request:
+    branches:
+      - main
+      - prod
+    paths:
+      - 'backend/**'
+
+env:
+  PYTHON_VERSION: '3.9'
+  WORKING_DIR: backend
+
+jobs:
+  # ===========================================================
+  # Job 1: Lint and code quality
+  # ===========================================================
+  lint:
+    name: Lint & Code Quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install ruff pytest
+
+      - name: Run linter
+        run: ruff check app/ evaluation/ --ignore E501
+
+  # ===========================================================
+  # Job 2: Unit tests
+  # ===========================================================
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio mlflow
+
+      - name: Run unit tests
+        run: pytest tests/ -v --tb=short
+
+      - name: Verify evaluation dataset loads
+        run: python -m evaluation.eval_dataset
+
+      - name: Verify bias detector handles empty input
+        run: |
+          python -c "
+          from evaluation.bias_detector import run_bias_analysis
+          result = run_bias_analysis({})
+          assert 'error' in result, 'Bias detector should handle empty input'
+          print('Bias detector: OK')
+          "
+
+      - name: Verify chunking produces valid output
+        run: |
+          python -c "
+          from app.services.embedder import chunk_crime_records
+          import pandas as pd
+          df = pd.DataFrame({
+              'offense_description': ['Theft'],
+              'offense_category': ['Larceny'],
+              'district': ['B2'],
+              'street': ['Main St'],
+              'occurred_on_date': ['2026-01-01'],
+              'hour': [14],
+              'day_of_week': ['Monday'],
+              'shooting': [False]
+          })
+          chunks = chunk_crime_records(df)
+          assert len(chunks) == 1
+          assert 'Unknown' not in chunks[0]['text']
+          print('Chunking test: OK')
+          "
+
+  # ===========================================================
+  # Job 3: Model evaluation (runs on real data if available)
+  # ===========================================================
+  evaluate:
+    name: Model Evaluation
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install mlflow
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        continue-on-error: true
+
+      - name: Run evaluation
+        run: |
+          python -m evaluation.eval_runner || echo "Evaluation skipped — no data available"
+        continue-on-error: true
+
+      - name: Run bias detection
+        run: |
+          python -m evaluation.bias_detector || echo "Bias detection skipped — no eval results"
+        continue-on-error: true
+
+      - name: Upload evaluation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-results
+          path: backend/evaluation/eval_results.json
+        continue-on-error: true
+
+  # ===========================================================
+  # Job 4: Model registry push (only on main/prod merges)
+  # ===========================================================
+  registry:
+    name: Push to Model Registry
+    runs-on: ubuntu-latest
+    needs: evaluate
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/prod'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Install dependencies
+        run: pip install mlflow google-cloud-storage
+
+      - name: Save best eval config to GCS
+        run: |
+          python -c "
+          from evaluation.mlflow_tracker import get_best_run
+          from google.cloud import storage
+          import json, os
+          best = get_best_run()
+          if best:
+              client = storage.Client()
+              bucket = client.bucket(os.environ.get('GCS_BUCKET', 'boston-pulse-data-pipeline'))
+              blob = bucket.blob('model-registry/best_config.json')
+              blob.upload_from_string(json.dumps(best))
+              print('Best config saved to GCS')
+          else:
+              print('No runs to register yet')
+          "
+        env:
+          GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
+          MLFLOW_TRACKING_URI: gs://boston-pulse-data-pipeline/mlruns

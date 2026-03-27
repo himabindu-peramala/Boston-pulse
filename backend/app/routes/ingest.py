@@ -20,7 +20,6 @@ MAX_ROWS = {
 
 
 async def _run_ingestion():
-    import os
     from app.core.gcs_loader import clear_cache, load_crime, load_service_311, load_food_inspections, load_cityscore, load_berdo, load_street_sweeping
     from app.services.embedder import chunk_crime_records, chunk_311_records, chunk_food_inspection_records, chunk_cityscore_records, chunk_berdo_records, chunk_street_sweeping_records
     from app.services.retriever import add_chunks

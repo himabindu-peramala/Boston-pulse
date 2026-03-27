@@ -15,7 +15,7 @@ import os
 # Add backend root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.core.gcs_loader import (
+from app.core.simple_gcs_loader import (
     load_crime,
     load_service_311,
     load_food_inspections,

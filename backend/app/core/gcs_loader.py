@@ -5,7 +5,6 @@ Reads processed Parquet files directly from GCS.
 import logging
 import os
 from functools import lru_cache
-from datetime import date, timedelta
 from io import BytesIO
 
 import pandas as pd
