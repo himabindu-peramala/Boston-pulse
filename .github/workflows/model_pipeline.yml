@@ -180,7 +180,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r backend/requirements.txt
+          pip install -r requirements.txt
           pip install mlflow google-cloud-storage
 
       - name: Save best eval config to GCS
