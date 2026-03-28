@@ -18,12 +18,14 @@ From the repo root:
 Boston-pulse/
 ├── backend/          # API + model serving service
 ├── frontend/         # Web UI
-├── data-pipeline/    # Airflow-based ETL + GCS bucket store & versioning
+├── data-pipeline/    # Airflow-based ETL + GCS bucket store & lineage
+├── ml/               # ML Training code: crime-risk model, GCS I/O, Cloud Run image
 ├── notebooks/        # Exploratory analysis & research
-├── docker/           # Shared infra / docker-compose (root-level)
+├── docker/           # Shared infra (e.g. Airflow prod compose)
+├── infrastructure/   # GCP setup notes, secrets naming
 ├── data/             # Small sample or config data (not full raw data)
 ├── secrets/          # Local-only secrets (gitignored)
-└── .github/          # CI workflows (tests, lint, etc.)
+└── .github/          # CI workflows (data-pipeline, ML, etc.)
 ```
 
 Each of these acts as a separate micro‑service:
@@ -39,6 +41,9 @@ Each of these acts as a separate micro‑service:
 > If you are interested in the data pipeline, go directly to [`data-pipeline/`](./data-pipeline/), then read:
 > - [`data-pipeline/README.md`](./data-pipeline/README.md) – quickstart (env, Airflow, tests)
 > - [`data-pipeline/CONTRIBUTING.md`](./data-pipeline/CONTRIBUTING.md) – deep‑dive for contributors
+
+- **`ml/`** – **Training and publishing** for Navigate crime-risk scoring (LightGBM, Optuna, MLflow, fairness gates). It **reads feature tables produced by the data pipeline in GCS** and writes scores and model artifacts; production runs use a **Docker image** ([`ml/docker/ml-training.Dockerfile`](./ml/docker/ml-training.Dockerfile)) built in CI and executed as a **Google Cloud Run Job** (see [`.github/workflows/ml.yml`](./.github/workflows/ml.yml)). Full layout and local setup: [`ml/README.md`](./ml/README.md).
+
 - **`notebooks/`** – Jupyter notebooks used for EDA, prototyping, and documenting experiments.
 
 
@@ -59,6 +64,14 @@ cd boston-pulse
   - copying `.env.example` → `.env`
   - `make setup-dev`
   - `make airflow-up-dp` to run Airflow locally
+
+- **ML training**
+  
+  See [`ml/README.md`](./ml/README.md) for:
+  - how `ml/` relates to `data-pipeline/` (features in GCS)
+  - package layout, CLI entrypoint, and GCS path contract
+  - `make install-dev` / `make test` under `ml/`
+  - CI: build image + Cloud Run training + notifications ([`.github/workflows/ml.yml`](./.github/workflows/ml.yml))
 
 - **Backend API**
   
