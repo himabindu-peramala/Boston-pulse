@@ -1,10 +1,10 @@
-# docker/ml-training.Dockerfile
+# ml/docker/ml-training.Dockerfile
 #
 # ML Training container for Boston Pulse crime risk model.
 # This image is built by CI and tagged with the git SHA.
 #
-# Usage:
-#   docker build -f docker/ml-training.Dockerfile -t ml-training:local .
+# Usage (repository root as build context):
+#   docker build -f ml/docker/ml-training.Dockerfile -t ml-training:local .
 #   docker run ml-training:local python -m models.crime_navigate.cli train --help
 #
 # The DAG pulls this image and runs:

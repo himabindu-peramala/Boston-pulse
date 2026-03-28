@@ -6,14 +6,12 @@ on:
   push:
     paths:
       - 'ml/**'
-      - 'docker/ml-training.Dockerfile'
       - '.github/workflows/ml.yml'
     branches:
       - main
   pull_request:
     paths:
       - 'ml/**'
-      - 'docker/ml-training.Dockerfile'
       - '.github/workflows/ml.yml'
   workflow_dispatch:
     inputs:
@@ -193,7 +191,7 @@ jobs:
           echo "Building image: ${IMAGE_SHA}"
           
           docker build \
-            -f docker/ml-training.Dockerfile \
+            -f ml/docker/ml-training.Dockerfile \
             -t "${IMAGE_SHA}" \
             -t "${IMAGE_LATEST}" \
             --label "git.sha=${{ github.sha }}" \
@@ -227,7 +225,7 @@ jobs:
           echo "image_digest=" >> $GITHUB_OUTPUT
 
   # Training: Cloud Run runs the *container image* from Artifact Registry.
-  # docker/ml-training.Dockerfile COPYs ml/models, ml/shared, ml/configs into /app; CI pushes the image with --label git.sha.
+  # ml/docker/ml-training.Dockerfile COPYs ml/models, ml/shared, ml/configs into /app; CI pushes the image with --label git.sha.
   # The job only sets --image + CLI args; runtime reads data from GCS/Firestore using the job service account.
   run-cloud-run-training:
     name: Run training (Cloud Run Job)
