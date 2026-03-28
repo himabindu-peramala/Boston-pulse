@@ -8,7 +8,7 @@ on:
       - 'ml/**'
       - '.github/workflows/ml.yml'
     branches:
-      - main
+      - test
   pull_request:
     paths:
       - 'ml/**'
@@ -151,7 +151,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: integration-test
     if: |
-      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.ref == 'refs/heads/test' && github.event_name == 'push') ||
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_image_build != 'true')
     permissions:
@@ -202,8 +202,8 @@ jobs:
           echo "Pushing ${IMAGE_SHA}..."
           docker push "${IMAGE_SHA}"
           
-          # Only push :latest on main branch
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          # Only push :latest on test branch
+          if [[ "${{ github.ref }}" == "refs/heads/test" ]]; then
             echo "Pushing ${IMAGE_LATEST}..."
             docker push "${IMAGE_LATEST}"
           fi
@@ -234,7 +234,7 @@ jobs:
     if: |
       needs.build-push-image.result == 'success' &&
       (
-        (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+        (github.ref == 'refs/heads/test' && github.event_name == 'push') ||
         github.event_name == 'schedule' ||
         (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_training != 'true')
       )
@@ -310,7 +310,7 @@ jobs:
     # Run after all jobs finish (success, failure, or skipped) so results are available in needs.*.
     if: |
       always() &&
-      (github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      (github.ref == 'refs/heads/test' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     steps:
       - name: Slack summary
         env:
