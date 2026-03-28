@@ -16,16 +16,17 @@ From the repo root:
 
 ```text
 Boston-pulse/
-├── backend/          # API + model serving service
-├── frontend/         # Web UI
-├── data-pipeline/    # Airflow-based ETL + GCS bucket store & lineage
-├── ml/               # ML Training code: crime-risk model, GCS I/O, Cloud Run image
-├── notebooks/        # Exploratory analysis & research
-├── docker/           # Shared infra (e.g. Airflow prod compose)
-├── infrastructure/   # GCP setup notes, secrets naming
-├── data/             # Small sample or config data (not full raw data)
-├── secrets/          # Local-only secrets (gitignored)
-└── .github/          # CI workflows (data-pipeline, ML, etc.)
+├── data-pipeline/    # Airflow ETL, features in GCS, lineage
+├── ml/               # Training code, Docker image definition, tests
+├── backend/          # API (WIP)
+├── frontend/         # UI (WIP)
+├── notebooks/        # EDA
+├── infrastructure/   # GCP bootstrap (`gcp-setup.sh`), secrets reference
+├── scripts/          # Cloud Run bootstrap, GCS deploy, VM sync
+├── docker/           # Production Airflow compose / Dockerfiles
+├── data/             # Small samples (not full production data)
+├── secrets/          # Local-only; gitignored
+└── .github/workflows/# CI (e.g. ML training pipeline)
 ```
 
 Each of these acts as a separate micro‑service:
@@ -38,72 +39,105 @@ Each of these acts as a separate micro‑service:
   - Bias/fairness checks and model cards
   - GCS‑native lineage using GCS object generations
 
-> If you are interested in the data pipeline, go directly to [`data-pipeline/`](./data-pipeline/), then read:
-> - [`data-pipeline/README.md`](./data-pipeline/README.md) – quickstart (env, Airflow, tests)
-> - [`data-pipeline/CONTRIBUTING.md`](./data-pipeline/CONTRIBUTING.md) – deep‑dive for contributors
+## Setup: step by step
 
-- **`ml/`** – **Training and publishing** for Navigate crime-risk scoring (LightGBM, Optuna, MLflow, fairness gates). It **reads feature tables produced by the data pipeline in GCS** and writes scores and model artifacts; production runs use a **Docker image** ([`ml/docker/ml-training.Dockerfile`](./ml/docker/ml-training.Dockerfile)) built in CI and executed as a **Google Cloud Run Job** (see [`.github/workflows/ml.yml`](./.github/workflows/ml.yml)). Full layout and local setup: [`ml/README.md`](./ml/README.md).
-
-- **`notebooks/`** – Jupyter notebooks used for EDA, prototyping, and documenting experiments.
-
-
-## Getting Started
-
-### 1. Clone the repo
+### Step 1 — Clone the repository
 
 ```bash
 git clone https://github.com/himabindu-peramala/boston-pulse.git
 cd boston-pulse
 ```
 
-### 2. Pick a component to work on
+### Step 2 — Local development only (no GCP CI)
 
-- **Data Pipeline**
-  
-  See [`data-pipeline/README.md`](./data-pipeline/README.md) for:
-  - copying `.env.example` → `.env`
-  - `make setup-dev`
-  - `make airflow-up-dp` to run Airflow locally
+- **Airflow + pipeline:** follow [`data-pipeline/README.md`](./data-pipeline/README.md) (`.env` from `.env.example`, `make` targets).
+- **ML package:** follow [`ml/README.md`](./ml/README.md) (`cd ml && make install-dev && make test`).
 
-- **ML training**
-  
-  See [`ml/README.md`](./ml/README.md) for:
-  - how `ml/` relates to `data-pipeline/` (features in GCS)
-  - package layout, CLI entrypoint, and GCS path contract
-  - `make install-dev` / `make test` under `ml/`
-  - CI: build image + Cloud Run training + notifications ([`.github/workflows/ml.yml`](./.github/workflows/ml.yml))
+### Step 3 — GCP resources (once per project)
 
-- **Backend API**
-  
-  See `backend/` for how to run the API service and connect it to the pipeline outputs.
+**When:** Before CI can push images or run Cloud Run.  
+**Where:** Your machine, with [Google Cloud SDK](https://cloud.google.com/sdk) installed.
 
-- **Frontend**
-  
-  See `frontend/` for the UI setup (Node.js, dev server, etc.).
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
 
-- **Notebooks**
-  
-  Open `notebooks/` in Jupyter or VS Code to explore the data and experiments.
+# Preview, then apply
+export GCP_PROJECT_ID=YOUR_PROJECT_ID   # optional if you use the script default
+./infrastructure/gcp-setup.sh --dry-run
+./infrastructure/gcp-setup.sh
+```
+
+This creates/verifies buckets, Artifact Registry repos, APIs, and related wiring (see script header for details).
+
+### Step 4 — GitHub Actions secrets (already present)
+
+**When:** After Step 3, before you expect the **ML** workflow to build the image and run training.  
+**Where in GitHub:** **Repository → Settings → Secrets and variables → Actions → New repository secret.**
+
+| Secret name | Required? | Purpose |
+|-------------|------------|---------|
+| `WIF_PROVIDER` | Yes (for GCP from Actions) | Workload Identity Federation provider resource name |
+| `WIF_SERVICE_ACCOUNT` | Yes | Service account email GitHub assumes via WIF |
+| `GCP_PROJECT_ID` | Yes | GCP project ID (**all lowercase** — Docker image tags require it) |
+| `GCS_BUCKET` | Yes | Main data bucket the training job uses (same idea as pipeline data) |
+| `CLOUD_RUN_TRAINING_JOB` | No | Cloud Run **Job** name; if unset, CI uses default `ml-training-job` |
+| `SLACK_WEBHOOK_URL` | No | If set, the ML workflow posts a summary to Slack |
+
+**Optional (other automation):** `AIRFLOW_URL`, `AIRFLOW_USERNAME`, `AIRFLOW_PASSWORD` — see [`infrastructure/SECRETS.md`](./infrastructure/SECRETS.md) for full lists, examples, and how to obtain `WIF_PROVIDER`.
+
+### Step 5 — Create the Cloud Run training job (once)
+
+**When:** After Artifact Registry exists and you have a training image (or use `:latest` as in the script).  
+**Where:** Your machine, `gcloud` authenticated to the same project.
+
+```bash
+export GCP_PROJECT_ID=YOUR_PROJECT_ID
+export GCP_REGION=us-east1
+./scripts/bootstrap-cloud-run-training-job.sh
+```
+
+Optional environment variables are documented in the script (`TRAINING_IMAGE`, `GCS_BUCKET`, `TRAINING_JOB_SA`, etc.).
+
+### Step 6 — Airflow production VM (optional)
+
+**When:** You run Airflow on a VM and want DAGs/ML synced from GCS instead of git-only.  
+**Where:** On the VM — configure `docker/docker-compose.prod.yml` (or `.env`) using [`infrastructure/SECRETS.md`](./infrastructure/SECRETS.md) (Airflow section).  
+**Sync:** install/run [`scripts/gcs-sync.sh`](./scripts/gcs-sync.sh) (often via [`scripts/gcs-sync.service`](./scripts/gcs-sync.service)).
+
+### Scripts you rarely run by hand
+
+| Script | When | Where / env |
+|--------|------|-------------|
+| [`scripts/deploy-to-gcs.sh`](./scripts/deploy-to-gcs.sh) | CI uploads deploy bundle; manual only for debugging | Needs `GCS_DEPLOY_BUCKET`, `GITHUB_SHA`, `GITHUB_RUN_ID` |
+| [`scripts/gcs-sync.sh`](./scripts/gcs-sync.sh) | VM pulls new deploy from GCS | Env vars in script header; `--once` for a single run |
+
+---
+
+## Where credentials live (summary)
+
+| Location | What goes there |
+|----------|------------------|
+| **GitHub → Settings → Secrets → Actions** | `WIF_*`, `GCP_PROJECT_ID`, `GCS_BUCKET`, optional `CLOUD_RUN_TRAINING_JOB`, `SLACK_WEBHOOK_URL`, etc. |
+| **GCP** | Projects, buckets, IAM, WIF pool/provider (often created via `gcp-setup.sh`) |
+| **Airflow VM** | `.env` / compose for `GCS_BUCKET`, `GCP_PROJECT_ID`, Airflow keys, Slack, MLflow URI (see SECRETS.md) |
+| **Cloud Run job** | Runtime env vars are updated by **CI** when the workflow runs (`gcloud run jobs update`); no manual key paste for that path |
+| **Your laptop** | `data-pipeline/.env` (local Airflow); never commit keys. Optional `.secrets` for [`act`](https://github.com/nektos/act) — see SECRETS.md |
+
+---
 
 ## Contributing
 
-- Keep each micro‑service **self‑contained** with its own README and clear entry points.
-- Use environment variables / `.env` files (gitignored) for secrets; **never** commit API keys or service account JSON.
-
-You can also enable [pre‑commit](https://pre-commit.com/) locally to mirror CI checks:
+- Keep each service documented in its own README.
+- **Never** commit API keys or service account JSON.
 
 ```bash
 pip install pre-commit
 pre-commit install
 ```
 
-## Data Sources
+---
 
-The project primarily relies on datasets from Analyze Boston, including:
+## Data sources
 
-- 311 Service Requests
-- Crime Incident Reports
-- Fire Incident Reporting
-- Food Inspections
-- Vision Zero
-- BERDO
+Analyze Boston and related open data, including 311, crime, fire, food inspections, Vision Zero, and BERDO.
