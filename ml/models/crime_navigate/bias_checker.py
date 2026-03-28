@@ -141,7 +141,7 @@ def check_bias(
     )
 
     # Log to MLflow
-    with mlflow.start_run(run_id=mlflow_run_id):
+    with mlflow.start_run(run_id=mlflow_run_id, nested=True):
         mlflow.log_metrics(
             {
                 "bias_overall_rmse": overall_rmse,
