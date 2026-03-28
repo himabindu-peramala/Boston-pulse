@@ -179,7 +179,9 @@ jobs:
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
       - name: Install dependencies
-        run: pip install mlflow google-cloud-storage
+        run: |
+          pip install -r backend/requirements.txt
+          pip install mlflow google-cloud-storage
 
       - name: Save best eval config to GCS
         run: |
