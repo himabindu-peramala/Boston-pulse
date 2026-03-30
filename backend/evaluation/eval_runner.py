@@ -277,4 +277,3 @@ if __name__ == "__main__":
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     save_to_gcs(summary, f"eval_results_{timestamp}.json")
     save_to_gcs(summary, "eval_results_latest.json")
-    print("Results saved to GCS.")
