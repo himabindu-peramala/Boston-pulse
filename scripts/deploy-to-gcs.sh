@@ -54,13 +54,6 @@ if [[ -d "data-pipeline/dags" ]]; then
     }
 fi
 
-# ML DAGs
-if [[ -d "ml/dags" ]]; then
-    gsutil -m rsync -r -d "ml/dags/" "${DAGS_PATH}ml/" || {
-        log "WARNING: ml DAGs sync failed"
-    }
-fi
-
 # Upload ML source code (for training container and shared modules)
 log "Uploading ML code..."
 if [[ -d "ml" ]]; then

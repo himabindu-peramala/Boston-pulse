@@ -12,6 +12,7 @@ Configure these in your repository settings under **Settings > Secrets and varia
 | `WIF_SERVICE_ACCOUNT` | Service account email for WIF | `boston-pulse-data-pipeline@bostonpulse.iam.gserviceaccount.com` |
 | `GCP_PROJECT_ID` | GCP project ID | `bostonpulse` |
 | `GCS_BUCKET` | Primary GCS bucket for data pipeline | `boston-pulse-data-pipeline` |
+| `MLFLOW_TRACKING_URI` | MLflow tracking backend URI used by Cloud Run training (durable in prod) | `https://mlflow.your-org.com` or `sqlite:///mlflow.db` |
 | `CLOUD_RUN_TRAINING_JOB` | (Optional) Cloud Run Job name for ML training CI | `ml-training-job` (default if unset) |
 | `AIRFLOW_URL` | Airflow webserver URL (with port) | `http://YOUR_VM_IP:8080` |
 | `AIRFLOW_USERNAME` | Airflow admin username | `airflow` |
@@ -121,6 +122,7 @@ WIF_SERVICE_ACCOUNT=boston-pulse-data-pipeline@bostonpulse.iam.gserviceaccount.c
 GCP_PROJECT_ID=bostonpulse
 GCS_BUCKET=boston-pulse-data-pipeline
 CLOUD_RUN_TRAINING_JOB=ml-training-job
+MLFLOW_TRACKING_URI=sqlite:///mlflow_test.db
 AIRFLOW_URL=http://YOUR_VM_IP:8080
 AIRFLOW_USERNAME=airflow
 AIRFLOW_PASSWORD=your_password
