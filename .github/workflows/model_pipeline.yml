@@ -201,4 +201,4 @@ jobs:
           "
         env:
           GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
-          MLFLOW_TRACKING_URI: gs://boston-pulse-data-pipeline/mlruns
+          MLFLOW_TRACKING_URI: sqlite:///mlruns.db
