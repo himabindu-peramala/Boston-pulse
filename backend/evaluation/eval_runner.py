@@ -29,6 +29,9 @@ def evaluate_retrieval(question: dict) -> dict:
         - avg_score: average similarity score of retrieved chunks
         - response_time_ms: time taken for retrieval
         - retrieved_datasets: which datasets were actually retrieved
+        - is_out_of_scope: whether this is a negative/out-of-scope question
+        - false_positive: True if out-of-scope question returned chunks (bad!)
+        - correctly_rejected: True if out-of-scope question returned nothing (good!)
     """
     q_text = question["question"]
     expected_ds = question["expected_dataset"]
@@ -38,6 +41,9 @@ def evaluate_retrieval(question: dict) -> dict:
     if isinstance(expected_ds, str):
         expected_ds = [expected_ds]
 
+    # Check if this is an out-of-scope question
+    is_out_of_scope = expected_ds == ["none"]
+
     # Time the retrieval
     start = time.time()
     chunks = retrieve(q_text)
@@ -45,6 +51,38 @@ def evaluate_retrieval(question: dict) -> dict:
 
     # Check which datasets were retrieved
     retrieved_datasets = [c.dataset for c in chunks]
+
+    if is_out_of_scope:
+        # For out-of-scope questions:
+        # - correctly_rejected = True means retriever returned nothing (good!)
+        # - false_positive = True means retriever returned chunks for an
+        #   out-of-scope question (bad! — like giving Boston crime data
+        #   for a headache medicine question)
+        correctly_rejected = len(chunks) == 0
+        false_positive = len(chunks) > 0
+        retrieval_hit = correctly_rejected  # success = returning nothing
+
+        return {
+            "id": question["id"],
+            "question": q_text,
+            "category": question["category"],
+            "difficulty": question["difficulty"],
+            "is_out_of_scope": True,
+            "retrieval_hit": retrieval_hit,
+            "correctly_rejected": correctly_rejected,
+            "false_positive": false_positive,
+            "num_chunks_returned": len(chunks),
+            "retrieved_datasets": retrieved_datasets,
+            "keyword_coverage": 0,
+            "keyword_hits": [],
+            "keyword_misses": [],
+            "avg_score": round(sum(c.score for c in chunks) / len(chunks), 4) if chunks else 0,
+            "response_time_ms": elapsed_ms,
+            "expected_datasets": expected_ds,
+            "num_chunks": len(chunks),
+        }
+
+    # --- Normal (in-scope) question handling below ---
 
     # Retrieval accuracy — did any expected dataset appear?
     retrieval_hit = any(ds in retrieved_datasets for ds in expected_ds)
@@ -64,7 +102,10 @@ def evaluate_retrieval(question: dict) -> dict:
         "question": q_text,
         "category": question["category"],
         "difficulty": question["difficulty"],
+        "is_out_of_scope": False,
         "retrieval_hit": retrieval_hit,
+        "correctly_rejected": None,  # not applicable for in-scope questions
+        "false_positive": False,
         "keyword_coverage": round(kw_coverage, 4),
         "keyword_hits": kw_hits,
         "keyword_misses": [kw for kw in expected_kw if kw.lower() not in all_text],
@@ -101,17 +142,33 @@ def run_evaluation(questions: list = None) -> dict:
                 "question": q["question"],
                 "category": q["category"],
                 "difficulty": q["difficulty"],
+                "is_out_of_scope": q.get("expected_dataset") == "none",
                 "retrieval_hit": False,
+                "correctly_rejected": None,
+                "false_positive": False,
                 "keyword_coverage": 0,
                 "error": str(e),
             })
 
-    # Compute summary metrics
+    # Separate in-scope and out-of-scope results
+    in_scope = [r for r in results if not r.get("is_out_of_scope", False)]
+    out_of_scope = [r for r in results if r.get("is_out_of_scope", False)]
+
+    # Compute summary metrics for in-scope questions
     total = len(results)
-    hits = sum(1 for r in results if r.get("retrieval_hit", False))
-    avg_kw_coverage = sum(r.get("keyword_coverage", 0) for r in results) / total
-    avg_score = sum(r.get("avg_score", 0) for r in results) / total
+    total_in_scope = len(in_scope)
+    total_out_of_scope = len(out_of_scope)
+
+    hits = sum(1 for r in in_scope if r.get("retrieval_hit", False))
+    avg_kw_coverage = sum(r.get("keyword_coverage", 0) for r in in_scope) / total_in_scope if total_in_scope else 0
+    avg_score = sum(r.get("avg_score", 0) for r in in_scope) / total_in_scope if total_in_scope else 0
     avg_time = sum(r.get("response_time_ms", 0) for r in results) / total
+
+    # Out-of-scope metrics
+    false_positives = sum(1 for r in out_of_scope if r.get("false_positive", False))
+    correctly_rejected = sum(1 for r in out_of_scope if r.get("correctly_rejected", False))
+    rejection_rate = correctly_rejected / total_out_of_scope if total_out_of_scope else 0
+    false_positive_rate = false_positives / total_out_of_scope if total_out_of_scope else 0
 
     # Per-category breakdown
     categories = set(r["category"] for r in results)
@@ -141,10 +198,19 @@ def run_evaluation(questions: list = None) -> dict:
     summary = {
         "timestamp": datetime.utcnow().isoformat(),
         "total_questions": total,
-        "retrieval_accuracy": round(hits / total, 4),
+        "in_scope_questions": total_in_scope,
+        "out_of_scope_questions": total_out_of_scope,
+        # In-scope metrics
+        "retrieval_accuracy": round(hits / total_in_scope, 4) if total_in_scope else 0,
         "avg_keyword_coverage": round(avg_kw_coverage, 4),
         "avg_similarity_score": round(avg_score, 4),
         "avg_response_time_ms": round(avg_time, 2),
+        # Out-of-scope metrics
+        "rejection_rate": round(rejection_rate, 4),
+        "false_positive_rate": round(false_positive_rate, 4),
+        "false_positives": false_positives,
+        "correctly_rejected": correctly_rejected,
+        # Breakdowns
         "per_category": per_category,
         "per_difficulty": per_difficulty,
         "results": results,
@@ -159,12 +225,21 @@ def print_summary(summary: dict):
     print("BOSTON PULSE RAG — EVALUATION RESULTS")
     print("=" * 60)
     print(f"Timestamp: {summary['timestamp']}")
-    print(f"Questions evaluated: {summary['total_questions']}")
-    print("\nOverall metrics:")
+    print(f"Total questions: {summary['total_questions']} "
+          f"({summary['in_scope_questions']} in-scope, "
+          f"{summary['out_of_scope_questions']} out-of-scope)")
+
+    print("\nIn-scope metrics:")
     print(f"  Retrieval accuracy:    {summary['retrieval_accuracy']:.1%}")
     print(f"  Avg keyword coverage:  {summary['avg_keyword_coverage']:.1%}")
     print(f"  Avg similarity score:  {summary['avg_similarity_score']:.4f}")
     print(f"  Avg response time:     {summary['avg_response_time_ms']:.0f} ms")
+
+    print("\nOut-of-scope robustness:")
+    print(f"  Correctly rejected:    {summary['correctly_rejected']}/{summary['out_of_scope_questions']} "
+          f"({summary['rejection_rate']:.1%})")
+    print(f"  False positives:       {summary['false_positives']}/{summary['out_of_scope_questions']} "
+          f"({summary['false_positive_rate']:.1%})")
 
     print("\nPer category:")
     for cat, metrics in sorted(summary["per_category"].items()):
@@ -178,12 +253,28 @@ def print_summary(summary: dict):
     print("=" * 60)
 
 
+def save_to_gcs(data: dict, filename: str, bucket_name: str = "boston-pulse-data-pipeline"):
+    """Save evaluation results to GCS instead of local repo."""
+    try:
+        from google.cloud import storage
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(f"mlflow/evaluation-results/{filename}")
+        blob.upload_from_string(json.dumps(data, indent=2, default=str))
+        print(f"Saved to gs://{bucket_name}/mlflow/evaluation-results/{filename}")
+    except Exception as e:
+        # Fallback to local if GCS not available
+        print(f"GCS unavailable ({e}), saving locally")
+        with open(f"evaluation/{filename}", "w") as f:
+            json.dump(data, f, indent=2, default=str)
+
+
 if __name__ == "__main__":
     summary = run_evaluation()
     print_summary(summary)
 
-    # Save results to file
-    output_path = "evaluation/eval_results.json"
-    with open(output_path, "w") as f:
-        json.dump(summary, f, indent=2, default=str)
-    print(f"\nDetailed results saved to {output_path}")
+    # Save results to GCS (with local fallback)
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    save_to_gcs(summary, f"eval_results_{timestamp}.json")
+    save_to_gcs(summary, "eval_results_latest.json")
+    print("Results saved to GCS.")
