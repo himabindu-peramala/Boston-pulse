@@ -62,8 +62,8 @@ mlflow-local:
 		--host 0.0.0.0 --port 5001
 
 train:
-	@echo "Running local training..."
-	python -c "from dags.crime_navigate_train_dag import task_load_features; print('DAG imports OK')"
+	@echo "Local training: use the CLI (same entrypoint as Cloud Run)"
+	python -m models.crime_navigate.cli train --help
 
 # Cleanup
 clean:
