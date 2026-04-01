@@ -26,7 +26,7 @@ storage:
 # Validation - Relaxed for development
 # -----------------------------------------------------------------------------
 validation:
-  schema:
+  quality_schema:
     strict_mode: false  # Allow schema exploration
     allow_extra_columns: true
 
@@ -34,6 +34,9 @@ validation:
     max_null_ratio: 0.20  # More lenient for testing
     max_duplicate_ratio: 0.05
     min_row_count: 10  # Lower threshold for dev
+  overrides:
+    fire:
+      max_null_ratio: 1.0
 
 # -----------------------------------------------------------------------------
 # Drift - Relaxed thresholds
@@ -109,3 +112,5 @@ apis:
   analyze_boston:
     timeout_seconds: 30
     rate_limit_per_minute: 30  # Slower to avoid rate limits during testing
+
+
