@@ -99,7 +99,7 @@ def main():
             continue
 
     logger.info("=" * 50)
-    logger.info(f"Ingestion complete!")
+    logger.info("Ingestion complete!")
     logger.info(f"Datasets ingested: {ingested_datasets}")
     logger.info(f"Total chunks stored: {total_chunks}")
 

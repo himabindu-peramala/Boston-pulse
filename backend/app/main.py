@@ -15,9 +15,14 @@ from __future__ import annotations
 import os
 
 from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from flasgger import Swagger
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+
+from app.core.config import settings
+from app.routes import health as health_route, chat, ingest
 
 # Load environment variables from backend/.env
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
@@ -598,11 +603,6 @@ app = create_app()
 # ║  2.  FASTAPI — RAG Chatbot API                                     ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-from app.core.config import settings
-from app.routes import health as health_route, chat, ingest
 
 fastapi_app = FastAPI(
     title="Boston Pulse Chatbot API",
