@@ -1,0 +1,49 @@
+# scripts/gcs-sync.service
+#
+# Systemd service for GCS-based deployment sync.
+#
+# Installation:
+#   sudo cp scripts/gcs-sync.service /etc/systemd/system/gcs-sync-boston-pulse.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable gcs-sync-boston-pulse
+#   sudo systemctl start gcs-sync-boston-pulse
+#
+# Monitoring:
+#   sudo systemctl status gcs-sync-boston-pulse
+#   journalctl -u gcs-sync-boston-pulse -f
+
+[Unit]
+Description=Boston Pulse GCS Deployment Sync
+After=network-online.target google-cloud-sdk.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=airflow
+Group=airflow
+
+# Environment configuration
+Environment="GCS_DEPLOY_BUCKET=boston-pulse-deployments"
+Environment="DEPLOY_PREFIX=airflow"
+Environment="LOCAL_DAGS_DIR=/opt/airflow/dags"
+Environment="LOCAL_ML_DIR=/opt/airflow/ml"
+Environment="POLL_INTERVAL=60"
+Environment="STATE_FILE=/opt/airflow/.last_deployed_sha"
+
+# Working directory
+WorkingDirectory=/opt/airflow
+
+# The sync script
+ExecStart=/opt/airflow/scripts/gcs-sync.sh
+
+# Restart on failure
+Restart=always
+RestartSec=30
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gcs-sync-boston-pulse
+
+[Install]
+WantedBy=multi-user.target

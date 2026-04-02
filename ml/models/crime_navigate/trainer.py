@@ -80,7 +80,7 @@ def train_model(
     lgb_tr = lgb.Dataset(X_tr, label=y_tr, categorical_feature=cat_cols)
     lgb_v = lgb.Dataset(X_v, label=y_v, reference=lgb_tr)
 
-    with mlflow.start_run(run_id=mlflow_run_id):
+    with mlflow.start_run(run_id=mlflow_run_id, nested=True):
         mlflow.log_params(
             {
                 **params,

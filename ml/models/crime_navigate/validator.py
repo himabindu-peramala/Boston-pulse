@@ -89,7 +89,7 @@ def validate_model(
     )
 
     # Log metrics to MLflow
-    with mlflow.start_run(run_id=mlflow_run_id):
+    with mlflow.start_run(run_id=mlflow_run_id, nested=True):
         mlflow.log_metrics(
             {
                 "rmse_val_final": rmse,
@@ -159,7 +159,7 @@ def _compute_shap(
             json.dump(importance, f, indent=2)
 
         # Log to MLflow
-        with mlflow.start_run(run_id=run_id):
+        with mlflow.start_run(run_id=run_id, nested=True):
             mlflow.log_artifact(plot_path, "shap")
             mlflow.log_artifact(json_path, "shap")
 

@@ -1,10 +1,13 @@
 """
-Boston Pulse — Safe Walking Route API
+Boston Pulse — Backend API
 
-Flask application exposing a single endpoint that returns safety-ranked
-walking routes between two points in Boston.
+This module hosts TWO micro-services side-by-side:
+  1. Flask app  – Safe Walking Route API   (port 5001, /api/routes/safe-walk …)
+  2. FastAPI app – RAG Chatbot API          (port 8000, /api/chat …)
 
-Swagger UI available at: http://localhost:5001/apidocs
+Run whichever you need:
+  flask --app app.main run -p 5001
+  uvicorn app.main:fastapi_app --port 8000
 """
 
 from __future__ import annotations
@@ -19,6 +22,10 @@ from flask_cors import CORS
 # Load environment variables from backend/.env
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  1.  FLASK — Safe Walking Route API                                ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 def create_app(config_path: str | None = None) -> Flask:
     """Application factory."""
@@ -585,3 +592,33 @@ def create_app(config_path: str | None = None) -> Flask:
 
 # Allow `flask --app app.main run`
 app = create_app()
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  2.  FASTAPI — RAG Chatbot API                                     ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.config import settings
+from app.routes import health as health_route, chat, ingest
+
+fastapi_app = FastAPI(
+    title="Boston Pulse Chatbot API",
+    description="RAG-powered civic intelligence chatbot for Boston.",
+    version="0.1.0",
+    docs_url="/docs",
+)
+
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+fastapi_app.include_router(health_route.router, tags=["Health"])
+fastapi_app.include_router(chat.router,         prefix="/api", tags=["Chat"])
+fastapi_app.include_router(ingest.router,       prefix="/api", tags=["Ingest"])

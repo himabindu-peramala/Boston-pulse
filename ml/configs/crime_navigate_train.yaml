@@ -138,3 +138,29 @@ alerting:
     - gate_failure
     - model_pushed
     - scores_published
+
+# Training backend configuration
+# Supports: docker_on_vm (default), vertex
+training_backend:
+  # Backend to use: docker_on_vm | vertex
+  # docker_on_vm: Run training in Docker container on Airflow VM (current default)
+  # vertex: Submit training job to Vertex AI CustomJob (scalable, managed)
+  backend: docker_on_vm
+  
+  # Vertex AI configuration (only used when backend: vertex)
+  vertex:
+    # GCP region for Vertex AI jobs
+    region: us-east1
+    # Machine type for training
+    machine_type: n1-standard-4
+    # Accelerator (optional, for GPU training)
+    accelerator_type: null
+    accelerator_count: 0
+    # Disk size in GB
+    boot_disk_size_gb: 100
+    # Timeout in seconds (4 hours)
+    timeout_seconds: 14400
+    # Service account for Vertex jobs (uses default if not specified)
+    service_account: null
+    # Staging bucket for Vertex artifacts
+    staging_bucket: boston-pulse-mlflow-artifacts

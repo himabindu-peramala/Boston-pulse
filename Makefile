@@ -80,9 +80,8 @@ sync-dags:
 	@echo "Synced. Scheduler picks up changes in ~30s."
 
 trigger-training:
-	$(COMPOSE_CMD) exec airflow-scheduler \
-	  airflow dags trigger crime_navigate_train \
-	  --conf "{\"execution_date\": \"$$(date +%Y-%m-%d)\"}"
+	@echo "Training is run via GitHub Actions → Cloud Run Job (see .github/workflows/ml.yml)."
+	@echo "Local one-off:  cd ml && python -m models.crime_navigate.cli train --execution-date \$$(date +%Y-%m-%d) --stage staging"
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 ml-test:
