@@ -60,7 +60,7 @@ set_current_sha() {
 fetch_manifest() {
     local tmp_manifest
     tmp_manifest=$(mktemp)
-    
+
     if gsutil -q cp "$MANIFEST_PATH" "$tmp_manifest" 2>/dev/null; then
         cat "$tmp_manifest"
         rm -f "$tmp_manifest"
@@ -75,22 +75,22 @@ sync_deployment() {
     local manifest="$1"
     local sha
     sha=$(echo "$manifest" | jq -r '.git_sha // empty')
-    
+
     if [[ -z "$sha" ]]; then
         log "ERROR: Manifest missing git_sha"
         return 1
     fi
-    
+
     local current_sha
     current_sha=$(get_current_sha)
-    
+
     if [[ "$sha" == "$current_sha" ]]; then
         log "Already at SHA $sha, skipping sync"
         return 0
     fi
-    
+
     log "New deployment detected: $current_sha -> $sha"
-    
+
     # Sync DAGs
     log "Syncing DAGs from $DAGS_PATH..."
     mkdir -p "$LOCAL_DAGS_DIR"
@@ -98,7 +98,7 @@ sync_deployment() {
         log "ERROR: DAG sync failed"
         return 1
     }
-    
+
     # Sync ML code (if present)
     if gsutil -q ls "$ML_PATH" &>/dev/null; then
         log "Syncing ML code from $ML_PATH..."
@@ -108,21 +108,21 @@ sync_deployment() {
             return 1
         }
     fi
-    
+
     # Update state
     set_current_sha "$sha"
-    
+
     # Log deployment info
     local timestamp
     timestamp=$(echo "$manifest" | jq -r '.timestamp // "unknown"')
     local workflow_run
     workflow_run=$(echo "$manifest" | jq -r '.workflow_run_id // "unknown"')
-    
+
     log "Deployment complete:"
     log "  SHA: $sha"
     log "  Timestamp: $timestamp"
     log "  Workflow: $workflow_run"
-    
+
     return 0
 }
 
@@ -133,7 +133,7 @@ main_loop() {
     log "  DAGs dir: $LOCAL_DAGS_DIR"
     log "  ML dir: $LOCAL_ML_DIR"
     log "  Poll interval: ${POLL_INTERVAL}s"
-    
+
     while true; do
         local manifest
         if manifest=$(fetch_manifest); then
@@ -141,12 +141,12 @@ main_loop() {
         else
             log "No manifest found at $MANIFEST_PATH"
         fi
-        
+
         if $RUN_ONCE; then
             log "Single run complete, exiting"
             break
         fi
-        
+
         sleep "$POLL_INTERVAL"
     done
 }

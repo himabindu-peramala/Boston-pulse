@@ -381,7 +381,7 @@ EVAL_DATASET = [
     "difficulty": "easy",
 },
 {
-    "id": "neg_02", 
+    "id": "neg_02",
     "question": "Which is the best medicine for headache?",
     "expected_dataset": "none",
     "expected_keywords": [],
