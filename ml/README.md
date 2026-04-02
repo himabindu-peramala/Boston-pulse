@@ -22,6 +22,67 @@ For how raw data becomes features, lineage, and bucket layout on the **ingest si
 
 ---
 
+## ML Training Pipeline Architecture
+
+```mermaid
+flowchart TD
+    subgraph Triggers
+        T1["Push to main\n(ml/** changed)"]
+        T2["Pull Request\n(ml/** changed)"]
+        T3["Manual\n(workflow_dispatch)"]
+        T4["Weekly Cron\n(Sun 2 AM UTC)"]
+    end
+
+    T1 & T2 & T3 & T4 --> LINT
+
+    subgraph Quality Gates
+        LINT["Lint & Format Check\n---\nruff check ml/\nblack --check ml/"]
+        UNIT["Unit Tests\n---\npytest tests/unit/\ncoverage >= 80%\nUpload to Codecov"]
+        INTEG["Integration Tests\n---\npytest tests/integration/\n30 min timeout\nGCS Storage emulator"]
+    end
+
+    LINT --> UNIT --> INTEG
+
+    INTEG --> DEC1{"Main / schedule /\nmanual build?"}
+
+    DEC1 -- "PR only" --> PR_DONE(["PR Checks Complete"])
+
+    DEC1 -- "Yes" --> BUILD
+
+    subgraph Build & Deploy
+        BUILD["Build & Push Docker Image\n---\nGCP Workload Identity Auth\nml-training.Dockerfile -> Artifact Registry\nTags: git SHA + :latest (us-east1)"]
+    end
+
+    BUILD --> DEC2{"skip_training\n!= true?"}
+
+    DEC2 -- "Yes" --> TRAIN
+
+    TRAIN["Cloud Run Training Job\n---\ngcloud run jobs execute -> --wait\npython -m models.crime_navigate.cli train\n--execution-date . --stage staging\nEnv: GIT_SHA, MLFLOW_URI, GCS_BUCKET"]
+
+    TRAIN --> NOTIFY
+
+    DEC2 -- "No" --> NOTIFY
+
+    subgraph Notification
+        NOTIFY["Slack Notification\n---\nAggregates: lint / unit / integration / build / train\nPass or Fail summary\nLink to Actions run"]
+    end
+
+    NOTIFY --> PASS(["Pipeline Complete"])
+    NOTIFY --> FAIL(["Pipeline Failed"])
+
+    classDef trigger fill:#e7f5ff,stroke:#1971c2,color:#1971c2,font-weight:bold
+    classDef job fill:#f8f9fa,stroke:#343a40,color:#1b1b1f,font-weight:bold
+    classDef decision fill:#fff9db,stroke:#e67700,color:#e67700,font-weight:bold
+    classDef success fill:#ebfbee,stroke:#2b8a3e,color:#2b8a3e,font-weight:bold
+    classDef fail fill:#fff5f5,stroke:#e03131,color:#e03131,font-weight:bold
+
+    class T1,T2,T3,T4 trigger
+    class LINT,UNIT,INTEG,BUILD,TRAIN,NOTIFY job
+    class DEC1,DEC2 decision
+    class PR_DONE,PASS success
+    class FAIL fail
+```
+
 ## Repository layout (`ml/`)
 
 ```text
