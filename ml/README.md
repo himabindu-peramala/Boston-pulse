@@ -1,9 +1,9 @@
 # Boston Pulse — ML training
 
-This directory is the **Python package and tooling for training and publishing ML models for Boston Pulse**. 
+This directory is the **Python package and tooling for training and publishing ML models for Boston Pulse**.
 
 ## Architecture
-The ML pipeline is separate from the Airflow data pipeline: **the data pipeline produces curated features in GCS**; **this package consumes those features (making it decopled)**, trains a model, runs quality and fairness gates, and writes scores and metadata back to GCS and Firestore for serving. 
+The ML pipeline is separate from the Airflow data pipeline: **the data pipeline produces curated features in GCS**; **this package consumes those features (making it decopled)**, trains a model, runs quality and fairness gates, and writes scores and metadata back to GCS and Firestore for serving.
 
 For how raw data becomes features, lineage, and bucket layout on the **ingest side**, start with the data pipeline docs:
 
@@ -74,12 +74,12 @@ Workflow file: **[`.github/workflows/ml.yml`](../.github/workflows/ml.yml)** (tr
 
 Rough flow:
 
-1. **Lint** (ruff + black check)  
-2. **Unit tests** (pytest, coverage)  
-3. **Integration tests**  
-4. **Build & push** image to Artifact Registry (`us-east1-docker.pkg.dev/.../ml-images/ml-training`) — on `main` push, schedule, or manual dispatch (unless `skip_image_build`)  
-5. **Cloud Run Job** — updates the job image and runs `python -m models.crime_navigate.cli train ...` with `--wait`  
-6. **Notify** — Slack summary; the job fails if any upstream job failed or was cancelled  
+1. **Lint** (ruff + black check)
+2. **Unit tests** (pytest, coverage)
+3. **Integration tests**
+4. **Build & push** image to Artifact Registry (`us-east1-docker.pkg.dev/.../ml-images/ml-training`) — on `main` push, schedule, or manual dispatch (unless `skip_image_build`)
+5. **Cloud Run Job** — updates the job image and runs `python -m models.crime_navigate.cli train ...` with `--wait`
+6. **Notify** — Slack summary; the job fails if any upstream job failed or was cancelled
 
 Scheduled run: **weekly (Sunday 02:00 UTC)** per cron in the workflow.
 
@@ -89,16 +89,16 @@ Manual **workflow_dispatch** inputs allow `execution_date`, `skip_training`, and
 
 ## Design principles (summary)
 
-1. **Separation from ETL** — `ml/` reads pipeline outputs via **GCS** and config, not by importing Airflow DAG code.  
-2. **Gates block promotion** — validation and bias failures stop the pipeline.  
-3. **Config-first** — thresholds and paths live in YAML.  
-4. **Same container locally and in GCP** — Dockerfile + CLI keep dev/prod entrypoints aligned.  
+1. **Separation from ETL** — `ml/` reads pipeline outputs via **GCS** and config, not by importing Airflow DAG code.
+2. **Gates block promotion** — validation and bias failures stop the pipeline.
+3. **Config-first** — thresholds and paths live in YAML.
+4. **Same container locally and in GCP** — Dockerfile + CLI keep dev/prod entrypoints aligned.
 5. **Traceability** — MLflow for experiments; registry + env vars (`GIT_SHA`, `ML_IMAGE`) for tying runs to code and image.
 
 ---
 
 ## Further reading
 
-- Root overview: [`../README.md`](../README.md)  
-- Data pipeline: [`../data-pipeline/README.md`](../data-pipeline/README.md)  
+- Root overview: [`../README.md`](../README.md)
+- Data pipeline: [`../data-pipeline/README.md`](../data-pipeline/README.md)
 - Infra secrets / WIF / Cloud Run naming: [`../infrastructure/SECRETS.md`](../infrastructure/SECRETS.md)

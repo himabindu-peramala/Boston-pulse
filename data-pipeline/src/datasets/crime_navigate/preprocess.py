@@ -57,9 +57,9 @@ def preprocess_crime_navigate(raw_df: pd.DataFrame, execution_date: str) -> pd.D
     if "lat" in df.columns:
         df.loc[(df["lat"].notna()) & ((df["lat"] < min_lat) | (df["lat"] > max_lat)), "lat"] = pd.NA
     if "long" in df.columns:
-        df.loc[(df["long"].notna()) & ((df["long"] < min_lon) | (df["long"] > max_lon)), "long"] = (
-            pd.NA
-        )
+        df.loc[
+            (df["long"].notna()) & ((df["long"] < min_lon) | (df["long"] > max_lon)), "long"
+        ] = pd.NA
 
     # 5. Shooting boolean: str(x).strip() == "1"
     if "shooting_raw" in df.columns:

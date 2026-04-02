@@ -89,7 +89,7 @@ log "Creating/verifying GCS buckets..."
 create_bucket_if_not_exists() {
     local bucket_name="$1"
     local location="${2:-$REGION}"
-    
+
     if gsutil ls -b "gs://${bucket_name}" &>/dev/null; then
         log "  ✓ gs://${bucket_name} already exists"
     else
@@ -111,7 +111,7 @@ create_ar_repo_if_not_exists() {
     local repo_name="$1"
     local format="$2"
     local description="$3"
-    
+
     if gcloud artifacts repositories describe "$repo_name" \
         --location="$REGION" \
         --project="$PROJECT_ID" &>/dev/null; then
@@ -141,7 +141,7 @@ grant_role_if_not_exists() {
     local sa="$1"
     local role="$2"
     local resource="${3:-}"
-    
+
     if [[ -n "$resource" ]]; then
         # Resource-level binding (e.g., bucket)
         log "  Granting $role on $resource to $sa..."
@@ -153,7 +153,7 @@ grant_role_if_not_exists() {
             --flatten="bindings[].members" \
             --filter="bindings.role:$role AND bindings.members:serviceAccount:$sa" \
             --format="value(bindings.members)" 2>/dev/null || true)
-        
+
         if [[ -n "$existing" ]]; then
             log "  ✓ $sa already has $role"
         else
@@ -181,7 +181,7 @@ grant_role_if_not_exists "$DATA_PIPELINE_SA" "roles/datastore.user"
 # =============================================================================
 if [[ -n "$GITHUB_REPO" ]]; then
     log "Configuring Workload Identity Federation for GitHub Actions..."
-    
+
     # Create identity pool if not exists
     if gcloud iam workload-identity-pools describe "$WIF_POOL" \
         --location="global" \
@@ -194,7 +194,7 @@ if [[ -n "$GITHUB_REPO" ]]; then
             --project="$PROJECT_ID" \
             --display-name="GitHub Actions Pool"
     fi
-    
+
     # Create OIDC provider if not exists
     if gcloud iam workload-identity-pools providers describe "$WIF_PROVIDER" \
         --workload-identity-pool="$WIF_POOL" \
@@ -211,10 +211,10 @@ if [[ -n "$GITHUB_REPO" ]]; then
             --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository" \
             --attribute-condition="assertion.repository=='${GITHUB_REPO}'"
     fi
-    
+
     # Bind service account to WIF
     WIF_MEMBER="principalSet://iam.googleapis.com/projects/$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')/locations/global/workloadIdentityPools/${WIF_POOL}/attribute.repository/${GITHUB_REPO}"
-    
+
     log "  Binding service account to WIF..."
     run_cmd gcloud iam service-accounts add-iam-policy-binding "$DATA_PIPELINE_SA" \
         --project="$PROJECT_ID" \

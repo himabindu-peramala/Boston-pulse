@@ -36,12 +36,12 @@ async def generate_answer(
 ) -> str:
     """
     Generate an answer using retrieved context chunks.
-    
+
     Args:
         question: User's question
         context_chunks: Retrieved text chunks from vector DB
         history: Conversation history in Gemini format
-    
+
     Returns:
         Gemini's grounded answer
     """

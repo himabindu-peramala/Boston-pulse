@@ -7,7 +7,7 @@ The system:
 - Builds predictive models for civic services, neighborhood recommendations, and urban risk
 - Enables natural-language interaction with structured and real-time city data
 - Demonstrates an end-to-end ML pipeline grounded in public open data
-  
+
 This repository is organized as a **monorepo of micro-services**: each top-level directory is its own component with its own README and setup, so you can work on the data pipeline, backend, and frontend independently.
 
 ## Monorepo Structure
@@ -55,7 +55,7 @@ cd boston-pulse
 
 ### Step 3 — GCP resources (once per project)
 
-**When:** Before CI can push images or run Cloud Run.  
+**When:** Before CI can push images or run Cloud Run.
 **Where:** Your machine, with [Google Cloud SDK](https://cloud.google.com/sdk) installed.
 
 ```bash
@@ -72,7 +72,7 @@ This creates/verifies buckets, Artifact Registry repos, APIs, and related wiring
 
 ### Step 4 — GitHub Actions secrets (already present)
 
-**When:** After Step 3, before you expect the **ML** workflow to build the image and run training.  
+**When:** After Step 3, before you expect the **ML** workflow to build the image and run training.
 **Where in GitHub:** **Repository → Settings → Secrets and variables → Actions → New repository secret.**
 
 | Secret name | Required? | Purpose |
@@ -88,7 +88,7 @@ This creates/verifies buckets, Artifact Registry repos, APIs, and related wiring
 
 ### Step 5 — Create the Cloud Run training job (once)
 
-**When:** After Artifact Registry exists and you have a training image (or use `:latest` as in the script).  
+**When:** After Artifact Registry exists and you have a training image (or use `:latest` as in the script).
 **Where:** Your machine, `gcloud` authenticated to the same project.
 
 ```bash
@@ -101,8 +101,8 @@ Optional environment variables are documented in the script (`TRAINING_IMAGE`, `
 
 ### Step 6 — Airflow production VM (optional)
 
-**When:** You run Airflow on a VM and want DAGs/ML synced from GCS instead of git-only.  
-**Where:** On the VM — configure `docker/docker-compose.prod.yml` (or `.env`) using [`infrastructure/SECRETS.md`](./infrastructure/SECRETS.md) (Airflow section).  
+**When:** You run Airflow on a VM and want DAGs/ML synced from GCS instead of git-only.
+**Where:** On the VM — configure `docker/docker-compose.prod.yml` (or `.env`) using [`infrastructure/SECRETS.md`](./infrastructure/SECRETS.md) (Airflow section).
 **Sync:** install/run [`scripts/gcs-sync.sh`](./scripts/gcs-sync.sh) (often via [`scripts/gcs-sync.service`](./scripts/gcs-sync.service)).
 
 ### Scripts you rarely run by hand

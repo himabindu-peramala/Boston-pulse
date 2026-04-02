@@ -45,7 +45,7 @@ features:
   # Categorical features — LightGBM handles these natively
   categorical_columns:
     - hour_bucket
-    
+
   # Target column built by target_builder.py
   # danger_rate = total_severity / days_active per (h3_index, hour_bucket)
   target_column: danger_rate
@@ -146,7 +146,7 @@ training_backend:
   # docker_on_vm: Run training in Docker container on Airflow VM (current default)
   # vertex: Submit training job to Vertex AI CustomJob (scalable, managed)
   backend: docker_on_vm
-  
+
   # Vertex AI configuration (only used when backend: vertex)
   vertex:
     # GCP region for Vertex AI jobs
