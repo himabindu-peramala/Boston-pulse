@@ -43,11 +43,18 @@ class RetrievedChunk(BaseModel):
     score: float        # similarity score
 
 
+DATASET_LABELS = {
+    "crime": "BPD Crime Reports",
+    "311": "Boston 311 Data",
+    "food_inspections": "Food Inspection Records",
+    "cityscore": "CityScore Data",
+    "berdo": "BERDO Energy Reports",
+    "street_sweeping": "Street Sweeping Schedule",
+}
+
 class ChatResponse(BaseModel):
-    session_id: str
-    answer: str
-    sources: List[RetrievedChunk] = []
-    computed_at: datetime = Field(default_factory=datetime.utcnow)
+    text: str
+    sources: List[str] = []
 
 
 # =============================================================================

@@ -7,7 +7,7 @@ import uuid
 from typing import List
 
 from app.core.session_store import add_turn, get_history
-from app.models.schemas import ChatRequest, ChatResponse, RetrievedChunk
+from app.models.schemas import ChatRequest, ChatResponse, RetrievedChunk, DATASET_LABELS
 from app.services.retriever import retrieve
 from app.services.gemini_client import generate_answer
 
@@ -48,8 +48,13 @@ async def handle_chat(request: ChatRequest) -> ChatResponse:
     # Step 4 — Save to session history
     add_turn(session_id, request.message, answer)
 
+    seen = []
+    for c in chunks:
+        label = DATASET_LABELS.get(c.dataset, c.dataset)
+        if label not in seen:
+            seen.append(label)
+
     return ChatResponse(
-        session_id=session_id,
-        answer=answer,
-        sources=chunks,
+        text=answer,
+        sources=seen,
     )
