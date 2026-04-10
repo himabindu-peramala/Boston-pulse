@@ -1,0 +1,283 @@
+# =============================================================================
+# BOSTON PULSE - BASE CONFIGURATION
+# =============================================================================
+# Shared defaults for all environments. Environment-specific configs inherit
+# from this file and can override any value.
+#
+# Usage: These values are loaded by src/shared/config.py
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Project Metadata
+# -----------------------------------------------------------------------------
+project:
+  name: "boston-pulse"
+  version: "0.1.0"
+  description: "Urban analytics platform for Boston public safety"
+
+# -----------------------------------------------------------------------------
+# GCS Storage Configuration
+# -----------------------------------------------------------------------------
+storage:
+  # Bucket names (override in env-specific configs)
+  buckets:
+    main: "boston-pulse-data-prod"
+    dvc: "boston-pulse-dvc"
+    temp: "boston-pulse-temp"
+
+  # Data layer paths within main bucket
+  paths:
+    raw: "raw"
+    processed: "processed"
+    features: "features"
+    schemas: "schemas"
+    model_cards: "model_cards"
+
+  # File formats
+  formats:
+    raw: "parquet"
+    processed: "parquet"
+    features: "parquet"
+
+# -----------------------------------------------------------------------------
+# Dataset Defaults
+# -----------------------------------------------------------------------------
+datasets:
+  # Default schedule for batch datasets (daily at 2 AM UTC)
+  default_schedule: "0 2 * * *"
+
+  # Retry configuration
+  retries:
+    max_attempts: 3
+    delay_seconds: 300  # 5 minutes
+    exponential_backoff: true
+
+  # Watermark configuration (for incremental ingestion)
+  watermark:
+    enabled: true
+    lookback_days: 7  # Re-fetch last 7 days by default
+
+# -----------------------------------------------------------------------------
+# Validation Configuration
+# -----------------------------------------------------------------------------
+validation:
+  # Schema validation (renamed from 'schema' to match pydantic structure)
+  quality_schema:
+    strict_mode: true  # Fail on any schema violation
+    allow_extra_columns: true
+
+  # Data quality thresholds
+  quality:
+    max_null_ratio: 0.25  # Max 25% null values per column (increased from 5% for realistic urban data)
+    max_duplicate_ratio: 0.01  # Max 1% duplicate rows
+    min_row_count: 100  # Minimum rows expected
+
+  # Dataset-specific quality overrides
+  overrides:
+    crime:
+      min_row_count: 5
+      max_null_ratio:
+        OFFENSE_CODE_GROUP: 1.0  # Allow 100% null (deprecated)
+        UCR_PART: 1.0           # Allow 100% null (deprecated)
+    food_inspections:
+      min_row_count: 5
+      allow_extra_columns: true
+      max_null_ratio:
+        dbaname: 1.0
+        legalowner: 1.0
+        status_date: 1.0
+        namefirst: 1.0
+    service_311:
+      allow_extra_columns: true
+      max_null_ratio:
+        closed_dt: 0.8
+        submitted_photo: 1.0
+        closed_photo: 1.0
+        location_zipcode: 0.8
+    cityscore:
+      min_row_count: 1
+      allow_extra_columns: true
+      max_null_ratio:
+        target: 0.8
+        day_score: 1.0
+        day_numerator: 1.0
+        day_denominator: 1.0
+        week_score: 0.8
+        month_score: 0.8
+        quarter_score: 0.8
+    crime_navigate:
+      allow_extra_columns: true
+      min_row_count: 1
+      max_null_ratio:
+        OFFENSE_CODE_GROUP: 1.0
+        UCR_PART: 1.0
+        REPORTING_AREA: 1.0
+        STREET: 1.0
+        Location: 1.0
+        OFFENSE_CODE: 1.0
+        YEAR: 1.0
+        MONTH: 1.0
+        DISTRICT: 1.0
+        DAY_OF_WEEK: 0.05
+        HOUR: 0.05
+    berdo:
+      max_null_ratio:
+        electricity_usage_kwh: 0.9
+        natural_gas_use: 0.9
+        energy_star_score: 0.9
+        total_ghg_emissions: 0.9
+        site_energy_use_kbtu: 0.9
+        gross_floor_area: 0.9
+        property_type: 0.9
+        address: 0.9
+        zip: 0.9
+        lat: 0.9
+        long: 0.9
+    street_sweeping:
+      max_null_ratio:
+        lat: 1.0
+        long: 1.0
+
+  # Coordinate bounds for Boston
+  geo_bounds:
+    min_lat: 42.2
+    max_lat: 42.4
+    min_lon: -71.2
+    max_lon: -70.9
+
+  # Temporal validation
+  temporal:
+    max_future_days: 1  # Allow 1 day in future (for timezone issues)
+    max_past_years: 10  # Flag data older than 10 years
+
+# -----------------------------------------------------------------------------
+# Drift Detection
+# -----------------------------------------------------------------------------
+drift:
+  # Population Stability Index thresholds
+  psi:
+    warning: 0.1
+    critical: 0.25
+
+  # Reference window for drift comparison
+  reference:
+    window_days: 30
+    min_samples: 1000
+
+# -----------------------------------------------------------------------------
+# Bias Detection / Fairness
+# -----------------------------------------------------------------------------
+fairness:
+  # Default slicing dimensions
+  default_slices:
+    - "neighborhood"
+    - "hour_of_day"
+    - "day_of_week"
+
+  # Statistical parity thresholds (Raised to avoid noise on small drifts)
+  thresholds:
+    representation:
+      warning: 0.6  # 60% deviation (Log only)
+      critical: 1.5 # 150% deviation (Slack Alert)
+
+    outcome_disparity:
+      warning: 0.25
+      critical: 0.5
+
+  # Expected proportions for each slice (Census baselines)
+  # Prevents fallback to uniform distribution for mismatched neighborhoods
+  reference_distributions:
+    neighborhood:
+      "Dorchester": 0.18
+      "Roxbury": 0.12
+      "East Boston": 0.12
+      "South Boston / South Boston Waterfront": 0.08
+      "Allston / Brighton": 0.12
+      "Allston": 0.06
+      "Brighton": 0.06
+      "Hyde Park": 0.05
+      "West Roxbury": 0.05
+      "Jamaica Plain": 0.06
+      "South End": 0.05
+      "Roslindale": 0.04
+      "Mattapan": 0.05
+      "Fenway": 0.05
+      "Charlestown": 0.03
+      "Beacon Hill": 0.015
+    property_type:
+      "OFFICE": 0.25
+      "MULTIFAMILY HOUSING": 0.30
+      "K-12 SCHOOL": 0.10
+      "UNKNOWN": 0.30
+    district:
+      "3": 0.194
+      "7": 0.139
+      "10R": 0.093
+      "1": 0.048
+      "2": 0.048
+      "4": 0.048
+      "5": 0.048
+      "6": 0.048
+      "8": 0.048
+      "9": 0.048
+      "10": 0.048
+
+# -----------------------------------------------------------------------------
+# Alerting
+# -----------------------------------------------------------------------------
+alerting:
+  # Severity levels
+  levels:
+    - info
+    - warning
+    - critical
+
+  # Fixed routing: WARNING is log-only. CRITICAL is Slack/Email.
+  # This stops the alert loop for minor statistical shifts.
+  routing:
+    info: ["log"]
+    warning: ["log"]
+    critical: ["log", "slack", "email"]
+
+  # Rate limiting
+  rate_limit:
+    max_alerts_per_hour: 10
+    cooldown_minutes: 15
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+logging:
+  level: "INFO"
+  format: "json"  # json or text
+  include_timestamp: true
+  include_trace_id: true
+
+# -----------------------------------------------------------------------------
+# Feature Store
+# -----------------------------------------------------------------------------
+feature_store:
+  # Firestore collection names
+  collections:
+    crime_features: "crime_features"
+    transit_features: "transit_features"
+    safety_scores: "safety_scores"
+
+  # TTL for cached features
+  ttl_hours: 24
+
+# -----------------------------------------------------------------------------
+# API Configuration
+# -----------------------------------------------------------------------------
+apis:
+  # Boston Open Data Portal (Analyze Boston)
+  analyze_boston:
+    base_url: "https://data.boston.gov/api/3/action"
+    timeout_seconds: 60
+    rate_limit_per_minute: 60
+
+  # MBTA API
+  mbta:
+    base_url: "https://api-v3.mbta.com"
+    timeout_seconds: 30
+    rate_limit_per_minute: 100

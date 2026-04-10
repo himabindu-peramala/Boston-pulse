@@ -1,0 +1,19 @@
+ors:
+  base_url: "https://api.openrouteservice.org/v2/directions/foot-walking/json"
+  alternative_routes:
+    target_count: 3
+    share_factor: 0.6
+    weight_factor: 1.4
+
+safety:
+  grid_resolution: 0.002          # ~200 m cells
+  boston_bounds:
+    lat_min: 42.2270
+    lat_max: 42.3970
+    lon_min: -71.1910
+    lon_max: -70.9230
+  data_file: "data/safety_grid.csv"
+
+ranking:
+  safety_weight: 0.6
+  speed_weight: 0.4

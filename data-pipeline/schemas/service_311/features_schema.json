@@ -1,0 +1,34 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "311 Service Requests Features Schema",
+    "description": "Schema for 311 service request features at grid cell level",
+    "type": "object",
+    "properties": {
+        "grid_cell": {
+            "type": "string"
+        },
+        "neighborhood": {
+            "type": "string"
+        },
+        "request_count_7d": {
+            "type": "integer"
+        },
+        "request_count_30d": {
+            "type": "integer"
+        },
+        "overdue_ratio_30d": {
+            "type": "number"
+        },
+        "grid_lat": {
+            "type": "number"
+        },
+        "grid_long": {
+            "type": "number"
+        }
+    },
+    "required": [
+        "grid_cell",
+        "neighborhood"
+    ],
+    "additionalProperties": true
+}

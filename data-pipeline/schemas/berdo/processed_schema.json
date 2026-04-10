@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Boston BERDO Processed Data Schema",
+  "description": "Schema for processed and validated BERDO building energy data",
+  "type": "object",
+  "properties": {
+    "_id": {
+      "type": "integer",
+      "description": "Unique identifier",
+      "primary_key": true
+    },
+    "reporting_year": {
+      "type": "integer",
+      "description": "Year of energy reporting",
+      "minimum": 2013,
+      "maximum": 2030
+    },
+    "property_name": {
+      "type": "string",
+      "description": "Property name (uppercase)"
+    },
+    "address": {
+      "type": ["string", "null"],
+      "description": "Property address (uppercase)"
+    },
+    "zip": {
+      "type": ["string", "null"],
+      "description": "ZIP code"
+    },
+    "property_type": {
+      "type": "string",
+      "description": "Property type (uppercase)"
+    },
+    "gross_floor_area": {
+      "type": ["number", "null"],
+      "description": "Total floor area in square feet",
+      "minimum": 0
+    },
+    "site_energy_use_kbtu": {
+      "type": ["number", "null"],
+      "description": "Total site energy use in kBtu",
+      "minimum": 0
+    },
+    "total_ghg_emissions": {
+      "type": ["number", "null"],
+      "description": "Total GHG emissions in metric tons CO2e",
+      "minimum": 0
+    },
+    "energy_star_score": {
+      "type": ["number", "null"],
+      "description": "EPA Energy Star score",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "electricity_use_grid_purchase": {
+      "type": ["number", "null"],
+      "description": "Grid electricity in kBtu",
+      "minimum": 0
+    },
+    "natural_gas_use": {
+      "type": ["number", "null"],
+      "description": "Natural gas use in kBtu",
+      "minimum": 0
+    },
+    "lat": {
+      "type": ["number", "null"],
+      "description": "Latitude coordinate",
+      "minimum": 42.2,
+      "maximum": 42.4
+    },
+    "long": {
+      "type": ["number", "null"],
+      "description": "Longitude coordinate",
+      "minimum": -71.2,
+      "maximum": -70.9
+    }
+  },
+  "required": [
+    "_id",
+    "reporting_year",
+    "property_name",
+    "property_type",
+    "total_ghg_emissions"
+  ],
+  "additionalProperties": false,
+  "metadata": {
+    "dataset": "berdo",
+    "stage": "processed",
+    "version": "1.0.0",
+    "validations": {
+      "geo_bounds": {
+        "min_lat": 42.2,
+        "max_lat": 42.4,
+        "min_lon": -71.2,
+        "max_lon": -70.9
+      }
+    }
+  }
+}

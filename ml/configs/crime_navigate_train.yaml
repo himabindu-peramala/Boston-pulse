@@ -1,0 +1,166 @@
+# Boston Pulse ML - Crime Navigate Training Configuration
+#
+#   This is a CROSS-SECTIONAL model, not a time-series forecaster.
+# - Label is danger_rate (severity-weighted rate per cell-bucket)
+# - Training uses random 80/20 split, NOT temporal split
+# - One row per (h3_index, hour_bucket) in training matrix (~90,000 rows)
+
+model:
+  name: crime-navigate-model
+  version_prefix: "crime_navigate"
+  objective: regression_l1    # MAE — robust to outlier cells with extreme crime rates
+  metric: rmse                # used for the validation gate
+
+data:
+  # GCS bucket for data pipeline artifacts
+  bucket: boston-pulse-data-pipeline
+  # Feature store paths — relative to GCS bucket root
+  features_prefix: features/crime_navigate
+  processed_prefix: processed/crime_navigate
+  scores_prefix: ml/scores/crime_navigate
+  bias_reports_prefix: ml/bias_reports/crime_navigate
+  model_cards_prefix: ml/model_cards/crime_navigate
+  # Label computation uses ALL processed data from this date forward
+  history_start: "2023-01-01"
+
+features:
+  # Column names match actual features.py output in data-pipeline.
+  input_columns:
+    - weighted_score_3d
+    - weighted_score_30d
+    - weighted_score_90d
+    - incident_count_30d
+    - trend_3v10
+    - trend_10v30
+    - trend_30v90
+    - gun_incident_count_30d
+    - high_severity_ratio_30d
+    - night_score_ratio
+    - evening_score_ratio
+    - weekend_score_ratio
+    - neighbor_weighted_score_30d
+    - neighbor_trend_3v10
+    - neighbor_gun_count_30d
+    - hour_bucket
+  # Categorical features — LightGBM handles these natively
+  categorical_columns:
+    - hour_bucket
+
+  # Target column built by target_builder.py
+  # danger_rate = total_severity / days_active per (h3_index, hour_bucket)
+  target_column: danger_rate
+  # Join key between features and targets
+  join_key:
+    - h3_index
+    - hour_bucket
+
+training:
+  # Random 80/20 split — cross-sectional model, NOT temporal
+  val_fraction: 0.20
+  random_seed: 42
+  early_stopping_rounds: 50
+  verbose_eval: 100
+
+tuning:
+  n_trials: 20
+  direction: minimize   # minimize RMSE
+  timeout_seconds: 1800 # 30 min max for tuning phase
+  search_space:
+    num_leaves:         [20, 80]
+    learning_rate:      [0.01, 0.30]    # log-uniform
+    min_child_samples:  [10, 50]
+    subsample:          [0.60, 1.00]
+    colsample_bytree:   [0.60, 1.00]
+    n_estimators:       [100, 500]
+    reg_alpha:          [0.0, 1.0]      # L1 regularisation
+    reg_lambda:         [0.0, 1.0]      # L2 regularisation
+
+validation:
+  # RMSE gate — model fails if val_rmse exceeds this
+  # danger_rate is typically in range [0, 10], so 0.5 is reasonable
+  rmse_gate: 0.5
+  # If train_rmse / val_rmse > overfit_ratio → flag overfitting
+  overfit_ratio_gate: 2.0
+  # Minimum number of cells in validation set for RMSE to be meaningful
+  min_val_cells: 500
+
+bias:
+  # Dimensions to slice data for fairness analysis
+  slice_dimensions:
+    - district
+    - hour_bucket
+  # A slice whose RMSE deviates more than this fraction from overall RMSE fails the gate
+  # (0.50 is more realistic with limited training history; tighten as data grows)
+  max_slice_rmse_deviation: 0.50
+  # Slices with fewer than this many cells are warned but do not fail the gate
+  min_slice_size: 30
+  # A single slice with RMSE > overall_rmse * this multiplier hard-fails the gate
+  max_slice_rmse_multiplier: 3.0
+
+scoring:
+  # Scale risk scores per hour_bucket independently
+  # Reason: danger rates vary dramatically between 3 AM and 9 PM.
+  # Per-bucket scaling ensures score 80 = more dangerous than 80% of cells at THIS hour.
+  scale_within_bucket: true
+  # Risk tier boundaries (0-100 scale)
+  tiers:
+    low:    [0, 33]
+    medium: [33, 66]
+    high:   [66, 100]
+  # Only load features from the last N days for scoring
+  active_cell_lookback_days: 90
+
+registry:
+  # Artifact Registry settings (deployable model artifacts)
+  # Model is pushed to AR with stage tags: staging → production
+  use_artifact_registry: true
+  location: us-east1
+  project: bostonpulse
+  repository: ml-models
+  # Namespaced package name: {domain}/{model-purpose}
+  # This creates logical separation within the repository
+  # Future models: navigate/transit-risk, chatbot/intent-model, etc.
+  package: navigate/crime-risk
+  # GCS backup bucket (also used for SHAP plots and MLflow artifacts)
+  artifact_bucket: boston-pulse-mlflow-artifacts
+
+mlflow:
+  experiment_name: crime-navigate-training
+
+firestore:
+  collection: h3_scores
+  batch_size: 500
+
+alerting:
+  # Inherits Slack webhook from data-pipeline alerting config
+  notify_on:
+    - training_start
+    - gate_failure
+    - model_pushed
+    - scores_published
+
+# Training backend configuration
+# Supports: docker_on_vm (default), vertex
+training_backend:
+  # Backend to use: docker_on_vm | vertex
+  # docker_on_vm: Run training in Docker container on Airflow VM (current default)
+  # vertex: Submit training job to Vertex AI CustomJob (scalable, managed)
+  backend: docker_on_vm
+
+  # Vertex AI configuration (only used when backend: vertex)
+  vertex:
+    # GCP region for Vertex AI jobs
+    region: us-east1
+    # Machine type for training
+    machine_type: n1-standard-4
+    # Accelerator (optional, for GPU training)
+    accelerator_type: null
+    accelerator_count: 0
+    # Disk size in GB
+    boot_disk_size_gb: 100
+    # Timeout in seconds (4 hours)
+    timeout_seconds: 14400
+    # Service account for Vertex jobs (uses default if not specified)
+    service_account: null
+    # Staging bucket for Vertex artifacts
+    staging_bucket: boston-pulse-mlflow-artifacts

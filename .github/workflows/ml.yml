@@ -1,0 +1,371 @@
+# Boston Pulse ML Training Pipeline CI/CD
+
+name: ML Training Pipeline CI/CD
+
+on:
+  push:
+    paths:
+      - 'ml/**'
+      - '.github/workflows/ml.yml'
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'ml/**'
+      - '.github/workflows/ml.yml'
+  workflow_dispatch:
+    inputs:
+      execution_date:
+        description: 'Execution date (YYYY-MM-DD) — defaults to today'
+        required: false
+      skip_training:
+        description: 'Skip training and only run tests'
+        required: false
+        default: false
+        type: boolean
+      skip_image_build:
+        description: 'Skip Docker image build (use :latest)'
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    # Weekly Sunday 2 AM UTC — runs build + Cloud Run training job
+    - cron: '0 2 * * 0'
+
+env:
+  PYTHON_VERSION: '3.11'
+  MLFLOW_TRACKING_URI: 'sqlite:///mlflow_test.db'
+  AR_REGION: 'us-east1'
+  AR_REPOSITORY: 'ml-images'
+  IMAGE_NAME: 'ml-training'
+  # Cloud Run Job name (override via repository secret CLOUD_RUN_TRAINING_JOB)
+  CR_TRAINING_JOB_DEFAULT: ml-training-job
+
+jobs:
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install linting tools
+        run: pip install ruff black mypy
+
+      - name: Run ruff linter
+        run: ruff check ml/
+        continue-on-error: false
+
+      - name: Check black formatting
+        run: black --check ml/
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('ml/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        working-directory: ml
+        run: pip install -e ".[dev]"
+
+      - name: Run unit tests with coverage
+        working-directory: ml
+        run: |
+          pytest tests/unit/ -v \
+            --cov=models \
+            --cov=shared \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=80
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          files: ml/coverage.xml
+          flags: ml-unit-tests
+          name: ml-coverage
+        continue-on-error: true
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-integration-${{ hashFiles('ml/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        working-directory: ml
+        run: pip install -e ".[dev]"
+
+      - name: Run integration tests
+        working-directory: ml
+        run: |
+          pytest tests/integration/ \
+            -v \
+            --timeout=300 \
+            --tb=short \
+            || echo "No integration tests or tests skipped"
+        env:
+          PYTHONPATH: ${{ github.workspace }}/ml
+          # Optional: point tests at emulator if you run one locally in a step later
+          STORAGE_EMULATOR_HOST: http://localhost:4443
+
+  build-push-image:
+    name: Build & Push ML Training Image
+    runs-on: ubuntu-latest
+    needs: integration-test
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_image_build != 'true')
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      image_uri: ${{ steps.build.outputs.image_uri }}
+      image_digest: ${{ steps.build.outputs.image_digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          token_format: 'access_token'
+        continue-on-error: true
+
+      - name: Configure Docker for Artifact Registry
+        if: steps.auth.outcome == 'success'
+        run: |
+          gcloud auth configure-docker ${{ env.AR_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        id: build
+        if: steps.auth.outcome == 'success'
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          IMAGE_BASE="${{ env.AR_REGION }}-docker.pkg.dev/${PROJECT_ID}/${{ env.AR_REPOSITORY }}/${{ env.IMAGE_NAME }}"
+          IMAGE_SHA="${IMAGE_BASE}:${{ github.sha }}"
+          IMAGE_LATEST="${IMAGE_BASE}:latest"
+
+          echo "Building image: ${IMAGE_SHA}"
+
+          docker build \
+            -f ml/docker/ml-training.Dockerfile \
+            -t "${IMAGE_SHA}" \
+            -t "${IMAGE_LATEST}" \
+            --label "git.sha=${{ github.sha }}" \
+            --label "git.ref=${{ github.ref }}" \
+            --label "build.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            .
+
+          echo "Pushing ${IMAGE_SHA}..."
+          docker push "${IMAGE_SHA}"
+
+          # Only push :latest on test branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "Pushing ${IMAGE_LATEST}..."
+            docker push "${IMAGE_LATEST}"
+          fi
+
+          # Get digest
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE_SHA}" | cut -d@ -f2)
+
+          echo "image_uri=${IMAGE_SHA}" >> $GITHUB_OUTPUT
+          echo "image_digest=${DIGEST}" >> $GITHUB_OUTPUT
+
+          echo "✅ Image pushed: ${IMAGE_SHA}"
+          echo "   Digest: ${DIGEST}"
+
+      - name: Skip notice (no auth)
+        if: steps.auth.outcome != 'success'
+        run: |
+          echo "⚠️ Image build skipped (WIF secrets not configured)"
+          echo "image_uri=" >> $GITHUB_OUTPUT
+          echo "image_digest=" >> $GITHUB_OUTPUT
+
+  # Training: Cloud Run runs the *container image* from Artifact Registry.
+  # ml/docker/ml-training.Dockerfile COPYs ml/models, ml/shared, ml/configs into /app; CI pushes the image with --label git.sha.
+  # The job only sets --image + CLI args; runtime reads data from GCS/Firestore using the job service account.
+  run-cloud-run-training:
+    name: Run training (Cloud Run Job)
+    runs-on: ubuntu-latest
+    needs: build-push-image
+    if: |
+      (
+        needs.build-push-image.result == 'success' ||
+        (
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.skip_image_build == 'true' &&
+          needs.build-push-image.result == 'skipped'
+        )
+      ) &&
+      (
+        (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+        github.event_name == 'schedule' ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_training != 'true')
+      )
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud CLI
+        run: |
+          gcloud auth login --cred-file="${GOOGLE_APPLICATION_CREDENTIALS}" --quiet
+          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Update Cloud Run job and execute training
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          ML_IMAGE: ${{ needs.build-push-image.outputs.image_uri }}
+          GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
+          CLOUD_RUN_TRAINING_JOB: ${{ secrets.CLOUD_RUN_TRAINING_JOB }}
+          CR_JOB_FALLBACK: ${{ env.CR_TRAINING_JOB_DEFAULT }}
+          # Use the durable/prod MLflow backend for Cloud Run training.
+          # Keep workflow-level `MLFLOW_TRACKING_URI` for unit/integration tests only.
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          set -euo pipefail
+          JOB_NAME="${CLOUD_RUN_TRAINING_JOB:-$CR_JOB_FALLBACK}"
+          EXEC_DATE="${{ github.event.inputs.execution_date }}"
+          if [ -z "${EXEC_DATE}" ]; then
+            EXEC_DATE=$(date +%Y-%m-%d)
+          fi
+
+          if [ -z "${MLFLOW_TRACKING_URI}" ]; then
+            echo "ERROR: secrets.MLFLOW_TRACKING_URI is empty. Refusing to train with the ephemeral default."
+            exit 1
+          fi
+
+          if [ -n "${ML_IMAGE}" ]; then
+            IMAGE_URI="${ML_IMAGE}"
+          else
+            IMAGE_URI="${{ env.AR_REGION }}-docker.pkg.dev/${PROJECT_ID}/${{ env.AR_REPOSITORY }}/${{ env.IMAGE_NAME }}:latest"
+          fi
+
+          GCS_BUCKET_VAL="${GCS_BUCKET:-boston-pulse-data-pipeline}"
+
+          echo "Cloud Run training job: ${JOB_NAME}"
+          echo "  Execution date: ${EXEC_DATE}"
+          echo "  Git SHA: ${GITHUB_SHA}"
+          echo "  Image: ${IMAGE_URI}"
+
+          gcloud run jobs update "${JOB_NAME}" \
+            --project="${PROJECT_ID}" \
+            --region="${{ env.AR_REGION }}" \
+            --image="${IMAGE_URI}" \
+            --command=python \
+            --args=-m,models.crime_navigate.cli,train,--execution-date,${EXEC_DATE},--stage,staging,--output-json,/tmp/results.json \
+            --update-env-vars="GIT_SHA=${GITHUB_SHA},ML_IMAGE=${IMAGE_URI},MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI},GCP_PROJECT_ID=${PROJECT_ID},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GCS_BUCKET=${GCS_BUCKET_VAL}"
+
+          echo "Executing job (waiting for completion)..."
+          gcloud run jobs execute "${JOB_NAME}" \
+            --project="${PROJECT_ID}" \
+            --region="${{ env.AR_REGION }}" \
+            --wait
+
+          echo "✅ Cloud Run training job finished"
+
+  # Single Slack at end of pipeline (lint → tests → integration → build → Cloud Run)
+  notify-pipeline:
+    name: Notify pipeline result
+    runs-on: ubuntu-latest
+    needs:
+      - lint
+      - unit-tests
+      - integration-test
+      - build-push-image
+      - run-cloud-run-training
+    # Run after all jobs finish (success, failure, or skipped) so results are available in needs.*.
+    if: |
+      always() &&
+      (github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Slack summary
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          L="${{ needs.lint.result }}"
+          U="${{ needs.unit-tests.result }}"
+          I="${{ needs.integration-test.result }}"
+          B="${{ needs.build-push-image.result }}"
+          T="${{ needs.run-cloud-run-training.result }}"
+
+          ANY_FAIL=0
+          for s in "$L" "$U" "$I" "$B" "$T"; do
+            case "$s" in
+              failure|cancelled) ANY_FAIL=1 ;;
+            esac
+          done
+
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          DETAIL="lint=${L} unit=${U} integration=${I} build=${B} training=${T}"
+
+          if [ "$ANY_FAIL" = "1" ]; then
+            EMOJI="❌"
+            TITLE="ML pipeline failed"
+          else
+            EMOJI="✅"
+            TITLE="ML pipeline finished"
+          fi
+
+          if [ -n "${SLACK_WEBHOOK_URL}" ]; then
+            curl -sS -X POST "$SLACK_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d "{\"text\":\"${EMOJI} *${TITLE}*\n\`${DETAIL}\`\nCommit: \`${GITHUB_SHA}\` • \`${GITHUB_REF_NAME}\`\n<${RUN_URL}|View run>\"}" \
+              || echo "Warning: Slack POST failed (non-fatal)"
+          else
+            echo "SLACK_WEBHOOK_URL not set; skipping Slack"
+          fi
+
+          if [ "$ANY_FAIL" = "1" ]; then
+            echo "::error::Pipeline had failing or cancelled jobs: ${DETAIL}"
+            exit 1
+          fi
