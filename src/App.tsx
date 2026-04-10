@@ -18,32 +18,46 @@ const C = {
 const BASE_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
 
 const api = {
-  // Real call — uncomment when Purvaja's API is ready:
-  // navigate: async (from: string, to: string, weight: number): Promise<RouteResult> => {
-  //   const res = await fetch(`${BASE_URL}/api/navigate`, {
-  //     method: "POST",
-  //     headers: { "Content-Type": "application/json" },
-  //     body: JSON.stringify({ from, to, safety_weight: weight }),
-  //   });
-  //   return res.json();
-  // },
+  // ── Navigate: Purvaja's real API ─────────────────────────────────────────
+  // NOTE: Ask Purvaja to confirm the request body field names before switching on
   navigate: async (from: string, to: string, weight: number): Promise<RouteResult> => {
-    await new Promise(r => setTimeout(r, 1600));
-    const s = Math.min(99, Math.round(58 + Math.random() * 38 * (weight / 100 + 0.5)));
+    const res = await fetch(`${BASE_URL}/api/navigate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to, safety_weight: weight }),
+    });
+    const data = await res.json();
+
+    // Pick route based on safety weight slider
+    const preferred = weight > 66 ? "safest" : weight > 33 ? "balanced" : "fastest";
+    const route = data.routes.find((r: any) => r.rank_label === preferred) ?? data.routes[0];
+
+    // Map rank_label → SafetyLevel
+    const level: SafetyLevel =
+      route.rank_label === "safest"   ? "safe"     :
+      route.rank_label === "balanced" ? "moderate" : "caution";
+
+    // Convert units
+    const mins  = Math.round(route.duration_s / 60);
+    const miles = (route.distance_m / 1609.34).toFixed(1);
+
+    const notes: Record<string, string[]> = {
+      safe:     ["Safest available route selected", "Lower incident density corridor", "Well-lit streets prioritised"],
+      moderate: ["Balanced route — speed vs safety", "Some incident zones avoided", "Good foot traffic coverage"],
+      caution:  ["Fastest route selected", "Higher incident zones on path", "Consider safest route after midnight"],
+    };
+
     return {
-      time: `${Math.round(12 + Math.random() * 16)} min`,
-      distance: `${(0.9 + Math.random() * 1.3).toFixed(1)} mi`,
-      safetyScore: s,
-      level: s >= 80 ? "safe" : s >= 65 ? "moderate" : "caution",
-      notes: s >= 80
-        ? ["No incidents in the past 48 hours", "Well-lit corridor throughout", "Active foot traffic near T stops"]
-        : s >= 65
-        ? ["Minor incident zone near Mass Ave — rerouted", "Lower foot traffic after 10 pm"]
-        : ["High-incident area on Tremont St — avoided", "Poorly lit section rerouted", "Consider transit after midnight"],
+      time:        `${mins} min`,
+      distance:    `${miles} mi`,
+      safetyScore: Math.round(route.safety_score),
+      level,
+      notes:       notes[level],
+      coordinates: route.geometry,
     };
   },
 
-  // Real call — uncomment when Sushma's API is ready:
+  // ── Chat: still mock — uncomment real call when Sushma's API is ready ────
   // chat: async (msg: string): Promise<{ text: string; sources: string[] }> => {
   //   const res = await fetch(`${BASE_URL}/api/chat`, {
   //     method: "POST",
@@ -178,7 +192,6 @@ function HomePage({ setPage }: { setPage: (p: Page) => void }) {
   ];
   return (
     <div style={{ width:"100%", background:C.bg }}>
-      {/* Hero */}
       <div style={{ width:"100%", position:"relative", overflow:"hidden", borderBottom:`1px solid ${C.border}`, padding:"88px 0 72px" }}>
         <AnimatedBg />
         <div style={{ position:"relative", maxWidth:720, margin:"0 auto", textAlign:"center", padding:"0 40px" }}>
@@ -206,8 +219,6 @@ function HomePage({ setPage }: { setPage: (p: Page) => void }) {
           </div>
         </div>
       </div>
-
-      {/* Feature cards */}
       <div style={{ width:"100%", display:"grid", gridTemplateColumns:"1fr 1fr 1fr", borderBottom:`1px solid ${C.border}` }}>
         {features.map((f,i) => (
           <div key={f.title} onClick={() => setPage(f.page)}
@@ -233,16 +244,19 @@ function NavigatePage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<RouteResult | null>(null);
   const [activeLayer, setActiveLayer] = useState("safety");
+  const [error, setError] = useState<string | null>(null);
 
   async function compute() {
     if (!from || !to) return;
     setLoading(true);
     setResult(null);
+    setError(null);
     try {
       const r = await api.navigate(from, to, weight);
       setResult(r);
     } catch (err) {
       console.error("Navigate API error:", err);
+      setError("Could not compute route. Make sure the backend is running.");
     } finally {
       setLoading(false);
     }
@@ -286,6 +300,13 @@ function NavigatePage() {
             style={{ background:from&&to?`linear-gradient(135deg,${C.purple},${C.purpleBright})`:C.bgHover, border:`1px solid ${from&&to?C.purple:C.border}`, borderRadius:10, padding:"11px", color:from&&to?"#fff":C.textDim, fontSize:13, fontWeight:700, cursor:from&&to?"pointer":"default", transition:"all 0.2s", boxShadow:from&&to?`0 4px 16px ${C.purple}35`:"none" }}>
             {loading ? "Computing…" : "Find safe route →"}
           </button>
+
+          {error && (
+            <div style={{ background:"#2d0808", border:`1px solid ${C.red}40`, borderRadius:8, padding:"10px 12px", fontSize:11, color:C.red }}>
+              {error}
+            </div>
+          )}
+
           {loading && (
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               <div style={{ fontSize:11, color:C.textMuted }}>Analyzing incidents…</div>
