@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
     gemini_temperature: float = 0.2
-    gemini_max_tokens: int = 1024
+    gemini_max_tokens: int = 2048
 
     # --- HuggingFace Embeddings (free, local) ---
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
