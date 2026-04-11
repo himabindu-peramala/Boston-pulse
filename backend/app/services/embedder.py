@@ -106,11 +106,11 @@ def chunk_berdo_records(df) -> List[dict]:
     for _, row in df.iterrows():
         text = (
             f"Boston building emissions (BERDO). "
-            f"Property: {row.get('property_name', 'Unknown')}. "
-            f"Neighborhood: {row.get('neighborhood', 'Unknown')}. "
-            f"Energy use: {row.get('site_eui', 'Unknown')} kBtu/sqft. "
+            f"Property: {row.get('property_owner_name', 'Unknown')}. "
+            f"Address: {row.get('building_address', 'Unknown')}. "
+            f"Energy use: {row.get('site_energy_use_kbtu', 'Unknown')} kBtu. "
             f"Emissions: {row.get('total_ghg_emissions', 'Unknown')} metric tons CO2. "
-            f"Year: {row.get('reporting_year', 'Unknown')}."
+            f"Compliance: {row.get('compliance_status', 'Unknown')}."
         )
         chunks.append({"text": text, "dataset": "berdo", "metadata": {}})
     return chunks
