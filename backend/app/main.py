@@ -7,8 +7,20 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.routes import health, chat, ingest
+from app.routes.ingest import _run_ingestion
+from contextlib import asynccontextmanager
+import asyncio
+import logging
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app):
+    logger.info("Startup — triggering background ingest...")
+    asyncio.create_task(_run_ingestion())
+    yield
 
 app = FastAPI(
+    lifespan=lifespan,
     title="Boston Pulse Chatbot API",
     description="RAG-powered civic intelligence chatbot for Boston.",
     version="0.1.0",
