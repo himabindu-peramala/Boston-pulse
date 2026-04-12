@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 def _get_bucket():
     from google.cloud import storage
-    bucket_name = os.getenv("GCS_BUCKET_MAIN", "boston-pulse-data-prod")
+    bucket_name = os.getenv("GCS_BUCKET_MAIN", "boston-pulse-data-pipeline")
     client = storage.Client()
     return client.bucket(bucket_name)
 

@@ -8,6 +8,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
 
+# Pre-download HuggingFace model at build time to avoid runtime rate limits
+RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+
 ENV PORT=8080
 EXPOSE 8080
 
