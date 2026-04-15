@@ -54,7 +54,7 @@ async def generate_answer(
 
         prompt = (
             f"Using the following Boston city data as context, "
-            f"answer the question. Always cite which source you used.\n\n"
+            f"answer the question. When citing sources, use dataset names like BPD Crime Reports, Boston 311 Data, Food Inspection Records instead of Source 1, Source 2.\n\n"
             f"CONTEXT:\n{context}\n\n"
             f"QUESTION: {question}\n\n"
             f"ANSWER:"
