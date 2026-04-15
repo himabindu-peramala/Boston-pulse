@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # --- App ---
     debug: bool = False
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173", "https://boston-pulse-app.vercel.app"]
 
     # --- Chat ---
     top_k_results: int = 5
