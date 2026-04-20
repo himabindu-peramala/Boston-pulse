@@ -44,6 +44,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Minimum rows required to proceed with training
+# Skip training if features have fewer rows (e.g., data pipeline failed or no new data)
+MIN_ROWS_FOR_TRAINING = 1
+
 
 def load_config() -> dict[str, Any]:
     """Load training configuration from YAML."""
@@ -115,6 +119,19 @@ def run_training_pipeline(
         if not feature_result.success:
             raise RuntimeError(f"Feature loading failed: {feature_result.error}")
         logger.info(f"Loaded {feature_result.rows:,} rows, {feature_result.h3_cells:,} cells")
+
+        # Skip training if insufficient data (e.g., pipeline failed or no new data)
+        if feature_result.rows < MIN_ROWS_FOR_TRAINING:
+            logger.info(
+                f"Only {feature_result.rows} rows (< {MIN_ROWS_FOR_TRAINING} threshold) — "
+                "skipping training to avoid wasting compute"
+            )
+            results["status"] = "skipped_insufficient_data"
+            results["reason"] = (
+                f"Feature rows ({feature_result.rows}) below minimum ({MIN_ROWS_FOR_TRAINING})"
+            )
+            mlflow.end_run()
+            return results
 
         logger.info("Step 2: Building targets...")
         training_df, target_result = build_targets(features_df, execution_date, cfg, bucket)
@@ -314,7 +331,8 @@ def main() -> int:
                 logger.info(f"Results written to {args.output_json}")
 
             print(json.dumps(results, indent=2, default=str))
-            return 0 if results["status"] == "success" else 1
+            # Return 0 for success or intentional skip (insufficient data is not an error)
+            return 0 if results["status"] in ("success", "skipped_insufficient_data") else 1
 
         except Exception as e:
             logger.error(f"Training failed: {e}")

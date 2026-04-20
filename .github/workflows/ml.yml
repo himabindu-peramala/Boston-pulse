@@ -29,8 +29,9 @@ on:
         default: false
         type: boolean
   schedule:
-    # Weekly Sunday 2 AM UTC — runs build + Cloud Run training job
-    - cron: '0 2 * * 0'
+    # Daily 2 AM UTC — runs build + Cloud Run training job
+    # Runs 1 hour after data pipeline (1 AM UTC) to ensure fresh features
+    - cron: '0 2 * * *'
 
 env:
   PYTHON_VERSION: '3.11'
