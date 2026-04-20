@@ -255,6 +255,25 @@ def run_training_pipeline(
                 registry.promote_to_production(version)
                 results["steps"]["push"]["promoted_to_production"] = True
                 logger.info(f"Promoted {version} to production")
+
+                # Snapshot training baseline for monitoring
+                from shared.baseline_snapshotter import snapshot_training_baseline
+
+                try:
+                    baseline_paths = snapshot_training_baseline(
+                        training_df=training_df,
+                        feature_cols=cfg["features"]["input_columns"],
+                        target_col=cfg["features"]["target_column"],
+                        version=version,
+                        cfg=cfg,
+                    )
+                    results["steps"]["push"]["baseline_paths"] = baseline_paths
+                    logger.info(f"Training baseline saved: {baseline_paths['sample_uri']}")
+                except Exception as e:
+                    # Baseline snapshot is non-critical — log but don't fail the pipeline
+                    logger.warning(f"Baseline snapshot failed: {e}")
+                    results["steps"]["push"]["baseline_error"] = str(e)
+
                 alert_model_promoted(dataset, execution_date, version, comparison, dag_id)
             else:
                 results["steps"]["push"]["promoted_to_production"] = False
