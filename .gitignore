@@ -236,3 +236,5 @@ data-pipeline/logs/
 backend/evaluation/results/
 backend/exec -l
 backend/exec -l
+boston_risk_map.html
+backend/scripts/visualize_h3_risk_map.py

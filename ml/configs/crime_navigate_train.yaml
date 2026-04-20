@@ -110,6 +110,17 @@ scoring:
   # Only load features from the last N days for scoring
   active_cell_lookback_days: 90
 
+promotion:
+  # Gate 3: Compare candidate val_rmse vs production before promoting
+  # Fractional tolerance when comparing candidate val_rmse vs production
+  # 0.02 means candidate can be up to 2% worse than prod and still promote
+  # Set to 0.0 for strict "only promote if strictly better"
+  tolerance: 0.0
+
+  # If True, skip comparison and always promote (useful for emergency rollouts)
+  # Default False — production safety first
+  force_promote: false
+
 registry:
   # Artifact Registry settings (deployable model artifacts)
   # Model is pushed to AR with stage tags: staging → production

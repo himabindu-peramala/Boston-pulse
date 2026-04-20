@@ -183,6 +183,15 @@ def pipeline_step_mocks(
     reg = MagicMock()
     reg.push.return_value = "gs://artifacts/model"
     reg.promote_to_production = MagicMock()
+    # Mock compare_to_production to return realistic values
+    reg.compare_to_production.return_value = {
+        "should_promote": True,
+        "reason": "candidate better than production",
+        "production_version": "20240101",
+        "production_rmse": 0.6,
+        "candidate_rmse": 0.5,
+        "delta_pct": -16.67,
+    }
     mocker.patch("shared.registry.ModelRegistry", return_value=reg)
     return reg
 

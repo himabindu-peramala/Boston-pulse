@@ -206,3 +206,129 @@ def alert_scores_published(
         ],
     }
     _send_slack_message(message)
+
+
+def alert_model_promoted(
+    dataset: str,
+    execution_date: str,
+    version: str,
+    comparison: dict[str, Any],
+    dag_id: str,
+) -> None:
+    """Send alert when model is promoted to production (Gate 3 passed)."""
+    delta_pct = comparison.get("delta_pct")
+    # Handle potential mock objects in tests
+    try:
+        delta_str = f"{float(delta_pct):+.2f}%" if delta_pct is not None else "N/A"
+    except (TypeError, ValueError):
+        delta_str = "N/A"
+
+    prod_rmse = comparison.get("production_rmse")
+    try:
+        prod_rmse_str = f"{float(prod_rmse):.4f}" if prod_rmse is not None else "N/A"
+    except (TypeError, ValueError):
+        prod_rmse_str = "N/A"
+
+    candidate_rmse = comparison.get("candidate_rmse", 0)
+    try:
+        candidate_rmse = float(candidate_rmse)
+    except (TypeError, ValueError):
+        candidate_rmse = 0.0
+
+    message = {
+        "text": f"🚀 Model {version} promoted to production",
+        "blocks": [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": f"Model Promoted — {dataset}"},
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {"type": "mrkdwn", "text": f"*Version:* {version}"},
+                    {"type": "mrkdwn", "text": f"*Candidate RMSE:* {candidate_rmse:.4f}"},
+                    {"type": "mrkdwn", "text": f"*Production RMSE:* {prod_rmse_str}"},
+                    {"type": "mrkdwn", "text": f"*Delta:* {delta_str}"},
+                ],
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"✅ Gate 3 passed: {comparison.get('reason', '')}",
+                    },
+                ],
+            },
+        ],
+    }
+    _send_slack_message(message)
+
+
+def alert_promotion_skipped(
+    dataset: str,
+    execution_date: str,
+    version: str,
+    comparison: dict[str, Any],
+    dag_id: str,
+) -> None:
+    """Send alert when model promotion is skipped (Gate 3 failed)."""
+    delta_pct = comparison.get("delta_pct")
+    # Handle potential mock objects in tests
+    try:
+        delta_str = f"{float(delta_pct):+.2f}%" if delta_pct is not None else "N/A"
+    except (TypeError, ValueError):
+        delta_str = "N/A"
+
+    prod_rmse = comparison.get("production_rmse")
+    try:
+        prod_rmse_str = f"{float(prod_rmse):.4f}" if prod_rmse is not None else "N/A"
+    except (TypeError, ValueError):
+        prod_rmse_str = "N/A"
+
+    prod_version = comparison.get("production_version", "unknown")
+    candidate_rmse = comparison.get("candidate_rmse", 0)
+    try:
+        candidate_rmse = float(candidate_rmse)
+    except (TypeError, ValueError):
+        candidate_rmse = 0.0
+
+    message = {
+        "text": f"⏸️ Model {version} NOT promoted — Gate 3 failed",
+        "blocks": [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": f"Promotion Skipped — {dataset}"},
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {"type": "mrkdwn", "text": f"*Candidate Version:* {version}"},
+                    {"type": "mrkdwn", "text": f"*Candidate RMSE:* {candidate_rmse:.4f}"},
+                    {"type": "mrkdwn", "text": f"*Production RMSE:* {prod_rmse_str}"},
+                    {"type": "mrkdwn", "text": f"*Delta:* {delta_str}"},
+                ],
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Reason:* {comparison.get('reason', 'unknown')}",
+                },
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": (
+                            f"⚠️ Candidate stays in staging. "
+                            f"Production model `{prod_version}` unchanged. "
+                            f"Firestore scores NOT updated."
+                        ),
+                    },
+                ],
+            },
+        ],
+    }
+    _send_slack_message(message)

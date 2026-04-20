@@ -112,6 +112,10 @@ def sample_cfg() -> dict[str, Any]:
             "collection": "test_h3_scores",
             "batch_size": 100,
         },
+        "promotion": {
+            "tolerance": 0.02,
+            "force_promote": False,
+        },
     }
 
 
