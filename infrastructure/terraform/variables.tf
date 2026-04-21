@@ -95,7 +95,7 @@ variable "github_clone_url" {
 variable "github_branch" {
   description = "Branch the VM checks out when cloning the repo."
   type        = string
-  default     = "main"
+  default     = "test-workflow-trigger"
 }
 
 variable "airflow_allowed_cidrs" {
