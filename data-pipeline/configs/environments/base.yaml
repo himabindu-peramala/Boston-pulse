@@ -21,7 +21,7 @@ project:
 storage:
   # Bucket names (override in env-specific configs)
   buckets:
-    main: "boston-pulse-data-prod"
+    main: "boston-pulse-data-pipeline"
     dvc: "boston-pulse-dvc"
     temp: "boston-pulse-temp"
 
@@ -281,3 +281,22 @@ apis:
     base_url: "https://api-v3.mbta.com"
     timeout_seconds: 30
     rate_limit_per_minute: 100
+
+# -----------------------------------------------------------------------------
+# ML Monitoring & Retrain Triggers
+# -----------------------------------------------------------------------------
+ml_monitoring:
+  crime_navigate:
+    retrain_triggers:
+      # Trigger retrain if any single feature drift score exceeds this
+      max_feature_drift_score: 0.25
+
+      # Trigger retrain if this share of features are drifted
+      max_drift_share: 0.30
+
+      # Trigger retrain if Evidently's dataset_drift flag is True
+      on_dataset_drift: true
+
+      # Cooldown — don't trigger again within this many hours
+      # Prevents thrashing if drift persists
+      cooldown_hours: 24

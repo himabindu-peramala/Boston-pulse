@@ -9,7 +9,7 @@ _inherit: dev
 
 storage:
   emulator:
-    enabled: true
+    enabled: false
     host: "http://fake-gcs:4443"
 
 validation:

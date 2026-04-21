@@ -332,3 +332,173 @@ def alert_promotion_skipped(
         ],
     }
     _send_slack_message(message)
+
+
+def alert_drift_report(summary: dict[str, Any]) -> None:
+    """Send Slack alert with daily drift monitoring results."""
+    model = summary.get("model", "unknown")
+    execution_date = summary.get("execution_date", "unknown")
+    n_drifted = summary.get("n_features_drifted", 0)
+    n_total = summary.get("n_features_total", 0)
+    drift_share = summary.get("drift_share", 0)
+    dataset_drift = summary.get("dataset_drift_detected", False)
+    html_uri = summary.get("html_gcs_uri", "")
+
+    # Determine severity
+    if dataset_drift or drift_share > 0.3:
+        emoji = "🚨"
+        severity = "HIGH"
+        _color = "#dc3545"
+    elif drift_share > 0.1:
+        emoji = "⚠️"
+        severity = "MEDIUM"
+        _color = "#ffc107"
+    else:
+        emoji = "✅"
+        severity = "LOW"
+        _color = "#28a745"
+
+    # Find top drifted features
+    per_feature = summary.get("per_feature", {})
+    drifted_features = [
+        (k, v.get("drift_score", 0))
+        for k, v in per_feature.items()
+        if v.get("drift_detected", False)
+    ]
+    drifted_features.sort(key=lambda x: x[1], reverse=True)
+    top_drifted = drifted_features[:5]
+
+    top_drifted_text = (
+        "\n".join([f"  • `{f}`: {s:.3f}" for f, s in top_drifted]) if top_drifted else "  None"
+    )
+
+    message = {
+        "text": f"{emoji} Drift Report: {model} — {severity}",
+        "blocks": [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": f"{emoji} Daily Drift Report — {model}",
+                },
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {"type": "mrkdwn", "text": f"*Date:* {execution_date}"},
+                    {"type": "mrkdwn", "text": f"*Severity:* {severity}"},
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Features Drifted:* {n_drifted}/{n_total}",
+                    },
+                    {"type": "mrkdwn", "text": f"*Drift Share:* {drift_share:.1%}"},
+                ],
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Dataset Drift Detected:* {'Yes 🚨' if dataset_drift else 'No'}",
+                },
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Top Drifted Features:*\n{top_drifted_text}",
+                },
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Reference Rows:* {summary.get('reference_rows', 'N/A'):,}\n"
+                    f"*Current Rows:* {summary.get('current_rows', 'N/A'):,}",
+                },
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"📊 <{html_uri}|View Full Evidently Report>",
+                    },
+                ],
+            },
+        ],
+    }
+    _send_slack_message(message)
+
+
+def alert_retrain_triggered(
+    model: str,
+    reasons: list[str],
+    summary: dict[str, Any],
+) -> None:
+    """Send Slack alert when drift monitoring triggers an automatic retrain."""
+    drift_share = summary.get("drift_share", 0)
+
+    # Format reasons as bullet points
+    reasons_text = "\n".join(f"• {r}" for r in reasons) if reasons else "• Unknown"
+
+    # Get top drifted features
+    per_feature = summary.get("per_feature", {})
+    drifted_features = [
+        (k, v.get("drift_score", 0))
+        for k, v in per_feature.items()
+        if v.get("drift_detected", False)
+    ]
+    drifted_features.sort(key=lambda x: x[1], reverse=True)
+    top_features = drifted_features[:3]
+    top_features_text = (
+        ", ".join([f"`{f}` ({s:.2f})" for f, s in top_features]) if top_features else "N/A"
+    )
+
+    message = {
+        "text": f"🔄 Automatic retrain triggered: {model}",
+        "blocks": [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "🔄 Automatic Retrain Triggered",
+                },
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {"type": "mrkdwn", "text": f"*Model:* {model}"},
+                    {"type": "mrkdwn", "text": f"*Date:* {summary.get('execution_date', 'N/A')}"},
+                    {"type": "mrkdwn", "text": f"*Drift Share:* {drift_share:.1%}"},
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Features Drifted:* {summary.get('n_features_drifted', 0)}/{summary.get('n_features_total', 0)}",
+                    },
+                ],
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Trigger Reasons:*\n{reasons_text}",
+                },
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Top Drifted Features:* {top_features_text}",
+                },
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "⚙️ GitHub Actions workflow `ml.yml` has been dispatched",
+                    },
+                ],
+            },
+        ],
+    }
+    _send_slack_message(message)

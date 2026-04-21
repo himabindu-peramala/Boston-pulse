@@ -8,6 +8,13 @@ This module hosts TWO micro-services side-by-side:
 Run whichever you need:
   flask --app app.main run -p 5001
   uvicorn app.main:fastapi_app --port 8000
+
+Cloud Monitoring metrics are emitted automatically:
+  - custom.googleapis.com/bostonpulse/backend/request_latency_ms
+  - custom.googleapis.com/bostonpulse/backend/request_count
+  - custom.googleapis.com/bostonpulse/backend/error_count
+  - custom.googleapis.com/bostonpulse/backend/score_served
+  - custom.googleapis.com/bostonpulse/backend/score_not_found
 """
 
 from __future__ import annotations
@@ -15,14 +22,21 @@ from __future__ import annotations
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from flasgger import Swagger
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
-from app.routes import health as health_route, chat, ingest
+from app.core.monitoring import (
+    FlaskMonitoringMiddleware,
+    emit_score_metrics,
+    emit_score_not_found,
+    fastapi_monitoring_middleware,
+)
+from app.routes import chat, health as health_route, ingest
 
 # Load environment variables from backend/.env
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
@@ -598,6 +612,9 @@ def create_app(config_path: str | None = None) -> Flask:
 # Allow `flask --app app.main run`
 app = create_app()
 
+# Wrap Flask app with monitoring middleware
+app.wsgi_app = FlaskMonitoringMiddleware(app.wsgi_app)
+
 
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  2.  FASTAPI — RAG Chatbot API                                     ║
@@ -611,6 +628,9 @@ fastapi_app = FastAPI(
     docs_url="/docs",
 )
 
+# Add monitoring middleware (must be added before CORS middleware)
+fastapi_app.add_middleware(BaseHTTPMiddleware, dispatch=fastapi_monitoring_middleware)
+
 fastapi_app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -622,3 +642,68 @@ fastapi_app.add_middleware(
 fastapi_app.include_router(health_route.router, tags=["Health"])
 fastapi_app.include_router(chat.router,         prefix="/api", tags=["Chat"])
 fastapi_app.include_router(ingest.router,       prefix="/api", tags=["Ingest"])
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  3.  H3 Score Endpoint (for direct score lookup with monitoring)    ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+# Lazy-loaded Firestore client for score endpoint
+_score_firestore = None
+SCORE_COLLECTION = os.environ.get("H3_SCORE_COLLECTION", "h3_scores")
+
+
+def _get_score_firestore():
+    """Lazy-load Firestore client for score endpoint."""
+    global _score_firestore
+    if _score_firestore is None:
+        from google.cloud import firestore
+
+        _score_firestore = firestore.Client()
+    return _score_firestore
+
+
+@fastapi_app.get("/score", tags=["Scoring"])
+def get_h3_score(
+    h3: str = Query(..., description="H3 index (resolution 9)"),
+    hour: int = Query(..., ge=0, le=23, description="Hour of day (0-23)"),
+):
+    """
+    Get the risk score for a specific H3 cell and hour.
+
+    Returns the pre-computed risk score from Firestore.
+    Emits metrics to Cloud Monitoring for observability.
+    """
+    if not 0 <= hour <= 23:
+        raise HTTPException(status_code=400, detail="hour must be 0–23")
+
+    # Convert hour to hour_bucket (8 buckets of 3 hours each)
+    hour_bucket = hour // 3
+    key = f"{h3}_{hour_bucket}"
+
+    db = _get_score_firestore()
+    doc = db.collection(SCORE_COLLECTION).document(key).get()
+
+    if not doc.exists:
+        # Emit metric for missing score
+        emit_score_not_found(h3[:4] if len(h3) >= 4 else h3)
+        raise HTTPException(status_code=404, detail=f"No score for {key}")
+
+    data = doc.to_dict()
+
+    # Emit metric for served score
+    emit_score_metrics(
+        risk_score=data.get("risk_score", 0),
+        risk_tier=data.get("risk_tier", "unknown"),
+        h3_prefix=h3[:4] if len(h3) >= 4 else h3,
+    )
+
+    return {
+        "h3_index": h3,
+        "hour": hour,
+        "hour_bucket": hour_bucket,
+        "risk_score": data.get("risk_score"),
+        "risk_tier": data.get("risk_tier"),
+        "model_version": data.get("model_version"),
+        "updated_at": data.get("updated_at"),
+    }

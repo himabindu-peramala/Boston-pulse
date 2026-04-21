@@ -131,7 +131,7 @@ registry:
   # Namespaced package name: {domain}/{model-purpose}
   # This creates logical separation within the repository
   # Future models: navigate/transit-risk, chatbot/intent-model, etc.
-  package: navigate/crime-risk
+  package: navigate-crime-risk
   # GCS backup bucket (also used for SHAP plots and MLflow artifacts)
   artifact_bucket: boston-pulse-mlflow-artifacts
 
