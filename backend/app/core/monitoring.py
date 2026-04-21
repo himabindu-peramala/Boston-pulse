@@ -189,7 +189,6 @@ class FlaskMonitoringMiddleware:
         self.app = app
 
     def __call__(self, environ: dict, start_response: Callable) -> Any:
-        from flask import request
 
         start = time.time()
         status_code = 500
