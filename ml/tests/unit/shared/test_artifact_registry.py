@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import tarfile
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -35,15 +36,38 @@ def ar_client(ar_cfg: dict[str, Any]) -> ArtifactRegistryClient:
     return ArtifactRegistryClient(ar_cfg)
 
 
-@pytest.fixture
-def mock_credentials():
-    """Mock ADC credentials."""
-    with patch("shared.artifact_registry.google.auth.default") as mock_auth:
-        mock_creds = MagicMock()
-        mock_creds.token = "fake-token-12345"
-        mock_creds.valid = True
-        mock_auth.return_value = (mock_creds, "test-project")
-        yield mock_creds
+@pytest.fixture(autouse=True)
+def mock_gcp_auth():
+    """
+    Auto-mock GCP authentication for ALL tests in this module.
+
+    Without this, tests fail in CI (and any env without ADC) because
+    ArtifactRegistryClient._get_auth_token() calls google.auth.default(),
+    which requires real credentials. We patch at two layers:
+
+    1. google.auth.default — in case any code path calls it directly.
+    2. ArtifactRegistryClient._get_auth_header — covers the common path
+       used by Docker Registry HTTP API calls (push/pull/list/get_tag).
+
+    This guarantees tests are hermetic and don't leak to real GCP.
+    """
+    from datetime import datetime, timedelta
+
+    fake_creds = MagicMock()
+    fake_creds.token = "fake-token-12345"
+    fake_creds.valid = True
+    fake_creds.expiry = datetime.now(UTC) + timedelta(hours=1)
+
+    with (
+        patch("shared.artifact_registry.google.auth.default") as mock_auth,
+        patch.object(
+            ArtifactRegistryClient,
+            "_get_auth_header",
+            return_value={"Authorization": "Bearer fake-token-12345"},
+        ),
+    ):
+        mock_auth.return_value = (fake_creds, "test-project")
+        yield fake_creds
 
 
 class TestArtifactRegistryClient:
