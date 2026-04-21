@@ -8,7 +8,7 @@ on:
       - 'ml/**'
       - '.github/workflows/ml.yml'
     branches:
-      - main
+      - test-workflow-trigger
   pull_request:
     paths:
       - 'ml/**'
@@ -29,8 +29,15 @@ on:
         default: false
         type: boolean
   schedule:
-    # Weekly Sunday 2 AM UTC — runs build + Cloud Run training job
-    - cron: '0 2 * * 0'
+    # Daily 2 AM UTC — runs build + Cloud Run training job
+    # Runs 1 hour after data pipeline (1 AM UTC) to ensure fresh features
+    - cron: '0 2 * * *'
+
+# Prevent duplicate runs when drift monitoring triggers retrain
+# If a scheduled run is in progress and drift triggers a new run, queue it
+concurrency:
+  group: ml-training-${{ github.ref }}
+  cancel-in-progress: false  # Queue, don't cancel in-flight training
 
 env:
   PYTHON_VERSION: '3.11'
@@ -151,7 +158,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: integration-test
     if: |
-      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.ref == 'refs/heads/test-workflow-trigger' && github.event_name == 'push') ||
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_image_build != 'true')
     permissions:
@@ -203,7 +210,7 @@ jobs:
           docker push "${IMAGE_SHA}"
 
           # Only push :latest on test branch
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          if [[ "${{ github.ref }}" == "refs/heads/test-workflow-trigger" ]]; then
             echo "Pushing ${IMAGE_LATEST}..."
             docker push "${IMAGE_LATEST}"
           fi
@@ -241,7 +248,7 @@ jobs:
         )
       ) &&
       (
-        (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+        (github.ref == 'refs/heads/test-workflow-trigger' && github.event_name == 'push') ||
         github.event_name == 'schedule' ||
         (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_training != 'true')
       )
@@ -325,7 +332,7 @@ jobs:
     # Run after all jobs finish (success, failure, or skipped) so results are available in needs.*.
     if: |
       always() &&
-      (github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      (github.ref == 'refs/heads/test-workflow-trigger' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     steps:
       - name: Slack summary
         env:

@@ -1,40 +1,28 @@
 """
-Boston Pulse ML - Artifact Registry Client.
+Boston Pulse ML - Artifact Registry Client (Docker Format).
 
-Pushes model artifacts to GCP Artifact Registry using the Python SDK.
-No gcloud CLI dependency — uses Application Default Credentials (ADC).
+Pushes model artifacts to GCP Artifact Registry Docker repositories.
+Uses Docker Registry HTTP API v2 directly — no Docker daemon required.
 
 Works identically on:
-  - GCE VM (service account via metadata server at 169.254.169.254)
+  - GCE VM (service account via metadata server)
   - Local Mac (gcloud auth application-default login)
   - GitHub Actions (Workload Identity Federation)
-  - Any environment with ADC configured
+  - Cloud Run (service account)
 
-This is for DEPLOYABLE artifacts only — model.lgb and metadata.json.
-Run artifacts (features.parquet, scores.parquet, etc.) stay in GCS.
-
-Repository structure with namespaced packages:
-  ml-models/                              (repository)
-    ├── navigate/crime-risk               (package - current model)
-    │   ├── 20260316                      (version)
-    │   ├── 20260322                      (version)
-    │   └── production → 20260322         (tag)
-    ├── navigate/transit-risk             (package - future)
-    └── chatbot/intent-model              (package - future)
-
-Package naming convention: {domain}/{model-purpose}
-  - domain: product area (navigate, chatbot, etc.)
-  - model-purpose: what the model predicts (crime-risk, transit-risk, etc.)
-
-Versioning pattern:
-  - Dated versions (e.g., "20260322") are immutable snapshots
-  - Tags: "staging" → "production" promotion flow
-  - "latest" tag always points to most recent successful training
+Repository structure:
+  ml-models/                              (Docker repository)
+    └── navigate-crime-risk               (image name)
+        ├── 20260316                      (tag - dated version)
+        ├── 20260322                      (tag - dated version)
+        ├── staging                       (tag - points to latest staged)
+        ├── production                    (tag - points to promoted version)
+        └── latest                        (tag - most recent)
 
 Stage promotion flow:
-  1. Train → push with "staging" tag + dated version
-  2. Gates pass → promote to "production" tag
-  3. Production service pulls "production" tag at startup
+  1. Train → push with version tag + "staging" + "latest" tags
+  2. Gates pass → add "production" tag to same digest
+  3. Production service pulls ":production" tag at startup
 """
 
 from __future__ import annotations
@@ -43,6 +31,7 @@ import hashlib
 import json
 import logging
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -62,14 +51,15 @@ class ArtifactRegistryError(Exception):
 
 class ArtifactRegistryClient:
     """
-    Client for GCP Artifact Registry Generic repositories.
+    Client for GCP Artifact Registry Docker repositories.
 
-    Uses Python SDK only — no gcloud CLI dependency.
-    Authentication is handled by google-auth library via ADC.
+    Uses Docker Registry HTTP API v2 directly — no Docker daemon needed.
+    Authentication via Google ADC (Application Default Credentials).
 
-    Provides versioned model storage with stage-based promotion:
-    - staging: newly trained model, not yet validated for production
+    Provides versioned model storage with tag-based promotion:
+    - staging: newly trained model, not yet validated
     - production: validated model, safe for serving
+    - latest: most recent successful training
     """
 
     def __init__(self, cfg: dict[str, Any]):
@@ -81,132 +71,245 @@ class ArtifactRegistryClient:
                 - project: GCP project ID
                 - location: AR location (e.g., us-east1)
                 - repository: AR repository name
-                - package: Namespaced package name (e.g., "navigate/crime-risk")
+                - package: Image name (e.g., "navigate-crime-risk")
         """
         registry_cfg = cfg.get("registry", {})
         self.project = registry_cfg.get("project", "bostonpulse")
         self.location = registry_cfg.get("location", "us-east1")
         self.repository = registry_cfg.get("repository", "ml-models")
 
-        # Package name uses namespace convention: {domain}/{model-purpose}
-        self.package = registry_cfg.get(
-            "package", cfg.get("model", {}).get("name", "navigate/crime-risk")
+        # Image name — use dashes, not slashes (Docker naming convention)
+        package = registry_cfg.get(
+            "package", cfg.get("model", {}).get("name", "navigate-crime-risk")
+        )
+        # Convert any slashes to dashes for Docker compatibility
+        self.image_name = package.replace("/", "-")
+        self.model_name = (
+            self.image_name.split("-")[-1] if "-" in self.image_name else self.image_name
         )
 
-        # For display and file naming, use the model-purpose part
-        self.model_name = self.package.split("/")[-1] if "/" in self.package else self.package
+        # Docker registry host and path
+        self.registry_host = f"{self.location}-docker.pkg.dev"
+        self.image_path = f"{self.project}/{self.repository}/{self.image_name}"
+        self.full_image = f"{self.registry_host}/{self.image_path}"
 
-        self.ar_host = f"{self.location}-generic.pkg.dev"
-        self.ar_path = f"{self.project}/{self.repository}/{self.package}"
-
-        # Fully qualified AR resource names for SDK calls
-        self._parent = (
-            f"projects/{self.project}/locations/{self.location}" f"/repositories/{self.repository}"
-        )
-        self._package_parent = f"{self._parent}/packages/{self.package}"
-
-        # AR client for tag/version management — uses ADC automatically
+        # AR SDK client for listing (optional, used for version queries)
         self._ar_client: artifactregistry_v1.ArtifactRegistryClient | None = None
+
+        # Cache credentials
+        self._credentials = None
+        self._token_expiry = None
 
     @property
     def ar_client(self) -> artifactregistry_v1.ArtifactRegistryClient:
-        """Lazy-load AR client to avoid import overhead if not needed."""
+        """Lazy-load AR SDK client."""
         if self._ar_client is None:
             self._ar_client = artifactregistry_v1.ArtifactRegistryClient()
         return self._ar_client
 
-    def _get_credentials(self) -> google.auth.credentials.Credentials:
-        """Get ADC credentials with cloud-platform scope."""
-        credentials, _ = google.auth.default(
-            scopes=["https://www.googleapis.com/auth/cloud-platform"]
-        )
-        auth_req = google.auth.transport.requests.Request()
-        credentials.refresh(auth_req)
-        return credentials
+    def _get_auth_token(self) -> str:
+        """Get OAuth2 token for Docker Registry authentication."""
+        if self._credentials is None or self._is_token_expired():
+            credentials, _ = google.auth.default(
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+            auth_req = google.auth.transport.requests.Request()
+            credentials.refresh(auth_req)
+            self._credentials = credentials
+            self._token_expiry = credentials.expiry
 
-    def _create_artifact_package(
+        return self._credentials.token
+
+    def _is_token_expired(self) -> bool:
+        """Check if cached token is expired."""
+        if self._token_expiry is None:
+            return True
+        # Handle both timezone-aware and naive datetimes from google-auth
+        now = datetime.now(UTC)
+        expiry = self._token_expiry
+        if expiry.tzinfo is None:
+            # Assume UTC if naive
+            expiry = expiry.replace(tzinfo=UTC)
+        return now >= expiry
+
+    def _get_auth_header(self) -> dict[str, str]:
+        """Get Authorization header for Docker Registry API."""
+        token = self._get_auth_token()
+        return {"Authorization": f"Bearer {token}"}
+
+    def _compute_sha256(self, data: bytes) -> str:
+        """Compute SHA256 hash of bytes."""
+        return hashlib.sha256(data).hexdigest()
+
+    def _create_model_tarball(
         self,
         model_path: str,
         metadata: dict[str, Any],
         shap_path: str | None = None,
-    ) -> str:
+    ) -> tuple[bytes, str]:
         """
-        Create a tarball package containing model + metadata.
+        Create a tarball containing model + metadata.
 
-        Returns path to the created tarball.
+        Returns:
+            (tarball_bytes, sha256_digest)
         """
+        import io
         import tarfile
 
-        tmpdir = tempfile.mkdtemp()
-        package_path = Path(tmpdir) / f"{self.model_name}.tar.gz"
+        buffer = io.BytesIO()
 
-        with tarfile.open(package_path, "w:gz") as tar:
+        with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+            # Add model file
             tar.add(model_path, arcname="model.lgb")
 
-            meta_path = Path(tmpdir) / "metadata.json"
-            meta_path.write_text(json.dumps(metadata, indent=2, default=str))
-            tar.add(meta_path, arcname="metadata.json")
+            # Add metadata as JSON
+            meta_bytes = json.dumps(metadata, indent=2, default=str).encode("utf-8")
+            meta_info = tarfile.TarInfo(name="metadata.json")
+            meta_info.size = len(meta_bytes)
+            tar.addfile(meta_info, io.BytesIO(meta_bytes))
 
+            # Add SHAP plot if provided
             if shap_path and Path(shap_path).exists():
                 tar.add(shap_path, arcname="shap_summary.png")
 
-        return str(package_path)
+        tarball_bytes = buffer.getvalue()
+        digest = self._compute_sha256(tarball_bytes)
 
-    def _compute_sha256(self, file_path: str) -> str:
-        """Compute SHA256 hash of a file."""
-        sha256 = hashlib.sha256()
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(8192), b""):
-                sha256.update(chunk)
-        return sha256.hexdigest()
+        return tarball_bytes, digest
 
-    def _upload_generic_artifact(self, package_path: str, version: str) -> None:
+    def _upload_blob(self, data: bytes, digest: str) -> str:
         """
-        Upload a tarball to AR as a generic artifact using the REST API.
+        Upload a blob to the Docker registry.
 
-        The AR Python SDK doesn't have a direct upload method for generic artifacts,
-        so we use the REST API with ADC credentials.
+        Uses Docker Registry HTTP API v2 blob upload.
+
+        Returns:
+            The blob digest (sha256:...)
         """
-        credentials = self._get_credentials()
+        full_digest = f"sha256:{digest}"
 
-        # AR generic upload endpoint (v1beta2 for generic artifacts)
-        # URL-encode the package name (slashes become %2F)
-        _encoded_package = self.package.replace("/", "%2F")
-        upload_url = (
-            f"https://{self.location}-artifactregistry.googleapis.com/v1beta2"
-            f"/projects/{self.project}/locations/{self.location}"
-            f"/repositories/{self.repository}/genericArtifacts:create"
-        )
+        # Check if blob already exists
+        check_url = f"https://{self.registry_host}/v2/{self.image_path}/blobs/{full_digest}"
+        headers = self._get_auth_header()
 
-        with open(package_path, "rb") as f:
-            file_content = f.read()
+        response = requests.head(check_url, headers=headers, timeout=30)
+        if response.status_code == 200:
+            logger.debug(f"Blob {digest[:12]} already exists")
+            return full_digest
 
-        # The filename in AR will be the tarball name
-        filename = Path(package_path).name
+        # Start upload session
+        upload_url = f"https://{self.registry_host}/v2/{self.image_path}/blobs/uploads/"
+        response = requests.post(upload_url, headers=headers, timeout=30)
 
-        headers = {
-            "Authorization": f"Bearer {credentials.token}",
-            "Content-Type": "application/octet-stream",
+        if response.status_code not in (202,):
+            raise ArtifactRegistryError(
+                f"Failed to start blob upload: {response.status_code} {response.text}"
+            )
+
+        # Get the upload location from response header
+        location = response.headers.get("Location")
+        if not location:
+            raise ArtifactRegistryError("No upload location returned")
+
+        # Ensure location is absolute
+        if not location.startswith("http"):
+            location = f"https://{self.registry_host}{location}"
+
+        # Upload the blob in one request (monolithic upload)
+        separator = "&" if "?" in location else "?"
+        put_url = f"{location}{separator}digest={full_digest}"
+
+        headers = self._get_auth_header()
+        headers["Content-Type"] = "application/octet-stream"
+        headers["Content-Length"] = str(len(data))
+
+        response = requests.put(put_url, headers=headers, data=data, timeout=300)
+
+        if response.status_code not in (201,):
+            raise ArtifactRegistryError(
+                f"Failed to upload blob: {response.status_code} {response.text}"
+            )
+
+        logger.debug(f"Uploaded blob {digest[:12]} ({len(data)} bytes)")
+        return full_digest
+
+    def _create_config_blob(self, metadata: dict[str, Any]) -> tuple[bytes, str]:
+        """
+        Create OCI config blob for the image.
+
+        This contains image metadata in OCI format.
+        """
+        config = {
+            "architecture": "amd64",
+            "os": "linux",
+            "config": {
+                "Labels": {
+                    "org.opencontainers.image.title": self.model_name,
+                    "org.opencontainers.image.version": metadata.get("version", "unknown"),
+                    "boston-pulse.model.name": self.model_name,
+                    "boston-pulse.model.version": metadata.get("version", "unknown"),
+                    "boston-pulse.model.stage": metadata.get("stage", "staging"),
+                    "boston-pulse.model.val_rmse": str(metadata.get("val_rmse", "")),
+                }
+            },
+            "rootfs": {"type": "layers", "diff_ids": []},  # Will be populated after layer upload
+            "history": [
+                {
+                    "created": datetime.now(UTC).isoformat(),
+                    "comment": f"Boston Pulse ML model: {self.model_name}",
+                }
+            ],
         }
 
-        params = {
-            "packageId": self.package,
-            "versionId": version,
-            "filename": filename,
+        config_bytes = json.dumps(config, separators=(",", ":")).encode("utf-8")
+        digest = self._compute_sha256(config_bytes)
+
+        return config_bytes, digest
+
+    def _upload_manifest(
+        self, config_digest: str, config_size: int, layer_digest: str, layer_size: int, tag: str
+    ) -> str:
+        """
+        Upload OCI image manifest with a specific tag.
+
+        Returns:
+            The manifest digest
+        """
+        manifest = {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "config": {
+                "mediaType": "application/vnd.oci.image.config.v1+json",
+                "digest": config_digest,
+                "size": config_size,
+            },
+            "layers": [
+                {
+                    "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                    "digest": layer_digest,
+                    "size": layer_size,
+                }
+            ],
         }
 
-        response = requests.post(
-            upload_url,
-            headers=headers,
-            params=params,
-            data=file_content,
-            timeout=300,
-        )
+        manifest_bytes = json.dumps(manifest, separators=(",", ":")).encode("utf-8")
+        manifest_digest = f"sha256:{self._compute_sha256(manifest_bytes)}"
 
-        if response.status_code not in (200, 201):
-            raise ArtifactRegistryError(f"AR upload failed: {response.status_code} {response.text}")
+        # Push manifest with tag
+        manifest_url = f"https://{self.registry_host}/v2/{self.image_path}/manifests/{tag}"
 
-        logger.debug(f"AR upload response: {response.status_code}")
+        headers = self._get_auth_header()
+        headers["Content-Type"] = "application/vnd.oci.image.manifest.v1+json"
+
+        response = requests.put(manifest_url, headers=headers, data=manifest_bytes, timeout=60)
+
+        if response.status_code not in (201, 200):
+            raise ArtifactRegistryError(
+                f"Failed to upload manifest for tag '{tag}': {response.status_code} {response.text}"
+            )
+
+        logger.debug(f"Uploaded manifest with tag '{tag}'")
+        return manifest_digest
 
     def push(
         self,
@@ -217,7 +320,7 @@ class ArtifactRegistryClient:
         shap_path: str | None = None,
     ) -> dict[str, str]:
         """
-        Push model to Artifact Registry.
+        Push model to Artifact Registry as a Docker image.
 
         Args:
             model_path: Local path to model.lgb file
@@ -232,69 +335,88 @@ class ArtifactRegistryClient:
         full_metadata = {
             **metadata,
             "version": version,
-            "package": self.package,
+            "image_name": self.image_name,
             "model_name": self.model_name,
             "stage": stage,
+            "pushed_at": datetime.now(UTC).isoformat(),
         }
 
-        package_path = self._create_artifact_package(model_path, full_metadata, shap_path)
-        sha256 = self._compute_sha256(package_path)
+        # Create model layer (tarball)
+        layer_bytes, layer_sha = self._create_model_tarball(model_path, full_metadata, shap_path)
 
-        ar_uri = f"https://{self.ar_host}/{self.ar_path}"
+        # Create config blob
+        config_bytes, config_sha = self._create_config_blob(full_metadata)
 
-        self._upload_generic_artifact(package_path, version)
+        # Upload blobs
+        layer_digest = self._upload_blob(layer_bytes, layer_sha)
+        config_digest = self._upload_blob(config_bytes, config_sha)
 
-        logger.info(f"Pushed model to AR: {ar_uri}:{version}")
+        # Upload manifest with version tag
+        manifest_digest = self._upload_manifest(
+            config_digest, len(config_bytes), layer_digest, len(layer_bytes), version
+        )
 
-        self._set_tag(version, version)
+        logger.info(f"Pushed model to AR: {self.full_image}:{version}")
 
+        # Add additional tags
+        tags_to_add = ["latest"]
         if stage == "staging":
-            self._set_tag(version, "staging")
+            tags_to_add.append("staging")
         elif stage == "production":
-            self._set_tag(version, "staging")
-            self._set_tag(version, "production")
+            tags_to_add.extend(["staging", "production"])
 
-        self._set_tag(version, "latest")
-
-        Path(package_path).unlink(missing_ok=True)
+        for tag in tags_to_add:
+            self._upload_manifest(
+                config_digest, len(config_bytes), layer_digest, len(layer_bytes), tag
+            )
+            logger.info(f"Tagged {self.full_image}:{tag}")
 
         return {
-            "ar_uri": f"{ar_uri}:{version}",
+            "ar_uri": f"{self.full_image}:{version}",
             "version": version,
             "stage": stage,
-            "sha256": sha256,
-            "ar_path": f"{self.ar_path}:{version}",
+            "manifest_digest": manifest_digest,
+            "ar_path": f"{self.image_path}:{version}",
         }
 
     def _set_tag(self, version: str, tag: str) -> None:
-        """Set a tag pointing to a specific version using the Python SDK."""
-        tag_name = f"{self._package_parent}/tags/{tag}"
-        version_name = f"{self._package_parent}/versions/{version}"
+        """
+        Set a tag pointing to a specific version.
 
-        try:
-            existing_tag = self.ar_client.get_tag(name=tag_name)
-            # Tag exists — update it
-            existing_tag.version = version_name
-            update_request = artifactregistry_v1.UpdateTagRequest(
-                tag=existing_tag,
-                update_mask={"paths": ["version"]},
-            )
-            self.ar_client.update_tag(request=update_request)
-            logger.debug(f"Updated tag '{tag}' → {version}")
+        For Docker repos, this means copying the manifest to the new tag.
+        """
+        # Get the manifest for the source version
+        source_url = f"https://{self.registry_host}/v2/{self.image_path}/manifests/{version}"
 
-        except Exception:
-            # Tag does not exist — create it
-            new_tag = artifactregistry_v1.Tag(
-                name=tag_name,
-                version=version_name,
+        headers = self._get_auth_header()
+        headers["Accept"] = (
+            "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"
+        )
+
+        response = requests.get(source_url, headers=headers, timeout=30)
+
+        if response.status_code != 200:
+            raise ArtifactRegistryError(
+                f"Failed to get manifest for version '{version}': {response.status_code}"
             )
-            create_request = artifactregistry_v1.CreateTagRequest(
-                parent=self._package_parent,
-                tag_id=tag,
-                tag=new_tag,
+
+        manifest_bytes = response.content
+        content_type = response.headers.get(
+            "Content-Type", "application/vnd.oci.image.manifest.v1+json"
+        )
+
+        # Push manifest with new tag
+        target_url = f"https://{self.registry_host}/v2/{self.image_path}/manifests/{tag}"
+
+        headers = self._get_auth_header()
+        headers["Content-Type"] = content_type
+
+        response = requests.put(target_url, headers=headers, data=manifest_bytes, timeout=60)
+
+        if response.status_code not in (201, 200):
+            raise ArtifactRegistryError(
+                f"Failed to set tag '{tag}': {response.status_code} {response.text}"
             )
-            self.ar_client.create_tag(request=create_request)
-            logger.debug(f"Created tag '{tag}' → {version}")
 
         logger.info(f"Set tag '{tag}' → version {version}")
 
@@ -315,7 +437,7 @@ class ArtifactRegistryClient:
         return {
             "version": version,
             "stage": "production",
-            "ar_path": f"{self.ar_path}:production",
+            "ar_path": f"{self.image_path}:production",
         }
 
     def pull(
@@ -333,152 +455,66 @@ class ArtifactRegistryClient:
         Returns:
             (local model path, metadata dict)
         """
+        import io
         import tarfile
 
         if local_dir is None:
             local_dir = tempfile.mkdtemp()
 
-        # Resolve tag to version if needed
-        actual_version = version_or_tag
-        if version_or_tag in ("staging", "production", "latest"):
-            resolved = self.get_version_by_tag(version_or_tag)
-            if resolved:
-                actual_version = resolved
-            else:
-                raise ArtifactRegistryError(
-                    f"Tag '{version_or_tag}' not found or does not point to a version"
-                )
+        # Get manifest
+        manifest_url = (
+            f"https://{self.registry_host}/v2/{self.image_path}/manifests/{version_or_tag}"
+        )
 
-        # Download using REST API
-        self._download_generic_artifact(actual_version, local_dir)
+        headers = self._get_auth_header()
+        headers["Accept"] = (
+            "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"
+        )
 
-        tar_files = list(Path(local_dir).glob("*.tar.gz"))
-        if not tar_files:
-            raise ArtifactRegistryError(f"No package found after download for {version_or_tag}")
+        response = requests.get(manifest_url, headers=headers, timeout=30)
 
-        with tarfile.open(tar_files[0], "r:gz") as tar:
+        if response.status_code != 200:
+            raise ArtifactRegistryError(
+                f"Failed to get manifest for '{version_or_tag}': {response.status_code}"
+            )
+
+        manifest = response.json()
+
+        # Get layer digest (our model tarball)
+        layers = manifest.get("layers", [])
+        if not layers:
+            raise ArtifactRegistryError(f"No layers in manifest for '{version_or_tag}'")
+
+        layer_digest = layers[0]["digest"]
+
+        # Download layer blob
+        blob_url = f"https://{self.registry_host}/v2/{self.image_path}/blobs/{layer_digest}"
+        response = requests.get(blob_url, headers=self._get_auth_header(), stream=True, timeout=300)
+
+        if response.status_code != 200:
+            raise ArtifactRegistryError(f"Failed to download layer: {response.status_code}")
+
+        # Extract tarball
+        tarball_bytes = response.content
+        with tarfile.open(fileobj=io.BytesIO(tarball_bytes), mode="r:gz") as tar:
             tar.extractall(local_dir)
 
         model_path = str(Path(local_dir) / "model.lgb")
         meta_path = Path(local_dir) / "metadata.json"
 
         if not Path(model_path).exists():
-            raise ArtifactRegistryError("model.lgb not found in package")
+            raise ArtifactRegistryError("model.lgb not found in image")
 
         metadata = json.loads(meta_path.read_text()) if meta_path.exists() else {}
 
         logger.info(f"Pulled model from AR: {version_or_tag}")
         return model_path, metadata
 
-    def _download_generic_artifact(self, version: str, local_dir: str) -> None:
-        """
-        Download a generic artifact from AR using the REST API.
-
-        Lists files in the version and downloads each one.
-        """
-        credentials = self._get_credentials()
-
-        # List files in the version
-        version_name = f"{self._package_parent}/versions/{version}"
-
-        try:
-            _version_obj = self.ar_client.get_version(name=version_name)
-        except Exception as e:
-            raise ArtifactRegistryError(f"Version '{version}' not found: {e}") from e
-
-        # Get the list of files via REST API
-        list_url = (
-            f"https://{self.location}-artifactregistry.googleapis.com/v1beta2"
-            f"/{version_name}/files"
-        )
-
-        headers = {"Authorization": f"Bearer {credentials.token}"}
-        response = requests.get(list_url, headers=headers, timeout=60)
-
-        if response.status_code != 200:
-            # Fallback: try to download the package directly by name pattern
-            download_url = (
-                f"https://{self.location}-artifactregistry.googleapis.com/v1beta2"
-                f"/{version_name}:download"
-            )
-            response = requests.get(download_url, headers=headers, stream=True, timeout=300)
-
-            if response.status_code == 200:
-                dest_path = Path(local_dir) / f"{self.model_name}.tar.gz"
-                with open(dest_path, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                return
-
-            raise ArtifactRegistryError(
-                f"Failed to list/download files for version '{version}': "
-                f"{response.status_code} {response.text}"
-            )
-
-        files_data = response.json()
-        files = files_data.get("files", [])
-
-        if not files:
-            raise ArtifactRegistryError(f"No files found in version '{version}'")
-
-        # Download each file
-        for file_info in files:
-            file_name = file_info.get("name", "").split("/")[-1]
-            if not file_name:
-                continue
-
-            download_url = (
-                f"https://{self.location}-artifactregistry.googleapis.com/v1beta2"
-                f"/{file_info['name']}:download"
-            )
-
-            response = requests.get(download_url, headers=headers, stream=True, timeout=300)
-            if response.status_code != 200:
-                logger.warning(f"Failed to download {file_name}: {response.status_code}")
-                continue
-
-            dest_path = Path(local_dir) / file_name
-            with open(dest_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-
-            logger.debug(f"Downloaded {file_name} to {dest_path}")
-
-    def list_versions(self) -> list[dict[str, Any]]:
-        """
-        List all available model versions.
-
-        Returns:
-            List of version info dicts
-        """
-        request = artifactregistry_v1.ListVersionsRequest(parent=self._package_parent)
-
-        versions = []
-        try:
-            for version in self.ar_client.list_versions(request=request):
-                version_id = version.name.split("/")[-1]
-                # Skip tag-like entries
-                if version_id not in ("staging", "production", "latest"):
-                    versions.append(
-                        {
-                            "version": version_id,
-                            "createTime": (
-                                version.create_time.isoformat() if version.create_time else None
-                            ),
-                            "updateTime": (
-                                version.update_time.isoformat() if version.update_time else None
-                            ),
-                        }
-                    )
-        except Exception as e:
-            logger.warning(f"Failed to list versions: {e}")
-            return []
-
-        return versions
-
     def get_version_by_tag(self, tag: str) -> str | None:
         """
         Get the version that a tag points to.
+
+        For Docker repos, we extract version from image labels.
 
         Args:
             tag: Tag name ("staging", "production", "latest")
@@ -486,31 +522,98 @@ class ArtifactRegistryClient:
         Returns:
             Version string or None if tag doesn't exist
         """
-        tag_name = f"{self._package_parent}/tags/{tag}"
-
         try:
-            tag_obj = self.ar_client.get_tag(name=tag_name)
-            # tag.version is the full resource name — extract the ID
-            return tag_obj.version.split("/")[-1] if tag_obj.version else None
+            # Get manifest
+            manifest_url = f"https://{self.registry_host}/v2/{self.image_path}/manifests/{tag}"
+
+            headers = self._get_auth_header()
+            headers["Accept"] = (
+                "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"
+            )
+
+            response = requests.get(manifest_url, headers=headers, timeout=30)
+
+            if response.status_code != 200:
+                return None
+
+            manifest = response.json()
+            config_digest = manifest.get("config", {}).get("digest")
+
+            if not config_digest:
+                return None
+
+            # Get config blob to read labels
+            config_url = f"https://{self.registry_host}/v2/{self.image_path}/blobs/{config_digest}"
+            response = requests.get(config_url, headers=self._get_auth_header(), timeout=30)
+
+            if response.status_code != 200:
+                return None
+
+            config = response.json()
+            labels = config.get("config", {}).get("Labels", {})
+
+            return labels.get("boston-pulse.model.version")
+
         except Exception as e:
-            logger.debug(f"Tag '{tag}' not found: {e}")
+            logger.debug(f"Failed to get version for tag '{tag}': {e}")
             return None
 
     def list_tags(self) -> dict[str, str]:
-        """Return dict of tag_name → version_id."""
-        request = artifactregistry_v1.ListTagsRequest(parent=self._package_parent)
-
+        """Return dict of tag_name → version (from labels)."""
         tags = {}
+
         try:
-            for tag in self.ar_client.list_tags(request=request):
-                tag_id = tag.name.split("/")[-1]
-                version_id = tag.version.split("/")[-1] if tag.version else None
-                if version_id:
-                    tags[tag_id] = version_id
+            # List tags via Docker Registry API
+            tags_url = f"https://{self.registry_host}/v2/{self.image_path}/tags/list"
+            response = requests.get(tags_url, headers=self._get_auth_header(), timeout=30)
+
+            if response.status_code != 200:
+                return tags
+
+            tag_list = response.json().get("tags", [])
+
+            for tag in tag_list:
+                version = self.get_version_by_tag(tag)
+                if version:
+                    tags[tag] = version
+
         except Exception as e:
             logger.warning(f"Failed to list tags: {e}")
 
         return tags
+
+    def list_versions(self) -> list[dict[str, Any]]:
+        """
+        List all available model versions (dated tags).
+
+        Returns:
+            List of version info dicts
+        """
+        versions = []
+
+        try:
+            tags_url = f"https://{self.registry_host}/v2/{self.image_path}/tags/list"
+            response = requests.get(tags_url, headers=self._get_auth_header(), timeout=30)
+
+            if response.status_code != 200:
+                return versions
+
+            tag_list = response.json().get("tags", [])
+
+            # Filter to dated versions (YYYYMMDD format)
+            for tag in tag_list:
+                if tag.isdigit() and len(tag) == 8:
+                    versions.append(
+                        {
+                            "version": tag,
+                            "tag": tag,
+                        }
+                    )
+
+        except Exception as e:
+            logger.warning(f"Failed to list versions: {e}")
+
+        return sorted(versions, key=lambda x: x["version"], reverse=True)
 
     def rollback(self, version: str) -> dict[str, str]:
         """
@@ -531,7 +634,7 @@ def ensure_repository_exists(
     repository: str,
 ) -> None:
     """
-    Ensure the AR repository exists, create if not.
+    Ensure the AR Docker repository exists, create if not.
 
     Uses Python SDK — no gcloud CLI needed.
     Call this during infrastructure setup, not during training.
@@ -540,15 +643,22 @@ def ensure_repository_exists(
     repo_name = f"projects/{project}/locations/{location}/repositories/{repository}"
 
     try:
-        client.get_repository(name=repo_name)
-        logger.debug(f"AR repository exists: {repository}")
+        repo = client.get_repository(name=repo_name)
+        # Check if it's Docker format
+        if repo.format_ != artifactregistry_v1.Repository.Format.DOCKER:
+            logger.warning(
+                f"Repository {repository} exists but is not Docker format. "
+                f"Current format: {repo.format_}. Please recreate as Docker."
+            )
+        else:
+            logger.debug(f"AR Docker repository exists: {repository}")
     except Exception:
-        logger.info(f"Creating AR repository: {repository}")
+        logger.info(f"Creating AR Docker repository: {repository}")
         parent = f"projects/{project}/locations/{location}"
         repo = artifactregistry_v1.Repository(
             name=repo_name,
-            format_=artifactregistry_v1.Repository.Format.GENERIC,
-            description="Boston Pulse ML model artifacts",
+            format_=artifactregistry_v1.Repository.Format.DOCKER,
+            description="Boston Pulse ML model artifacts (Docker format)",
         )
         request = artifactregistry_v1.CreateRepositoryRequest(
             parent=parent,
@@ -556,5 +666,5 @@ def ensure_repository_exists(
             repository=repo,
         )
         operation = client.create_repository(request=request)
-        operation.result()  # Wait for completion
-        logger.info(f"Created AR repository: {repository}")
+        operation.result()
+        logger.info(f"Created AR Docker repository: {repository}")

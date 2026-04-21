@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import tarfile
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from google.cloud import artifactregistry_v1
 
 from shared.artifact_registry import (
     ArtifactRegistryClient,
@@ -23,7 +25,7 @@ def ar_cfg() -> dict[str, Any]:
             "project": "test-project",
             "location": "us-east1",
             "repository": "test-models",
-            "package": "navigate/test-model",
+            "package": "navigate-crime-risk",
         },
         "model": {"name": "test-model"},
     }
@@ -34,55 +36,84 @@ def ar_client(ar_cfg: dict[str, Any]) -> ArtifactRegistryClient:
     return ArtifactRegistryClient(ar_cfg)
 
 
-@pytest.fixture
-def mock_credentials():
-    """Mock ADC credentials."""
-    with patch("shared.artifact_registry.google.auth.default") as mock_auth:
-        mock_creds = MagicMock()
-        mock_creds.token = "fake-token-12345"
-        mock_creds.valid = True
-        mock_auth.return_value = (mock_creds, "test-project")
-        yield mock_creds
+@pytest.fixture(autouse=True)
+def mock_gcp_auth():
+    """
+    Auto-mock GCP authentication for ALL tests in this module.
+
+    Without this, tests fail in CI (and any env without ADC) because
+    ArtifactRegistryClient._get_auth_token() calls google.auth.default(),
+    which requires real credentials. We patch at two layers:
+
+    1. google.auth.default — in case any code path calls it directly.
+    2. ArtifactRegistryClient._get_auth_header — covers the common path
+       used by Docker Registry HTTP API calls (push/pull/list/get_tag).
+
+    This guarantees tests are hermetic and don't leak to real GCP.
+    """
+    from datetime import datetime, timedelta
+
+    fake_creds = MagicMock()
+    fake_creds.token = "fake-token-12345"
+    fake_creds.valid = True
+    fake_creds.expiry = datetime.now(UTC) + timedelta(hours=1)
+
+    with (
+        patch("shared.artifact_registry.google.auth.default") as mock_auth,
+        patch.object(
+            ArtifactRegistryClient,
+            "_get_auth_header",
+            return_value={"Authorization": "Bearer fake-token-12345"},
+        ),
+    ):
+        mock_auth.return_value = (fake_creds, "test-project")
+        yield fake_creds
 
 
 class TestArtifactRegistryClient:
     """Tests for ArtifactRegistryClient."""
 
     def test_init_sets_correct_paths(self, ar_client: ArtifactRegistryClient) -> None:
-        """Client initializes with correct AR paths including namespaced package."""
+        """Client initializes with correct AR paths for Docker format."""
         assert ar_client.project == "test-project"
         assert ar_client.location == "us-east1"
         assert ar_client.repository == "test-models"
-        assert ar_client.package == "navigate/test-model"
-        assert ar_client.model_name == "test-model"
-        assert ar_client.ar_host == "us-east1-generic.pkg.dev"
-        assert ar_client.ar_path == "test-project/test-models/navigate/test-model"
+        assert ar_client.image_name == "navigate-crime-risk"
+        assert ar_client.model_name == "risk"
+        assert ar_client.registry_host == "us-east1-docker.pkg.dev"
+        assert ar_client.image_path == "test-project/test-models/navigate-crime-risk"
+        assert (
+            ar_client.full_image
+            == "us-east1-docker.pkg.dev/test-project/test-models/navigate-crime-risk"
+        )
 
     def test_init_sets_sdk_resource_names(self, ar_client: ArtifactRegistryClient) -> None:
-        """Client initializes with correct SDK resource names."""
-        assert ar_client._parent == (
-            "projects/test-project/locations/us-east1/repositories/test-models"
-        )
-        assert ar_client._package_parent == (
-            "projects/test-project/locations/us-east1/repositories/test-models"
-            "/packages/navigate/test-model"
-        )
+        """Client initializes with correct Docker registry paths."""
+        # Docker format doesn't use SDK resource paths like Generic format
+        assert ar_client.registry_host == "us-east1-docker.pkg.dev"
+        assert ar_client.image_path == "test-project/test-models/navigate-crime-risk"
 
-    def test_create_artifact_package_creates_tarball(
+    def test_create_model_tarball_creates_archive(
         self, ar_client: ArtifactRegistryClient, tmp_path: Path
     ) -> None:
-        """Package creation produces valid tarball with model and metadata."""
+        """Model tarball creation produces valid archive with model and metadata."""
         model_file = tmp_path / "model.lgb"
         model_file.write_bytes(b"model-content")
 
         metadata = {"version": "20260322", "rmse": 0.5}
 
-        package_path = ar_client._create_artifact_package(str(model_file), metadata, shap_path=None)
+        tarball_data, digest = ar_client._create_model_tarball(
+            str(model_file), metadata, shap_path=None
+        )
 
-        assert Path(package_path).exists()
-        assert package_path.endswith(".tar.gz")
+        assert isinstance(tarball_data, bytes)
+        assert len(digest) == 64  # SHA256 hex digest
+        assert all(c in "0123456789abcdef" for c in digest)
 
-        with tarfile.open(package_path, "r:gz") as tar:
+        # Verify tarball contents
+        import io
+
+        with tarfile.open(fileobj=io.BytesIO(tarball_data), mode="r:gz") as tar:
             names = tar.getnames()
             assert "model.lgb" in names
             assert "metadata.json" in names
@@ -93,46 +124,51 @@ class TestArtifactRegistryClient:
             assert meta_content["version"] == "20260322"
             assert meta_content["rmse"] == 0.5
 
-    def test_create_artifact_package_includes_shap(
+    def test_create_model_tarball_includes_shap(
         self, ar_client: ArtifactRegistryClient, tmp_path: Path
     ) -> None:
-        """Package includes SHAP plot when provided."""
+        """Model tarball includes SHAP plot when provided."""
         model_file = tmp_path / "model.lgb"
         model_file.write_bytes(b"model")
         shap_file = tmp_path / "shap.png"
         shap_file.write_bytes(b"png-content")
 
-        package_path = ar_client._create_artifact_package(
+        tarball_data, _ = ar_client._create_model_tarball(
             str(model_file), {}, shap_path=str(shap_file)
         )
 
-        with tarfile.open(package_path, "r:gz") as tar:
+        import io
+
+        with tarfile.open(fileobj=io.BytesIO(tarball_data), mode="r:gz") as tar:
             assert "shap_summary.png" in tar.getnames()
 
     def test_compute_sha256_returns_hex_digest(
         self, ar_client: ArtifactRegistryClient, tmp_path: Path
     ) -> None:
         """SHA256 computation returns valid hex string."""
-        test_file = tmp_path / "test.txt"
-        test_file.write_text("hello")
+        test_data = b"hello"
 
-        sha = ar_client._compute_sha256(str(test_file))
+        sha = ar_client._compute_sha256(test_data)
 
         assert len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
 
-    @patch.object(ArtifactRegistryClient, "_upload_generic_artifact")
-    @patch.object(ArtifactRegistryClient, "_set_tag")
-    def test_push_uploads_via_sdk(
+    @patch.object(ArtifactRegistryClient, "_upload_blob")
+    @patch.object(ArtifactRegistryClient, "_upload_manifest")
+    def test_push_uploads_docker_image(
         self,
-        mock_set_tag: MagicMock,
-        mock_upload: MagicMock,
+        mock_upload_manifest: MagicMock,
+        mock_upload_blob: MagicMock,
         ar_client: ArtifactRegistryClient,
         tmp_path: Path,
     ) -> None:
-        """Push uploads package via Python SDK."""
+        """Push uploads model as Docker image layers and manifest."""
         model_file = tmp_path / "model.lgb"
         model_file.write_bytes(b"model")
+
+        # Mock blob upload to return URLs
+        mock_upload_blob.return_value = "https://registry/v2/repo/blobs/sha256:abc123"
+        mock_upload_manifest.return_value = "sha256:manifest123"
 
         result = ar_client.push(
             model_path=str(model_file),
@@ -144,11 +180,11 @@ class TestArtifactRegistryClient:
         assert "ar_uri" in result
         assert result["version"] == "20260322"
         assert result["stage"] == "staging"
-        assert "sha256" in result
 
-        mock_upload.assert_called_once()
-        call_args = mock_upload.call_args
-        assert call_args[0][1] == "20260322"
+        # Should upload both config and model layer blobs
+        assert mock_upload_blob.call_count == 2
+        # Should upload manifest for version + latest + staging tags
+        assert mock_upload_manifest.call_count == 3
 
     @patch.object(ArtifactRegistryClient, "_set_tag")
     def test_promote_to_production_sets_tag(
@@ -161,18 +197,16 @@ class TestArtifactRegistryClient:
         assert result["stage"] == "production"
         mock_set_tag.assert_called_with("20260322", "production")
 
-    @patch.object(ArtifactRegistryClient, "_download_generic_artifact")
-    @patch.object(ArtifactRegistryClient, "get_version_by_tag")
+    @patch("requests.get")
     def test_pull_downloads_and_extracts(
         self,
-        mock_get_tag: MagicMock,
-        mock_download: MagicMock,
+        mock_requests_get: MagicMock,
         ar_client: ArtifactRegistryClient,
         tmp_path: Path,
     ) -> None:
-        """Pull downloads package and extracts model + metadata."""
-        mock_get_tag.return_value = "20260322"
+        """Pull downloads Docker image layers and extracts model + metadata."""
 
+        # Create test tarball data
         package_dir = tmp_path / "package"
         package_dir.mkdir()
         model_file = package_dir / "model.lgb"
@@ -185,12 +219,25 @@ class TestArtifactRegistryClient:
             tar.add(model_file, arcname="model.lgb")
             tar.add(meta_file, arcname="metadata.json")
 
-        def mock_download_impl(version: str, local_dir: str):
-            import shutil
+        # Mock manifest response
+        manifest_response = MagicMock()
+        manifest_response.status_code = 200
+        manifest_response.json.return_value = {
+            "layers": [
+                {
+                    "digest": "sha256:abc123",
+                    "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+                }
+            ]
+        }
 
-            shutil.copy(tar_path, Path(local_dir) / "test-model.tar.gz")
+        # Mock blob download response
+        blob_response = MagicMock()
+        blob_response.status_code = 200
+        with open(tar_path, "rb") as f:
+            blob_response.content = f.read()
 
-        mock_download.side_effect = mock_download_impl
+        mock_requests_get.side_effect = [manifest_response, blob_response]
 
         local_dir = tmp_path / "output"
         local_dir.mkdir()
@@ -198,63 +245,58 @@ class TestArtifactRegistryClient:
 
         assert Path(model_path).exists()
         assert metadata["version"] == "20260322"
-        mock_get_tag.assert_called_once_with("production")
 
-    @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
-    def test_list_versions_uses_sdk(
-        self, mock_ar_class: MagicMock, ar_client: ArtifactRegistryClient
+    @patch("requests.get")
+    def test_list_versions_uses_registry_api(
+        self, mock_get: MagicMock, ar_client: ArtifactRegistryClient
     ) -> None:
-        """List versions uses Python SDK."""
-        mock_sdk_client = MagicMock()
-        mock_ar_class.return_value = mock_sdk_client
+        """List versions uses Docker Registry API."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "tags": ["20260322", "20260315", "staging", "production"]
+        }
+        mock_get.return_value = mock_response
 
-        mock_version1 = MagicMock()
-        mock_version1.name = "projects/p/locations/l/repositories/r/packages/m/versions/20260322"
-        mock_version1.create_time = None
-        mock_version1.update_time = None
-
-        mock_version2 = MagicMock()
-        mock_version2.name = "projects/p/locations/l/repositories/r/packages/m/versions/20260315"
-        mock_version2.create_time = None
-        mock_version2.update_time = None
-
-        mock_sdk_client.list_versions.return_value = [mock_version1, mock_version2]
-
-        ar_client._ar_client = None
         versions = ar_client.list_versions()
 
         assert len(versions) == 2
-        assert versions[0]["version"] == "20260322"
+        assert versions[0]["version"] == "20260322"  # Newest first
         assert versions[1]["version"] == "20260315"
 
-    @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
+    @patch("requests.get")
     def test_get_version_by_tag_returns_version(
-        self, mock_ar_class: MagicMock, ar_client: ArtifactRegistryClient
+        self, mock_get: MagicMock, ar_client: ArtifactRegistryClient
     ) -> None:
-        """Get version by tag extracts version from tag info using SDK."""
-        mock_sdk_client = MagicMock()
-        mock_ar_class.return_value = mock_sdk_client
+        """Get version by tag extracts version from manifest and config labels."""
+        # First call returns manifest with config digest
+        manifest_response = MagicMock()
+        manifest_response.status_code = 200
+        manifest_response.json.return_value = {"config": {"digest": "sha256:config123"}}
 
-        mock_tag = MagicMock()
-        mock_tag.version = "projects/p/locations/l/repositories/r/packages/m/versions/20260322"
-        mock_sdk_client.get_tag.return_value = mock_tag
+        # Second call returns config blob with labels
+        config_response = MagicMock()
+        config_response.status_code = 200
+        config_response.json.return_value = {
+            "config": {"Labels": {"boston-pulse.model.version": "20260322"}}
+        }
 
-        ar_client._ar_client = None
+        mock_get.side_effect = [manifest_response, config_response]
+
         version = ar_client.get_version_by_tag("production")
 
         assert version == "20260322"
-        mock_sdk_client.get_tag.assert_called_once()
+        assert mock_get.call_count == 2
 
-    @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
+    @patch("requests.get")
     def test_get_version_by_tag_returns_none_if_not_found(
-        self, mock_ar_class: MagicMock, ar_client: ArtifactRegistryClient
+        self, mock_get: MagicMock, ar_client: ArtifactRegistryClient
     ) -> None:
         """Get version by tag returns None if tag doesn't exist."""
-        mock_sdk_client = MagicMock()
-        mock_ar_class.return_value = mock_sdk_client
-        mock_sdk_client.get_tag.side_effect = Exception("Tag not found")
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
 
-        ar_client._ar_client = None
         version = ar_client.get_version_by_tag("nonexistent")
 
         assert version is None
@@ -271,36 +313,47 @@ class TestArtifactRegistryClient:
         mock_promote.assert_called_once_with("20260315")
         assert result["version"] == "20260315"
 
-    @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
+    @patch.object(ArtifactRegistryClient, "get_version_by_tag")
+    @patch("requests.get")
     def test_list_tags_returns_dict(
-        self, mock_ar_class: MagicMock, ar_client: ArtifactRegistryClient
+        self, mock_get: MagicMock, mock_get_version: MagicMock, ar_client: ArtifactRegistryClient
     ) -> None:
         """List tags returns dict of tag_name → version_id."""
-        mock_sdk_client = MagicMock()
-        mock_ar_class.return_value = mock_sdk_client
+        # Mock tags list response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "tags": ["production", "staging", "20260322", "20260323"]
+        }
+        mock_get.return_value = mock_response
 
-        mock_tag1 = MagicMock()
-        mock_tag1.name = "projects/p/locations/l/repositories/r/packages/m/tags/production"
-        mock_tag1.version = "projects/p/locations/l/repositories/r/packages/m/versions/20260322"
+        # Mock version lookups for each tag
+        def version_side_effect(tag):
+            return {
+                "production": "20260322",
+                "staging": "20260323",
+                "20260322": "20260322",
+                "20260323": "20260323",
+            }.get(tag)
 
-        mock_tag2 = MagicMock()
-        mock_tag2.name = "projects/p/locations/l/repositories/r/packages/m/tags/staging"
-        mock_tag2.version = "projects/p/locations/l/repositories/r/packages/m/versions/20260323"
+        mock_get_version.side_effect = version_side_effect
 
-        mock_sdk_client.list_tags.return_value = [mock_tag1, mock_tag2]
-
-        ar_client._ar_client = None
         tags = ar_client.list_tags()
 
-        assert tags == {"production": "20260322", "staging": "20260323"}
+        assert tags == {
+            "production": "20260322",
+            "staging": "20260323",
+            "20260322": "20260322",
+            "20260323": "20260323",
+        }
 
 
 class TestEnsureRepositoryExists:
     """Tests for ensure_repository_exists helper."""
 
     @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
-    def test_creates_repo_if_not_exists(self, mock_ar_class: MagicMock) -> None:
-        """Creates repository if get_repository fails."""
+    def test_creates_docker_repo_if_not_exists(self, mock_ar_class: MagicMock) -> None:
+        """Creates Docker format repository if get_repository fails."""
         mock_client = MagicMock()
         mock_ar_class.return_value = mock_client
         mock_client.get_repository.side_effect = Exception("Not found")
@@ -312,14 +365,22 @@ class TestEnsureRepositoryExists:
 
         mock_client.get_repository.assert_called_once()
         mock_client.create_repository.assert_called_once()
+
+        # Verify Docker format is specified
+        create_call = mock_client.create_repository.call_args
+        assert "format_" in str(create_call)  # Check that Docker format is set
+
         mock_operation.result.assert_called_once()
 
     @patch("shared.artifact_registry.artifactregistry_v1.ArtifactRegistryClient")
-    def test_skips_create_if_exists(self, mock_ar_class: MagicMock) -> None:
-        """Skips creation if repository already exists."""
+    def test_skips_create_if_docker_repo_exists(self, mock_ar_class: MagicMock) -> None:
+        """Skips creation if Docker repository already exists."""
         mock_client = MagicMock()
         mock_ar_class.return_value = mock_client
-        mock_client.get_repository.return_value = MagicMock()
+
+        mock_repo = MagicMock()
+        mock_repo.format_ = artifactregistry_v1.Repository.Format.DOCKER
+        mock_client.get_repository.return_value = mock_repo
 
         ensure_repository_exists("proj", "us-east1", "ml-models")
 
