@@ -44,6 +44,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Minimum rows required to proceed with training
+# Skip training if features have fewer rows (e.g., data pipeline failed or no new data)
+MIN_ROWS_FOR_TRAINING = 1
+
 
 def load_config() -> dict[str, Any]:
     """Load training configuration from YAML."""
@@ -115,6 +119,19 @@ def run_training_pipeline(
         if not feature_result.success:
             raise RuntimeError(f"Feature loading failed: {feature_result.error}")
         logger.info(f"Loaded {feature_result.rows:,} rows, {feature_result.h3_cells:,} cells")
+
+        # Skip training if insufficient data (e.g., pipeline failed or no new data)
+        if feature_result.rows < MIN_ROWS_FOR_TRAINING:
+            logger.info(
+                f"Only {feature_result.rows} rows (< {MIN_ROWS_FOR_TRAINING} threshold) — "
+                "skipping training to avoid wasting compute"
+            )
+            results["status"] = "skipped_insufficient_data"
+            results["reason"] = (
+                f"Feature rows ({feature_result.rows}) below minimum ({MIN_ROWS_FOR_TRAINING})"
+            )
+            mlflow.end_run()
+            return results
 
         logger.info("Step 2: Building targets...")
         training_df, target_result = build_targets(features_df, execution_date, cfg, bucket)
@@ -205,38 +222,96 @@ def run_training_pipeline(
         }
         logger.info(f"Model pushed: {model_uri}")
 
-        if stage == "staging":
-            logger.info("Promoting to production...")
-            registry.promote_to_production(version)
-            results["steps"]["push"]["promoted_to_production"] = True
-
         alert_model_pushed(
             dataset, execution_date, version, model_uri, training_result.val_rmse, dag_id
         )
 
-        logger.info("Step 9: Scoring all cells...")
-        scores_df, scoring_result = score_all_cells(
-            model, features_df, execution_date, cfg, bucket, version
-        )
-        results["steps"]["score"] = scoring_result.to_dict()
-        logger.info(f"Scored {scoring_result.rows_scored:,} cells")
+        # Gate 3: Compare candidate to current production before promoting
+        if stage == "staging":
+            from shared.alerting import alert_model_promoted, alert_promotion_skipped
 
-        if not skip_publish:
-            logger.info("Step 10: Publishing to Firestore...")
-            publish_result = publish_scores(scores_df, cfg, version, execution_date)
-            results["steps"]["publish"] = publish_result.to_dict()
-            logger.info(f"Published {publish_result.rows_upserted:,} rows to Firestore")
+            promotion_cfg = cfg.get("promotion", {})
+            force_promote = promotion_cfg.get("force_promote", False)
+            tolerance = promotion_cfg.get("tolerance", 0.02)
 
-            alert_scores_published(
-                dataset,
-                execution_date,
-                publish_result.rows_upserted,
-                scoring_result.h3_cells,
-                publish_result.duration_seconds,
-                dag_id,
+            if force_promote:
+                logger.warning("force_promote=true — skipping Gate 3 comparison")
+                comparison: dict[str, Any] = {
+                    "should_promote": True,
+                    "reason": "force_promote enabled in config",
+                    "candidate_rmse": training_result.val_rmse,
+                }
+            else:
+                logger.info("Step 8b: Gate 3 — comparing candidate to production...")
+                comparison = registry.compare_to_production(
+                    candidate_val_rmse=training_result.val_rmse,
+                    tolerance=tolerance,
+                )
+                logger.info(f"Gate 3 result: {comparison['reason']}")
+
+            results["steps"]["push"]["comparison"] = comparison
+
+            if comparison["should_promote"]:
+                registry.promote_to_production(version)
+                results["steps"]["push"]["promoted_to_production"] = True
+                logger.info(f"Promoted {version} to production")
+
+                # Snapshot training baseline for monitoring
+                from shared.baseline_snapshotter import snapshot_training_baseline
+
+                try:
+                    baseline_paths = snapshot_training_baseline(
+                        training_df=training_df,
+                        feature_cols=cfg["features"]["input_columns"],
+                        target_col=cfg["features"]["target_column"],
+                        version=version,
+                        cfg=cfg,
+                    )
+                    results["steps"]["push"]["baseline_paths"] = baseline_paths
+                    logger.info(f"Training baseline saved: {baseline_paths['sample_uri']}")
+                except Exception as e:
+                    # Baseline snapshot is non-critical — log but don't fail the pipeline
+                    logger.warning(f"Baseline snapshot failed: {e}")
+                    results["steps"]["push"]["baseline_error"] = str(e)
+
+                alert_model_promoted(dataset, execution_date, version, comparison, dag_id)
+            else:
+                results["steps"]["push"]["promoted_to_production"] = False
+                logger.warning(
+                    f"Did NOT promote {version}. "
+                    f"Candidate stays in staging. Production unchanged."
+                )
+                alert_promotion_skipped(dataset, execution_date, version, comparison, dag_id)
+
+        # Only score and publish if model was promoted (or skip_publish is False)
+        if results["steps"]["push"].get("promoted_to_production", False):
+            logger.info("Step 9: Scoring all cells with newly-promoted model...")
+            scores_df, scoring_result = score_all_cells(
+                model, features_df, execution_date, cfg, bucket, version
             )
+            results["steps"]["score"] = scoring_result.to_dict()
+            logger.info(f"Scored {scoring_result.rows_scored:,} cells")
+
+            if not skip_publish:
+                logger.info("Step 10: Publishing to Firestore...")
+                publish_result = publish_scores(scores_df, cfg, version, execution_date)
+                results["steps"]["publish"] = publish_result.to_dict()
+                logger.info(f"Published {publish_result.rows_upserted:,} rows to Firestore")
+
+                alert_scores_published(
+                    dataset,
+                    execution_date,
+                    publish_result.rows_upserted,
+                    scoring_result.h3_cells,
+                    publish_result.duration_seconds,
+                    dag_id,
+                )
+            else:
+                results["steps"]["publish"] = {"skipped": True, "reason": "skip_publish flag"}
         else:
-            results["steps"]["publish"] = {"skipped": True}
+            logger.info("Skipping scoring — candidate was not promoted; Firestore unchanged")
+            results["steps"]["score"] = {"skipped": True, "reason": "gate_3_not_promoted"}
+            results["steps"]["publish"] = {"skipped": True, "reason": "gate_3_not_promoted"}
 
         results["status"] = "success"
 
@@ -314,7 +389,8 @@ def main() -> int:
                 logger.info(f"Results written to {args.output_json}")
 
             print(json.dumps(results, indent=2, default=str))
-            return 0 if results["status"] == "success" else 1
+            # Return 0 for success or intentional skip (insufficient data is not an error)
+            return 0 if results["status"] in ("success", "skipped_insufficient_data") else 1
 
         except Exception as e:
             logger.error(f"Training failed: {e}")

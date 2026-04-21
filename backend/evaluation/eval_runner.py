@@ -7,6 +7,7 @@ Usage:
     python -m evaluation.eval_runner
 """
 import logging
+import os
 import time
 import json
 from datetime import datetime
@@ -253,8 +254,11 @@ def print_summary(summary: dict):
     print("=" * 60)
 
 
-def save_to_gcs(data: dict, filename: str, bucket_name: str = "boston-pulse-data-pipeline"):
+def save_to_gcs(data: dict, filename: str, bucket_name: str | None = None):
     """Save evaluation results to GCS instead of local repo."""
+    bucket_name = bucket_name or os.environ.get(
+        "GCS_BUCKET", "boston-pulse-data-pipeline"
+    )
     try:
         from google.cloud import storage
         client = storage.Client()

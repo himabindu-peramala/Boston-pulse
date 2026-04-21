@@ -26,7 +26,7 @@ from airflow.operators.python import PythonOperator
 # DAG Configuration
 DAG_ID = "crime_pipeline"
 DATASET = "crime"
-SCHEDULE = "0 2 * * *"  # Daily at 2 AM UTC
+SCHEDULE = "0 1 * * *"  # Daily at 1 AM UTC — before ML training at 02:00
 START_DATE = datetime(2024, 1, 1)
 
 default_args = {
@@ -641,8 +641,13 @@ def record_lineage(**context) -> dict:
 
 def pipeline_complete(**context) -> dict:
     """Final task to mark pipeline completion and send summary alert."""
+    import logging
+
+    import pendulum
+
     from dags.utils import alert_pipeline_complete
 
+    logger = logging.getLogger(__name__)
     execution_date = context["ds"]
     ti = context["ti"]
 
@@ -669,6 +674,18 @@ def pipeline_complete(**context) -> dict:
         + (preprocess_result.get("duration_seconds", 0) if preprocess_result else 0)
         + (features_result.get("duration_seconds", 0) if features_result else 0)
     )
+
+    # SLA check: pipeline must complete within 55 minutes for ML training at 02:00
+    dag_run = context.get("dag_run")
+    if dag_run and dag_run.start_date:
+        run_duration = pendulum.now("UTC") - dag_run.start_date
+        duration_minutes = run_duration.total_seconds() / 60
+        stats["duration_minutes"] = round(duration_minutes, 1)
+        if duration_minutes > 55:
+            logger.warning(
+                f"SLA WARNING: Pipeline took {duration_minutes:.1f} min — "
+                "may impact ML training at 02:00 UTC"
+            )
 
     alert_pipeline_complete(
         dataset=DATASET,

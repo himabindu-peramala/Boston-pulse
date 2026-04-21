@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -74,7 +75,13 @@ class ModelRegistry:
         # For display and GCS paths, use the model-purpose part
         self.model_name = self.package.split("/")[-1] if "/" in self.package else self.package
 
-        self.gcs_bucket_name = registry_cfg.get("artifact_bucket", "boston-pulse-mlflow-artifacts")
+        # ARTIFACT_BUCKET (set by Terraform-deployed Cloud Run job/service)
+        # wins over the YAML config so a fresh project can point at its own
+        # project-scoped bucket without editing configs.
+        self.gcs_bucket_name = os.environ.get(
+            "ARTIFACT_BUCKET",
+            registry_cfg.get("artifact_bucket", "boston-pulse-mlflow-artifacts"),
+        )
         self.gcs_client = storage.Client()
         self.gcs_bucket = self.gcs_client.bucket(self.gcs_bucket_name)
 
@@ -393,6 +400,78 @@ class ModelRegistry:
             return meta.get("version")
         except Exception:
             return None
+
+    def compare_to_production(
+        self,
+        candidate_val_rmse: float,
+        tolerance: float = 0.02,
+    ) -> dict[str, Any]:
+        """
+        Compare a candidate model's val_rmse against the current production model.
+
+        This is Gate 3 — prevents promoting a model that is worse than production.
+        Critical for daily training to avoid replacing a good model with a bad one.
+
+        Args:
+            candidate_val_rmse: val_rmse of the candidate model just trained
+            tolerance: fractional tolerance — candidate can be up to this much worse
+                       than production and still promote (prevents churn on noise).
+                       0.02 means candidate up to 2% worse than prod is still accepted.
+
+        Returns:
+            {
+                'should_promote': bool,
+                'reason': str,
+                'production_version': str | None,
+                'production_rmse': float | None,
+                'candidate_rmse': float,
+                'delta_pct': float | None,      # positive = candidate worse
+            }
+        """
+        result: dict[str, Any] = {
+            "should_promote": False,
+            "reason": "",
+            "production_version": None,
+            "production_rmse": None,
+            "candidate_rmse": candidate_val_rmse,
+            "delta_pct": None,
+        }
+
+        try:
+            prod_meta = self.get_latest_metadata()
+        except Exception as e:
+            # Cold start — no production model exists
+            result["should_promote"] = True
+            result["reason"] = f"cold start: no production model found ({e})"
+            return result
+
+        prod_rmse = prod_meta.get("val_rmse")
+        prod_version = prod_meta.get("version")
+        result["production_version"] = prod_version
+        result["production_rmse"] = prod_rmse
+
+        if prod_rmse is None:
+            result["should_promote"] = True
+            result["reason"] = "production model has no val_rmse in metadata"
+            return result
+
+        delta_pct = ((candidate_val_rmse - prod_rmse) / prod_rmse) * 100
+        result["delta_pct"] = delta_pct
+
+        if candidate_val_rmse <= prod_rmse * (1 + tolerance):
+            result["should_promote"] = True
+            result["reason"] = (
+                f"candidate rmse {candidate_val_rmse:.4f} within {tolerance:.0%} "
+                f"of prod {prod_rmse:.4f} (delta={delta_pct:+.2f}%)"
+            )
+        else:
+            result["should_promote"] = False
+            result["reason"] = (
+                f"candidate rmse {candidate_val_rmse:.4f} worse than "
+                f"prod {prod_rmse:.4f} by {delta_pct:+.2f}% — keeping prod"
+            )
+
+        return result
 
     def get_ar_uri(self, version: str) -> str:
         """Get the Artifact Registry URI for a version."""

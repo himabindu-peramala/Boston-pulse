@@ -1,5 +1,7 @@
 """
-Navigate Crime Scoring DAG — every 3 days at 2 AM UTC.
+Navigate Crime Scoring DAG — daily at 1 AM UTC.
+
+Runs 1 hour before ML training (2 AM UTC) to ensure fresh features.
 
 Ingestion: watermark-based, only new incidents since last run.
 Features: computed from last 90 days of processed data in GCS.
@@ -15,7 +17,7 @@ from airflow.operators.python import PythonOperator
 
 DAG_ID = "crime_navigate_pipeline"
 DATASET = "crime_navigate"
-SCHEDULE = "0 2 */3 * *"  # every 3 days at 2 AM UTC
+SCHEDULE = "0 1 * * *"  # Daily at 1 AM UTC — 1 hour before ML training
 START_DATE = datetime(2024, 1, 1)
 
 default_args = {
@@ -360,8 +362,13 @@ def record_lineage(**context) -> dict:
 
 
 def pipeline_complete(**context) -> dict:
+    import logging
+
+    import pendulum
+
     from dags.utils import alert_pipeline_complete
 
+    logger = logging.getLogger(__name__)
     execution_date = context["ds"]
     ti = context.get("ti")
     ingest_result = ti.xcom_pull(task_ids="ingest_data") if ti else {}
@@ -374,10 +381,23 @@ def pipeline_complete(**context) -> dict:
         "features_generated": features_result.get("total_rows", 0) or 0,
         "lineage_recorded": lineage_result.get("lineage_recorded", False) or False,
     }
+
+    # SLA check: pipeline must complete within 55 minutes for ML training at 02:00
+    dag_run = context.get("dag_run")
+    if dag_run and dag_run.start_date:
+        run_duration = pendulum.now("UTC") - dag_run.start_date
+        duration_minutes = run_duration.total_seconds() / 60
+        stats["duration_minutes"] = round(duration_minutes, 1)
+        if duration_minutes > 55:
+            logger.warning(
+                f"SLA WARNING: Pipeline took {duration_minutes:.1f} min — "
+                "may impact ML training at 02:00 UTC"
+            )
+
     alert_pipeline_complete(
         dataset=DATASET,
         execution_date=execution_date,
-        duration_seconds=0,
+        duration_seconds=stats.get("duration_minutes", 0) * 60,
         stats=stats,
         dag_id=DAG_ID,
     )
