@@ -22,8 +22,8 @@ Boston-pulse/
 ├── backend/          # API (WIP)
 ├── frontend/         # UI (WIP)
 ├── notebooks/        # EDA
-├── infrastructure/   # GCP bootstrap (`gcp-setup.sh`), secrets reference
-├── scripts/          # Cloud Run bootstrap, GCS deploy, VM sync
+├── infrastructure/   # Terraform for all GCP resources + secrets reference
+├── scripts/          # Deploy helpers called by CI / Makefile
 ├── docker/           # Production Airflow compose / Dockerfiles
 ├── data/             # Small samples (not full production data)
 ├── secrets/          # Local-only; gitignored
@@ -40,81 +40,92 @@ Each of these acts as a separate micro‑service:
   - Bias/fairness checks and model cards
   - GCS‑native lineage using GCS object generations
 
-## Setup: step by step
+## Quickstart: one-command demo on a fresh GCP project
 
-### Step 1 — Clone the repository
+Boston Pulse provisions everything (GCP project APIs, Artifact Registry, GCS
+buckets with bucket-level IAM, Firestore, service accounts, Workload Identity
+Federation, Cloud Monitoring dashboards/alerts, and an Airflow GCE VM) via
+Terraform, and wraps the whole flow in two Make targets.
+
+### Prerequisites
+
+- `gcloud` CLI authenticated (`gcloud auth login` **and** `gcloud auth application-default login`)
+- `terraform >= 1.5` (`brew install terraform`)
+- A GCP billing account ID — find via `gcloud billing accounts list`
+- `gh` CLI authenticated (only required if you want CI to run the training job)
+
+### 1. Clone + configure once
 
 ```bash
 git clone https://github.com/himabindu-peramala/boston-pulse.git
 cd boston-pulse
+
+cp .env.demo.example .env.demo
+# edit .env.demo: set GCP_PROJECT_ID, GCP_BILLING_ACCOUNT, GITHUB_REPOSITORY
 ```
 
-### Step 2 — Local development only (no GCP CI)
-
-- **Airflow + pipeline:** follow `[data-pipeline/README.md](./data-pipeline/README.md)` (`.env` from `.env.example`, `make` targets).
-- **ML package:** follow `[ml/README.md](./ml/README.md)` (`cd ml && make install-dev && make test`).
-
-### Step 3 — GCP resources (once per project)
-
-**When:** Before CI can push images or run Cloud Run.
-**Where:** Your machine, with [Google Cloud SDK](https://cloud.google.com/sdk) installed.
+### 2. Bring everything up
 
 ```bash
-gcloud auth login
-gcloud config set project YOUR_PROJECT_ID
-
-# Preview, then apply
-export GCP_PROJECT_ID=YOUR_PROJECT_ID   # optional if you use the script default
-./infrastructure/gcp-setup.sh --dry-run
-./infrastructure/gcp-setup.sh
+make demo-up
 ```
 
-This creates/verifies buckets, Artifact Registry repos, APIs, and related wiring (see script header for details).
+This creates the GCP project if it doesn't exist, links billing, runs
+`terraform apply` for all infra, and prints the Airflow URL + admin password.
 
-### Step 4 — GitHub Actions secrets (already present)
+### 3. Use it
 
-**When:** After Step 3, before you expect the **ML** workflow to build the image and run training.
-**Where in GitHub:** **Repository → Settings → Secrets and variables → Actions → New repository secret.**
+```bash
+make demo-wait-vm            # ~5 min for the VM to finish building Airflow
+make demo-airflow-url        # open in browser, log in as admin
+make demo-airflow-password   # admin password
 
+make demo-trigger-data       # unpause + trigger crime_navigate_pipeline on the VM
+# ...wait for features.parquet to land in GCS...
+
+make demo-wif                # prints `gh secret set` commands for CI
+# paste those into your shell (or copy values into GitHub UI)
+
+gh workflow run ml.yml       # kick off CI-managed training
+# or, after CI has created the job:
+make demo-trigger-training
+```
+
+Inspect everything at any time:
+
+```bash
+make demo-status
+```
+
+### 4. Tear it all down
+
+```bash
+make demo-down
+```
+
+Destroys all Terraform-managed resources, asks whether to also delete the GCP
+project (30-day grace period), and wipes local `.terraform/` state.
+
+### Local development (no GCP)
+
+- **Airflow + pipeline:** follow [`data-pipeline/README.md`](./data-pipeline/README.md) (`.env` from `.env.example`, `make` targets).
+- **ML package:** follow [`ml/README.md`](./ml/README.md) (`cd ml && make install-dev && make test`).
+
+### GitHub Actions secrets (reference)
+
+`make demo-wif` prints the exact `gh secret set` commands. For reference, the ML
+workflow expects:
 
 | Secret name              | Required?                  | Purpose                                                             |
 | ------------------------ | -------------------------- | ------------------------------------------------------------------- |
-| `WIF_PROVIDER`           | Yes (for GCP from Actions) | Workload Identity Federation provider resource name                 |
+| `WIF_PROVIDER`           | Yes                        | Workload Identity Federation provider resource name                 |
 | `WIF_SERVICE_ACCOUNT`    | Yes                        | Service account email GitHub assumes via WIF                        |
-| `GCP_PROJECT_ID`         | Yes                        | GCP project ID (**all lowercase** — Docker image tags require it)   |
-| `GCS_BUCKET`             | Yes                        | Main data bucket the training job uses (same idea as pipeline data) |
-| `CLOUD_RUN_TRAINING_JOB` | No                         | Cloud Run **Job** name; if unset, CI uses default `ml-training-job` |
+| `GCP_PROJECT_ID`         | Yes                        | GCP project ID (lowercase — Docker image tags require it)           |
+| `GCS_BUCKET`             | Yes                        | Main data bucket the training job reads features from              |
+| `CLOUD_RUN_TRAINING_JOB` | No                         | Cloud Run Job name; defaults to `ml-training-job`                   |
 | `SLACK_WEBHOOK_URL`      | No                         | If set, the ML workflow posts a summary to Slack                    |
 
-
-**Optional (other automation):** `AIRFLOW_URL`, `AIRFLOW_USERNAME`, `AIRFLOW_PASSWORD` — see `[infrastructure/SECRETS.md](./infrastructure/SECRETS.md)` for full lists, examples, and how to obtain `WIF_PROVIDER`.
-
-### Step 5 — Create the Cloud Run training job (once)
-
-**When:** After Artifact Registry exists and you have a training image (or use `:latest` as in the script).
-**Where:** Your machine, `gcloud` authenticated to the same project.
-
-```bash
-export GCP_PROJECT_ID=YOUR_PROJECT_ID
-export GCP_REGION=us-east1
-./scripts/bootstrap-cloud-run-training-job.sh
-```
-
-Optional environment variables are documented in the script (`TRAINING_IMAGE`, `GCS_BUCKET`, `TRAINING_JOB_SA`, etc.).
-
-### Step 6 — Airflow production VM (optional)
-
-**When:** You run Airflow on a VM and want DAGs/ML synced from GCS instead of git-only.
-**Where:** On the VM — configure `docker/docker-compose.prod.yml` (or `.env`) using `[infrastructure/SECRETS.md](./infrastructure/SECRETS.md)` (Airflow section).
-**Sync:** install/run `[scripts/gcs-sync.sh](./scripts/gcs-sync.sh)` (often via `[scripts/gcs-sync.service](./scripts/gcs-sync.service)`).
-
-### Scripts you rarely run by hand
-
-
-| Script                                                   | When                                                | Where / env                                              |
-| -------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------- |
-| `[scripts/deploy-to-gcs.sh](./scripts/deploy-to-gcs.sh)` | CI uploads deploy bundle; manual only for debugging | Needs `GCS_DEPLOY_BUCKET`, `GITHUB_SHA`, `GITHUB_RUN_ID` |
-| `[scripts/gcs-sync.sh](./scripts/gcs-sync.sh)`           | VM pulls new deploy from GCS                        | Env vars in script header; `--once` for a single run     |
+See [`infrastructure/SECRETS.md`](./infrastructure/SECRETS.md) for the full list and how to obtain each value.
 
 
 ---

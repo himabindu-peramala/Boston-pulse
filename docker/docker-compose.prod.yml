@@ -23,14 +23,20 @@ x-airflow-common: &airflow-common
     AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 30
     AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 30
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
-    BP_ENVIRONMENT: dev
-    GCP_PROJECT_ID: bostonpulse
-    GCP_BUCKET_NAME: boston-pulse-data-pipeline
-    GCP_REGION: us-east1
-    GOOGLE_CLOUD_PROJECT: bostonpulse
-    GCS_BUCKET: boston-pulse-data-pipeline
-    MLFLOW_TRACKING_URI: sqlite:////opt/airflow/mlflow/mlflow.db
-    SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+    BP_ENVIRONMENT: ${BP_ENVIRONMENT:-prod}
+    GCP_PROJECT_ID: ${GCP_PROJECT_ID:-bostonpulse}
+    GCP_BUCKET_NAME: ${GCP_BUCKET_NAME:-boston-pulse-data-pipeline}
+    GCP_REGION: ${GCP_REGION:-us-east1}
+    GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-${GCP_PROJECT_ID:-bostonpulse}}
+    GCS_BUCKET: ${GCS_BUCKET:-boston-pulse-data-pipeline}
+    ARTIFACT_BUCKET: ${ARTIFACT_BUCKET:-boston-pulse-mlflow-artifacts}
+    MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-sqlite:////opt/airflow/mlflow/mlflow.db}
+    SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    # Pydantic Settings overrides for data-pipeline/configs/environments/prod.yaml.
+    # Needed because the YAML hardcodes bucket names; env_prefix=BP_ + env_nested_delimiter=__.
+    BP_STORAGE__BUCKETS__MAIN: ${BP_STORAGE__BUCKETS__MAIN:-${GCS_BUCKET:-boston-pulse-data-pipeline}}
+    BP_STORAGE__BUCKETS__DVC: ${BP_STORAGE__BUCKETS__DVC:-${GCS_BUCKET:-boston-pulse-data-pipeline}}
+    BP_STORAGE__BUCKETS__TEMP: ${BP_STORAGE__BUCKETS__TEMP:-${GCS_BUCKET:-boston-pulse-data-pipeline}}
     PYTHONPATH: /opt/airflow/dags:/opt/boston-pulse/data-pipeline:/opt/boston-pulse/ml
   volumes:
     - /opt/airflow/dags:/opt/airflow/dags

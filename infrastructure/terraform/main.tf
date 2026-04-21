@@ -21,6 +21,7 @@ resource "google_project_service" "apis" {
     "cloudbuild.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "cloudscheduler.googleapis.com",
+    "compute.googleapis.com",
     "firestore.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
@@ -70,6 +71,7 @@ resource "google_storage_bucket" "data_pipeline" {
   name                        = local.data_bucket_name
   location                    = var.region
   uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
   force_destroy               = true
 
   versioning {
@@ -84,9 +86,29 @@ resource "google_storage_bucket" "ml_artifacts" {
   name                        = local.ml_artifacts_bucket_name
   location                    = var.region
   uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
   force_destroy               = true
 
   depends_on = [google_project_service.apis]
+}
+
+# Explicit bucket-level IAM bindings.
+#
+# The ml_runner service account already has project-level roles/storage.objectAdmin,
+# but some GCP projects inherit legacy ACLs that can override project-level IAM.
+# Binding the SA directly to each bucket guarantees access regardless of the
+# bucket's IAM configuration mode (legacy ACLs vs. uniform bucket-level access).
+
+resource "google_storage_bucket_iam_member" "data_pipeline_object_admin" {
+  bucket = google_storage_bucket.data_pipeline.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.ml_runner.email}"
+}
+
+resource "google_storage_bucket_iam_member" "ml_artifacts_object_admin" {
+  bucket = google_storage_bucket.ml_artifacts.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.ml_runner.email}"
 }
 
 # ============================================================================
