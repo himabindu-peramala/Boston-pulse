@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -74,7 +75,13 @@ class ModelRegistry:
         # For display and GCS paths, use the model-purpose part
         self.model_name = self.package.split("/")[-1] if "/" in self.package else self.package
 
-        self.gcs_bucket_name = registry_cfg.get("artifact_bucket", "boston-pulse-mlflow-artifacts")
+        # ARTIFACT_BUCKET (set by Terraform-deployed Cloud Run job/service)
+        # wins over the YAML config so a fresh project can point at its own
+        # project-scoped bucket without editing configs.
+        self.gcs_bucket_name = os.environ.get(
+            "ARTIFACT_BUCKET",
+            registry_cfg.get("artifact_bucket", "boston-pulse-mlflow-artifacts"),
+        )
         self.gcs_client = storage.Client()
         self.gcs_bucket = self.gcs_client.bucket(self.gcs_bucket_name)
 

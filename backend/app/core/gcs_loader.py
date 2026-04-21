@@ -14,7 +14,14 @@ logger = logging.getLogger(__name__)
 
 def _get_bucket():
     from google.cloud import storage
-    bucket_name = os.getenv("GCS_BUCKET_MAIN", "boston-pulse-data-prod")
+    # Prefer GCS_BUCKET (set by deploy_app.sh from Terraform output) so the
+    # backend always reads from the same bucket the data pipeline writes to.
+    # Fall back to legacy names for backwards compatibility.
+    bucket_name = (
+        os.getenv("GCS_BUCKET")
+        or os.getenv("GCS_BUCKET_MAIN")
+        or "boston-pulse-data-pipeline"
+    )
     client = storage.Client()
     return client.bucket(bucket_name)
 

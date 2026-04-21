@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 import pandas as pd
@@ -45,7 +46,12 @@ def snapshot_training_baseline(
         Dict with GCS paths to the sample and stats files
     """
     registry_cfg = cfg.get("registry", {})
-    bucket_name = registry_cfg.get("artifact_bucket", "boston-pulse-mlflow-artifacts")
+    # ARTIFACT_BUCKET env var (set by deploy_app.sh from Terraform output)
+    # overrides the YAML so a fresh project can use its own bucket.
+    bucket_name = os.environ.get(
+        "ARTIFACT_BUCKET",
+        registry_cfg.get("artifact_bucket", "boston-pulse-mlflow-artifacts"),
+    )
     model_name = registry_cfg.get("package", "crime-risk").split("/")[-1]
 
     # Columns to snapshot

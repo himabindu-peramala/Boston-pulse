@@ -8,7 +8,7 @@ on:
       - 'ml/**'
       - '.github/workflows/ml.yml'
     branches:
-      - test-workflow-trigger
+      - main
   pull_request:
     paths:
       - 'ml/**'
@@ -158,7 +158,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: integration-test
     if: |
-      (github.ref == 'refs/heads/test-workflow-trigger' && github.event_name == 'push') ||
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_image_build != 'true')
     permissions:
@@ -210,7 +210,7 @@ jobs:
           docker push "${IMAGE_SHA}"
 
           # Only push :latest on test branch
-          if [[ "${{ github.ref }}" == "refs/heads/test-workflow-trigger" ]]; then
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "Pushing ${IMAGE_LATEST}..."
             docker push "${IMAGE_LATEST}"
           fi
@@ -248,7 +248,7 @@ jobs:
         )
       ) &&
       (
-        (github.ref == 'refs/heads/test-workflow-trigger' && github.event_name == 'push') ||
+        (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
         github.event_name == 'schedule' ||
         (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_training != 'true')
       )
@@ -303,13 +303,26 @@ jobs:
           echo "  Git SHA: ${GITHUB_SHA}"
           echo "  Image: ${IMAGE_URI}"
 
-          gcloud run jobs update "${JOB_NAME}" \
+          JOB_ACTION=update
+          if ! gcloud run jobs describe "${JOB_NAME}" \
+                --project="${PROJECT_ID}" \
+                --region="${{ env.AR_REGION }}" >/dev/null 2>&1; then
+            JOB_ACTION=create
+            echo "Job ${JOB_NAME} does not exist — creating it."
+          fi
+
+          gcloud run jobs "${JOB_ACTION}" "${JOB_NAME}" \
             --project="${PROJECT_ID}" \
             --region="${{ env.AR_REGION }}" \
             --image="${IMAGE_URI}" \
+            --service-account="${{ secrets.WIF_SERVICE_ACCOUNT }}" \
+            --task-timeout=3600s \
+            --max-retries=1 \
+            --memory=4Gi \
+            --cpu=2 \
             --command=python \
             --args=-m,models.crime_navigate.cli,train,--execution-date,${EXEC_DATE},--stage,staging,--output-json,/tmp/results.json \
-            --update-env-vars="GIT_SHA=${GITHUB_SHA},ML_IMAGE=${IMAGE_URI},MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI},GCP_PROJECT_ID=${PROJECT_ID},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GCS_BUCKET=${GCS_BUCKET_VAL}"
+            $([ "${JOB_ACTION}" = "create" ] && echo "--set-env-vars" || echo "--update-env-vars")="GIT_SHA=${GITHUB_SHA},ML_IMAGE=${IMAGE_URI},MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI},GCP_PROJECT_ID=${PROJECT_ID},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GCS_BUCKET=${GCS_BUCKET_VAL}"
 
           echo "Executing job (waiting for completion)..."
           gcloud run jobs execute "${JOB_NAME}" \
@@ -332,7 +345,7 @@ jobs:
     # Run after all jobs finish (success, failure, or skipped) so results are available in needs.*.
     if: |
       always() &&
-      (github.ref == 'refs/heads/test-workflow-trigger' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      (github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     steps:
       - name: Slack summary
         env:

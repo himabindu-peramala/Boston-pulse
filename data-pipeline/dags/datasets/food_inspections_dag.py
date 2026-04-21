@@ -136,6 +136,8 @@ def validate_processed(**context) -> dict:
 
 def build_features(**context) -> dict:
     """Build food inspections features from processed data."""
+    from airflow.exceptions import AirflowSkipException
+
     from dags.utils import read_data, write_data
     from src.datasets.food_inspections import FoodInspectionsFeatureBuilder
 
@@ -149,9 +151,15 @@ def build_features(**context) -> dict:
         raise RuntimeError(f"Feature building failed: {result.error_message}")
 
     df = builder.get_data()
-    if df is not None and len(df) > 0:
-        output_path = write_data(df, DATASET, "features", execution_date)
-        result.output_path = output_path
+    if df is None or len(df) == 0:
+        raise AirflowSkipException(
+            f"No features produced for {DATASET} on {execution_date}. "
+            "Likely no rows with valid lat/long in processed data. "
+            "Downstream validation/drift/fairness tasks will be skipped."
+        )
+
+    output_path = write_data(df, DATASET, "features", execution_date)
+    result.output_path = output_path
 
     return result.to_dict()
 
