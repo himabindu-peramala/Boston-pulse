@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from typing import Any
 
@@ -61,9 +62,16 @@ def submit_vertex_job(
         ) from None
 
     vertex_cfg = cfg.get("training_backend", {}).get("vertex", {})
-    project = cfg.get("registry", {}).get("project", "bostonpulse")
+    project = os.environ.get(
+        "GCP_PROJECT_ID",
+        cfg.get("registry", {}).get("project", "bostonpulse"),
+    )
     region = vertex_cfg.get("region", "us-east1")
-    staging_bucket = vertex_cfg.get("staging_bucket", "boston-pulse-mlflow-artifacts")
+    # ARTIFACT_BUCKET (set by Terraform-deployed Cloud Run) wins over YAML.
+    staging_bucket = os.environ.get(
+        "ARTIFACT_BUCKET",
+        vertex_cfg.get("staging_bucket", "boston-pulse-mlflow-artifacts"),
+    )
 
     aiplatform.init(
         project=project,
@@ -86,11 +94,13 @@ def submit_vertex_job(
         "/tmp/results.json",
     ]
 
+    data_bucket = os.environ.get(
+        "GCS_BUCKET",
+        cfg.get("data", {}).get("bucket", "boston-pulse-data-pipeline"),
+    )
     env_vars = [
-        {
-            "name": "GCS_BUCKET",
-            "value": cfg.get("data", {}).get("bucket", "boston-pulse-data-pipeline"),
-        },
+        {"name": "GCS_BUCKET", "value": data_bucket},
+        {"name": "ARTIFACT_BUCKET", "value": staging_bucket},
         {"name": "GCP_PROJECT_ID", "value": project},
         {"name": "GOOGLE_CLOUD_PROJECT", "value": project},
         {"name": "GIT_SHA", "value": git_sha},

@@ -1,42 +1,12 @@
 # Boston Pulse - Cloud Monitoring Configuration
 #
-# This Terraform file defines:
+# Defines:
 #   1. Monitoring dashboard for ML pipeline and backend metrics
 #   2. Alert policies for latency and drift thresholds
 #   3. Notification channels for Slack alerts
 #
-# Usage:
-#   terraform init
-#   terraform plan -var="slack_auth_token=xoxb-..."
-#   terraform apply -var="slack_auth_token=xoxb-..."
-
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 5.0"
-    }
-  }
-}
-
-variable "project_id" {
-  description = "GCP Project ID"
-  type        = string
-  default     = "bostonpulse"
-}
-
-variable "slack_auth_token" {
-  description = "Slack Bot OAuth Token for notifications"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "slack_channel" {
-  description = "Slack channel for ML alerts"
-  type        = string
-  default     = "#ml-alerts"
-}
+# Variables, providers, and the terraform block live in versions.tf,
+# variables.tf, and providers.tf.
 
 # ============================================================================
 # Monitoring Dashboard
@@ -50,8 +20,11 @@ resource "google_monitoring_dashboard" "boston_pulse_ml" {
       columns = 2
       widgets = [
         # Row 1: API Metrics
+        # NOTE: backend custom metrics are emitted as GAUGE/DOUBLE (see
+        # backend/app/core/monitoring.py). ALIGN_PERCENTILE_* needs DISTRIBUTION
+        # and ALIGN_RATE needs CUMULATIVE, so we use ALIGN_MEAN/ALIGN_MAX/ALIGN_SUM.
         {
-          title = "API Request Latency (p50/p95)"
+          title = "API Request Latency (mean / peak)"
           xyChart = {
             dataSets = [
               {
@@ -59,24 +32,26 @@ resource "google_monitoring_dashboard" "boston_pulse_ml" {
                   timeSeriesFilter = {
                     filter = "metric.type=\"custom.googleapis.com/bostonpulse/backend/request_latency_ms\""
                     aggregation = {
-                      alignmentPeriod  = "60s"
-                      perSeriesAligner = "ALIGN_PERCENTILE_50"
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_MEAN"
+                      crossSeriesReducer = "REDUCE_MEAN"
                     }
                   }
                 }
-                legendTemplate = "p50"
+                legendTemplate = "mean"
               },
               {
                 timeSeriesQuery = {
                   timeSeriesFilter = {
                     filter = "metric.type=\"custom.googleapis.com/bostonpulse/backend/request_latency_ms\""
                     aggregation = {
-                      alignmentPeriod  = "60s"
-                      perSeriesAligner = "ALIGN_PERCENTILE_95"
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_MAX"
+                      crossSeriesReducer = "REDUCE_MAX"
                     }
                   }
                 }
-                legendTemplate = "p95"
+                legendTemplate = "peak"
               }
             ]
             yAxis = {
@@ -86,7 +61,7 @@ resource "google_monitoring_dashboard" "boston_pulse_ml" {
           }
         },
         {
-          title = "API Request Rate by Status"
+          title = "API Requests by Status (per minute)"
           xyChart = {
             dataSets = [{
               timeSeriesQuery = {
@@ -94,7 +69,7 @@ resource "google_monitoring_dashboard" "boston_pulse_ml" {
                   filter = "metric.type=\"custom.googleapis.com/bostonpulse/backend/request_count\""
                   aggregation = {
                     alignmentPeriod    = "60s"
-                    perSeriesAligner   = "ALIGN_RATE"
+                    perSeriesAligner   = "ALIGN_SUM"
                     groupByFields      = ["metric.labels.status"]
                     crossSeriesReducer = "REDUCE_SUM"
                   }
@@ -103,7 +78,7 @@ resource "google_monitoring_dashboard" "boston_pulse_ml" {
               legendTemplate = "Status $${metric.labels.status}"
             }]
             yAxis = {
-              label = "Requests/sec"
+              label = "Requests/min"
               scale = "LINEAR"
             }
           }
@@ -111,7 +86,7 @@ resource "google_monitoring_dashboard" "boston_pulse_ml" {
 
         # Row 2: Error Metrics
         {
-          title = "API Error Rate (non-2xx)"
+          title = "API Errors (per minute)"
           xyChart = {
             dataSets = [{
               timeSeriesQuery = {
@@ -119,7 +94,7 @@ resource "google_monitoring_dashboard" "boston_pulse_ml" {
                   filter = "metric.type=\"custom.googleapis.com/bostonpulse/backend/error_count\""
                   aggregation = {
                     alignmentPeriod    = "60s"
-                    perSeriesAligner   = "ALIGN_RATE"
+                    perSeriesAligner   = "ALIGN_SUM"
                     crossSeriesReducer = "REDUCE_SUM"
                   }
                 }
@@ -127,13 +102,13 @@ resource "google_monitoring_dashboard" "boston_pulse_ml" {
               legendTemplate = "Errors"
             }]
             yAxis = {
-              label = "Errors/sec"
+              label = "Errors/min"
               scale = "LINEAR"
             }
           }
         },
         {
-          title = "Score Not Found Rate"
+          title = "Score Not Found (per minute)"
           xyChart = {
             dataSets = [{
               timeSeriesQuery = {
@@ -141,14 +116,14 @@ resource "google_monitoring_dashboard" "boston_pulse_ml" {
                   filter = "metric.type=\"custom.googleapis.com/bostonpulse/backend/score_not_found\""
                   aggregation = {
                     alignmentPeriod    = "60s"
-                    perSeriesAligner   = "ALIGN_RATE"
+                    perSeriesAligner   = "ALIGN_SUM"
                     crossSeriesReducer = "REDUCE_SUM"
                   }
                 }
               }
             }]
             yAxis = {
-              label = "404s/sec"
+              label = "404s/min"
               scale = "LINEAR"
             }
           }
@@ -296,25 +271,87 @@ resource "google_monitoring_dashboard" "boston_pulse_ml" {
 }
 
 # ============================================================================
+# Custom Metric Descriptors
+# ============================================================================
+# Alert policies cannot reference a custom metric that has never been seen
+# by Cloud Monitoring. In a fresh project no code has emitted yet, so we must
+# declare the metric descriptors up-front. All metrics are emitted as
+# DOUBLE/GAUGE (see backend/app/core/monitoring.py and
+# data-pipeline/dags/monitoring/ml_drift_monitoring_dag.py).
+
+resource "google_monitoring_metric_descriptor" "request_latency_ms" {
+  project      = var.project_id
+  type         = "custom.googleapis.com/bostonpulse/backend/request_latency_ms"
+  metric_kind  = "GAUGE"
+  value_type   = "DOUBLE"
+  unit         = "ms"
+  display_name = "Backend request latency (ms)"
+  description  = "Per-request latency for the Flask backend."
+
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_monitoring_metric_descriptor" "error_count" {
+  project      = var.project_id
+  type         = "custom.googleapis.com/bostonpulse/backend/error_count"
+  metric_kind  = "GAUGE"
+  value_type   = "DOUBLE"
+  unit         = "1"
+  display_name = "Backend error count"
+  description  = "Count of non-2xx responses from the backend."
+
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_monitoring_metric_descriptor" "drift_share" {
+  project      = var.project_id
+  type         = "custom.googleapis.com/bostonpulse/ml/drift_share"
+  metric_kind  = "GAUGE"
+  value_type   = "DOUBLE"
+  unit         = "1"
+  display_name = "ML feature drift share"
+  description  = "Fraction of features flagged as drifted by Evidently."
+
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_monitoring_metric_descriptor" "dataset_drift_detected" {
+  project      = var.project_id
+  type         = "custom.googleapis.com/bostonpulse/ml/dataset_drift_detected"
+  metric_kind  = "GAUGE"
+  value_type   = "DOUBLE"
+  unit         = "1"
+  display_name = "Dataset drift detected (0/1)"
+  description  = "1 if Evidently reports dataset-level drift, 0 otherwise."
+
+  depends_on = [google_project_service.apis]
+}
+
+# ============================================================================
 # Alert Policies
 # ============================================================================
 
-# Alert: High API Latency (p95 > 500ms for 5 minutes)
+# Alert: High API Latency (peak > 500ms for 5 minutes)
+# Note: backend emits request_latency_ms as GAUGE/DOUBLE (see
+# backend/app/core/monitoring.py). Cloud Monitoring rejects
+# ALIGN_PERCENTILE_* on GAUGE/DOUBLE because percentiles require DISTRIBUTION
+# value type, so we alert on per-window peak latency instead of p95.
 resource "google_monitoring_alert_policy" "high_latency" {
   project      = var.project_id
-  display_name = "Boston Pulse: API p95 latency > 500ms"
+  display_name = "Boston Pulse: API peak latency > 500ms"
   combiner     = "OR"
 
   conditions {
-    display_name = "p95 latency threshold"
+    display_name = "peak latency threshold"
     condition_threshold {
       filter          = "metric.type=\"custom.googleapis.com/bostonpulse/backend/request_latency_ms\" AND resource.type=\"global\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 500
       aggregations {
-        alignment_period   = "60s"
-        per_series_aligner = "ALIGN_PERCENTILE_95"
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_MAX"
+        cross_series_reducer = "REDUCE_MAX"
       }
     }
   }
@@ -326,27 +363,33 @@ resource "google_monitoring_alert_policy" "high_latency" {
   }
 
   documentation {
-    content   = "API p95 latency exceeded 500ms for 5 minutes. Check Cloud Run logs and Firestore performance."
+    content   = "API peak latency exceeded 500ms for 5 minutes. Check Cloud Run logs and Firestore performance."
     mime_type = "text/markdown"
   }
+
+  depends_on = [google_monitoring_metric_descriptor.request_latency_ms]
 }
 
-# Alert: High Error Rate (> 5% errors for 5 minutes)
+# Alert: High Error Rate (> 5 errors per minute sustained 5 minutes)
+# Note: error_count is emitted as GAUGE/DOUBLE, one point per error event.
+# ALIGN_RATE requires CUMULATIVE kind, so we sum points over a 60s window
+# and alert when sustained above the threshold.
 resource "google_monitoring_alert_policy" "high_error_rate" {
   project      = var.project_id
-  display_name = "Boston Pulse: API error rate > 5%"
+  display_name = "Boston Pulse: API errors > 5/min"
   combiner     = "OR"
 
   conditions {
-    display_name = "error rate threshold"
+    display_name = "error count threshold"
     condition_threshold {
       filter          = "metric.type=\"custom.googleapis.com/bostonpulse/backend/error_count\" AND resource.type=\"global\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
-      threshold_value = 0.05
+      threshold_value = 5
       aggregations {
-        alignment_period   = "60s"
-        per_series_aligner = "ALIGN_RATE"
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_SUM"
+        cross_series_reducer = "REDUCE_SUM"
       }
     }
   }
@@ -358,9 +401,11 @@ resource "google_monitoring_alert_policy" "high_error_rate" {
   }
 
   documentation {
-    content   = "API error rate exceeded 5% for 5 minutes. Check application logs for errors."
+    content   = "Backend error count exceeded 5 per minute for 5 minutes. Check application logs for errors."
     mime_type = "text/markdown"
   }
+
+  depends_on = [google_monitoring_metric_descriptor.error_count]
 }
 
 # Alert: High Drift Detected
@@ -394,12 +439,14 @@ resource "google_monitoring_alert_policy" "high_drift" {
       Feature drift share exceeded 30%. This indicates significant distribution shift between training and serving data.
 
       Actions:
-      1. Review the Evidently drift report at gs://boston-pulse-mlflow-artifacts/monitoring/drift_reports/crime_navigate/latest/report.html
+      1. Review the Evidently drift report at gs://${local.ml_artifacts_bucket_name}/monitoring/drift_reports/crime_navigate/latest/report.html
       2. Consider retraining the model with fresh data
       3. Investigate root cause (data pipeline issues, seasonal patterns, etc.)
     EOT
     mime_type = "text/markdown"
   }
+
+  depends_on = [google_monitoring_metric_descriptor.drift_share]
 }
 
 # Alert: Dataset Drift Detected
@@ -432,6 +479,8 @@ resource "google_monitoring_alert_policy" "dataset_drift" {
     content   = "Evidently detected significant dataset-level drift. Model retraining may be required."
     mime_type = "text/markdown"
   }
+
+  depends_on = [google_monitoring_metric_descriptor.dataset_drift_detected]
 }
 
 # ============================================================================
