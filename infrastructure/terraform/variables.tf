@@ -50,6 +50,60 @@ variable "ml_artifacts_bucket_name" {
   default     = ""
 }
 
+# -------- Airflow VM (data-pipeline) --------
+# When enabled, Terraform creates a GCE VM that clones this repo, builds the
+# prod Airflow image, and runs the data-pipeline stack on boot. Intended for
+# demos so a brand-new project can populate the data bucket without manual
+# SSH work.
+
+variable "enable_airflow_vm" {
+  description = "If true, provision a GCE VM running the prod Airflow stack for the data-pipeline."
+  type        = bool
+  default     = true
+}
+
+variable "vm_name" {
+  description = "Name of the Airflow VM instance."
+  type        = string
+  default     = "airflow-vm"
+}
+
+variable "vm_zone" {
+  description = "Zone for the Airflow VM. Should be inside var.region."
+  type        = string
+  default     = "us-east1-b"
+}
+
+variable "vm_machine_type" {
+  description = "Machine type for the Airflow VM. e2-standard-4 is the minimum we recommend so builds don't OOM."
+  type        = string
+  default     = "e2-standard-4"
+}
+
+variable "vm_disk_gb" {
+  description = "Boot disk size in GB for the Airflow VM."
+  type        = number
+  default     = 50
+}
+
+variable "github_clone_url" {
+  description = "Public HTTPS clone URL the VM fetches the repo from on first boot."
+  type        = string
+  default     = "https://github.com/himabindu-peramala/Boston-pulse.git"
+}
+
+variable "github_branch" {
+  description = "Branch the VM checks out when cloning the repo."
+  type        = string
+  default     = "test-workflow-trigger"
+}
+
+variable "airflow_allowed_cidrs" {
+  description = "Source CIDR ranges allowed to reach the Airflow UI (tcp/8080). Defaults to the public internet for demo simplicity; override in production."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 # -------- Monitoring --------
 
 variable "slack_auth_token" {
